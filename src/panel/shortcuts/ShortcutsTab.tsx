@@ -7,7 +7,7 @@ import {
   type Shortcut,
 } from '../../shared/shortcuts';
 import { errorMessage, type ActiveTab } from '../tab';
-import { useRecording, useShortcuts } from './hooks';
+import { useHotkey, useRecording, useShortcuts } from './hooks';
 
 function hostOf(url: string): string {
   try {
@@ -30,6 +30,7 @@ function pathOf(url: string): string {
 export function ShortcutsTab({ tab }: { tab: ActiveTab }) {
   const site = useShortcuts(tab.host);
   const recording = useRecording();
+  const hotkey = useHotkey();
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
 
@@ -74,6 +75,33 @@ export function ShortcutsTab({ tab }: { tab: ActiveTab }) {
           Naviguez ensuite jusqu’à la page voulue : elle sera accessible en un clic depuis cet
           onglet, chaque fois que vous êtes sur {tab.host}.
         </p>
+        {hotkey !== null && (
+          <p className="text-xs text-zinc-500" data-testid="hotkey-hint">
+            {hotkey ? (
+              <>
+                Astuce :{' '}
+                <kbd className="rounded border border-zinc-300 px-1 font-sans dark:border-zinc-700">
+                  {hotkey}
+                </kbd>{' '}
+                sur n’importe quelle page démarre un raccourci sans ouvrir le panel, puis
+                l’enregistre.
+              </>
+            ) : (
+              <>
+                Aucune touche n’est attribuée au raccourci clavier.{' '}
+                <button
+                  type="button"
+                  onClick={() =>
+                    run(() => chrome.tabs.create({ url: 'chrome://extensions/shortcuts' }))
+                  }
+                  className="text-violet-700 underline-offset-2 hover:underline dark:text-violet-300"
+                >
+                  Configurer
+                </button>
+              </>
+            )}
+          </p>
+        )}
       </div>
 
       {site.shortcuts.length === 0 ? (
