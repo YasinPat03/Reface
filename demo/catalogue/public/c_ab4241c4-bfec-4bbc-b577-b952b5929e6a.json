@@ -1,0 +1,32 @@
+{
+  "format": "reface/catalogue/v1",
+  "id": "c_ab4241c4-bfec-4bbc-b577-b952b5929e6a",
+  "title": "wiki pipi",
+  "description": "eadfaeef",
+  "host": "en.wikipedia.org",
+  "pagePath": "/wiki/Wikipedia",
+  "pageUrl": "https://en.wikipedia.org/wiki/Wikipedia",
+  "createdAt": "2026-11-21T22:33:36.302Z",
+  "rules": [
+    {
+      "id": "r_b44fdc40",
+      "kind": "restyle",
+      "createdAt": "2026-11-21T22:33:11.768Z",
+      "prompt": "wiki pipi",
+      "urlPattern": "https://en.wikipedia.org/wiki/Wikipedia",
+      "pagePath": "/wiki/Wikipedia",
+      "scope": "page",
+      "enabled": true,
+      "ops": [],
+      "targets": {},
+      "css": "img, picture, svg[role=\"img\"], [role=\"img\"] { display: none !important; }\n.mw-logo-icon, .mw-logo-wordmark, .mw-logo-tagline { display: none !important; }",
+      "explanation": "eadfaeef",
+      "intent": null,
+      "health": {
+        "lastOk": "2026-11-21T22:33:11.768Z",
+        "failures": 0,
+        "status": "ok"
+      }
+    }
+  ]
+}

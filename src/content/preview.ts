@@ -194,7 +194,7 @@ export function prepareDraft(recipe: Recipe, prompts: string[]): Draft {
 }
 
 /**
- * Exécute `fn` avec les styles Browser Paint désactivés (rien n'est peint entre-temps :
+ * Exécute `fn` avec les styles ReFace désactivés (rien n'est peint entre-temps :
  * tout est synchrone), pour que la distillation voie la page d'origine.
  */
 export function withoutOurStyles<T>(fn: () => T): T {
@@ -210,7 +210,7 @@ export function withoutOurStyles<T>(fn: () => T): T {
   }
 }
 
-/** Mode « Original » : désactive temporairement tous les styles Browser Paint de l'onglet. */
+/** Mode « Original » : désactive temporairement tous les styles ReFace de l'onglet. */
 let original = false;
 const ORIGINAL_STYLE_IDS = ['bp-styles', 'bp-preview'];
 

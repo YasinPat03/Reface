@@ -1,5 +1,4 @@
-// Phase 3 : Options, chat, liste des règles, Original/Modifié, pause, export/import — via la vraie UI.
-import { readFile } from 'node:fs/promises';
+// Phase 3 : Options, chat, règles, pause et Catalogue privé/public — via la vraie UI.
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { assert, check, done, launch, startServer } from './harness.ts';
 
@@ -28,6 +27,7 @@ async function llm(req: IncomingMessage, res: ServerResponse) {
 
 const { server, origin } = await startServer({
   '/': PAGE,
+  '/another': PAGE,
   '/v1/chat/completions': (res) => void llm(res.req, res),
   '/v1/models': (res) =>
     res
@@ -69,6 +69,24 @@ const tabId = await worker.evaluate(
 );
 await panel.goto(ext(`src/panel/index.html?tabId=${tabId}`));
 const commentsVisible = () => page.isVisible('#comments');
+let publications: Record<string, unknown>[] = [];
+await context.route('http://127.0.0.1:8892/api/catalogue', async (route) => {
+  if (route.request().method() === 'POST') {
+    const incoming = route.request().postDataJSON() as Record<string, unknown>;
+    const entry = { ...incoming, id: 'c_e2e_publication', createdAt: new Date().toISOString() };
+    publications = [entry];
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(entry),
+    });
+  } else
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(publications),
+    });
+});
 
 await check('3.2 chat : exemple → preview → Garder', async () => {
   await panel.getByTestId('host').filter({ hasText: '127.0.0.1' }).waitFor();
@@ -87,7 +105,7 @@ await check('3.3 liste : toggle off/on en direct', async () => {
   await page.waitForSelector('#comments', { state: 'visible', timeout: 2000 });
   await panel.getByRole('switch', { name: 'Activer cette modification' }).click();
   await page.waitForSelector('#comments', { state: 'hidden', timeout: 2000 });
-  await panel.getByText('Modifications (1/1)').waitFor();
+  await panel.getByRole('tab', { name: 'Modifications (1/1)', exact: true }).waitFor();
 });
 
 await check('3.4 Original / Modifié (temporaire, sans toucher au stockage)', async () => {
@@ -109,40 +127,60 @@ await check('3.4 Pause sur ce site', async () => {
   await page.waitForSelector('#comments', { state: 'hidden', timeout: 2000 });
 });
 
-let exported = '';
-await check('3.5 export JSON', async () => {
-  const [download] = await Promise.all([
-    panel.waitForEvent('download'),
-    panel.getByRole('button', { name: 'Exporter ce site' }).click(),
-  ]);
-  exported = (await download.path())!;
-  const data = JSON.parse(await readFile(exported, 'utf8'));
-  assert(
-    data.format === 'browser-paint/v1' && data.sites[0].rules.length === 1,
-    'export inattendu',
-  );
+await check('3.5 Catalogue : enregistrer les modifications de la page dans Privée', async () => {
+  await panel.getByRole('tab', { name: 'Catalogue', exact: true }).click();
+  await panel.getByRole('button', { name: 'Enregistrer cette page' }).click();
+  await panel.getByLabel('Titre', { exact: true }).fill('Page sans commentaires');
+  await panel.getByLabel('Petite description').fill('Une page plus calme pour lire.');
+  await panel.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+  await panel.getByRole('status').filter({ hasText: 'collection privée' }).waitFor();
+  await panel.getByRole('heading', { name: 'Page sans commentaires' }).waitFor();
 });
 
-await check('3.3 supprimer une règle', async () => {
+await check('3.3 supprimer une règle conserve le thème privé', async () => {
+  await panel.getByRole('tab', { name: /Modifications \(/ }).click();
   await panel.getByRole('button', { name: 'Supprimer cette modification' }).click();
   await panel.getByText('Aucune modification enregistrée sur ce site.').waitFor();
   await page.waitForSelector('#comments', { state: 'visible', timeout: 2000 });
 });
 
-await check('3.5 import JSON : la règle revient et s’applique', async () => {
-  await panel.getByTestId('import').setInputFiles(exported);
-  await panel.getByText('1 règle(s) importée(s) sur 1 site(s).').waitFor({ timeout: 3000 });
+await check('3.6 Catalogue : appliquer le thème privé sans ajouter de doublon', async () => {
+  await panel.getByRole('tab', { name: 'Catalogue', exact: true }).click();
+  await panel.getByRole('button', { name: 'Appliquer', exact: true }).click();
+  await page.waitForSelector('#comments', { state: 'hidden', timeout: 2000 });
+  await panel.getByRole('button', { name: 'Appliqué', exact: true }).waitFor();
+  const data = await storage(['rules:127.0.0.1']);
+  assert((data['rules:127.0.0.1'] as { rules: unknown[] }).rules.length === 1, 'règles dupliquées');
+});
+
+await check('3.6 Catalogue : le thème ne déborde pas sur une autre page', async () => {
+  await page.goto(origin + '/another');
+  assert(await commentsVisible(), 'thème appliqué à une autre page');
+  await page.goto(origin);
   await page.waitForSelector('#comments', { state: 'hidden', timeout: 2000 });
 });
 
-await check('3.5 import d’un fichier invalide : message clair', async () => {
-  await panel.getByTestId('import').setInputFiles({
-    name: 'x.json',
-    mimeType: 'application/json',
-    buffer: Buffer.from('{"format":"autre"}'),
-  });
-  await panel.getByRole('alert').filter({ hasText: 'Fichier invalide' }).waitFor({ timeout: 3000 });
-});
+await check(
+  '3.7 Catalogue : publier avec titre et description puis importer depuis Publique',
+  async () => {
+    await panel.getByRole('button', { name: 'Publier', exact: true }).click();
+    await panel.getByLabel('Titre', { exact: true }).fill('Lecture partagée');
+    await panel
+      .getByLabel('Petite description')
+      .fill('Le thème de lecture publié pour la démonstration.');
+    await panel
+      .getByRole('form', { name: 'Publier un thème' })
+      .getByRole('button', { name: 'Publier', exact: true })
+      .click();
+    await panel.getByRole('status').filter({ hasText: 'a été publié' }).waitFor();
+    await panel.getByRole('tab', { name: 'Publique', exact: true }).click();
+    await panel.getByRole('heading', { name: 'Lecture partagée' }).waitFor();
+    await panel.getByRole('button', { name: 'Ajouter à ma collection' }).click();
+    await panel.getByRole('button', { name: 'Dans votre collection' }).waitFor();
+    await panel.getByRole('tab', { name: /Privée/ }).click();
+    await panel.getByRole('heading', { name: 'Lecture partagée' }).waitFor();
+  },
+);
 
 await context.close();
 server.close();

@@ -60,7 +60,7 @@ await check('5.1 site sensible : bannière dans le panel, prompt désactivé', a
   await panel.getByTestId('ai-blocked').waitFor({ timeout: 3000 });
   assert(await panel.getByLabel('Que voulez-vous changer ?').isDisabled(), 'prompt actif');
   assert(
-    await panel.getByRole('button', { name: '🎯 Pointer un élément' }).isEnabled(),
+    await panel.getByRole('button', { name: 'Pointer un élément' }).isEnabled(),
     'picker désactivé',
   );
 });
@@ -137,7 +137,7 @@ await check('5.2 badge « cassée » et bouton « Vérifier » dans le panel', a
   const tabId = await tabIdOf(origin + '/');
   const p = await context.newPage();
   await p.goto(`chrome-extension://${extensionId}/src/panel/index.html?tabId=${tabId}`);
-  await p.getByText(/Modifications \(/).click();
+  await p.getByRole('tab', { name: /Modifications \(/ }).click();
   await p.getByText('cassée').waitFor({ timeout: 3000 });
   assert((await p.getByText('cassée').count()) === 1, 'un seul badge attendu');
   await p.getByRole('button', { name: 'Vérifier' }).click();

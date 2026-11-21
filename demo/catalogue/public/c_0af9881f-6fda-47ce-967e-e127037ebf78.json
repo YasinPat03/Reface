@@ -1,0 +1,32 @@
+{
+  "format": "reface/catalogue/v1",
+  "id": "c_0af9881f-6fda-47ce-967e-e127037ebf78",
+  "title": "Wikipedia no images",
+  "description": "Wiki no images",
+  "host": "en.wikipedia.org",
+  "pagePath": "/wiki/Wikipedia",
+  "pageUrl": "https://en.wikipedia.org/wiki/Wikipedia",
+  "createdAt": "2026-11-21T22:30:14.760Z",
+  "rules": [
+    {
+      "id": "r_954c2804",
+      "kind": "restyle",
+      "createdAt": "2026-11-21T22:29:35.762Z",
+      "prompt": "Wikipedia no images",
+      "urlPattern": "https://en.wikipedia.org/wiki/Wikipedia",
+      "pagePath": "/wiki/Wikipedia",
+      "scope": "page",
+      "enabled": true,
+      "ops": [],
+      "targets": {},
+      "css": "img, svg[role=\"img\"] { display: none !important; }",
+      "explanation": "Wiki no images",
+      "intent": null,
+      "health": {
+        "lastOk": "2026-11-21T22:29:35.762Z",
+        "failures": 0,
+        "status": "ok"
+      }
+    }
+  ]
+}

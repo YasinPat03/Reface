@@ -46,11 +46,14 @@ function describeHttpError(status: number, body: string): LlmError {
       : new LlmError('Limite de requêtes atteinte. Réessayez dans un instant.', true);
   }
   if (status === 400) {
-    const { message, param } = providerError(body);
+    const { param } = providerError(body);
+    const parameter = typeof param === 'string' && /^[\w.[\]-]{1,100}$/.test(param) ? param : '';
     return new LlmError(
-      message
-        ? `Le fournisseur a refusé la requête : ${message}`
-        : 'Le fournisseur a refusé la requête (le modèle supporte-t-il les structured outputs ?).',
+      parameter === 'response_format'
+        ? 'Requête refusée : Invalid schema for response_format. Vérifiez le modèle.'
+        : parameter
+          ? `Requête refusée : le paramètre « ${parameter} » est incompatible avec ce modèle.`
+          : 'Requête refusée (HTTP 400). Vérifiez le modèle et les paramètres de l’API.',
       false,
       param,
     );
@@ -64,6 +67,7 @@ export interface ChatMessage {
 }
 
 async function once(settings: Settings, messages: ChatMessage[]): Promise<unknown> {
+  const isGpt6 = /^(?:openai\/)?gpt-6(?:[.-]|$)/i.test(settings.model);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   let response: Response;
@@ -78,8 +82,12 @@ async function once(settings: Settings, messages: ChatMessage[]): Promise<unknow
       body: JSON.stringify({
         model: settings.model,
         messages,
-        // Les modèles « raisonnement » n'acceptent que la température par défaut.
-        ...(rejected.get(settings.model)?.has('temperature') ? {} : { temperature: 0.2 }),
+        // GPT-6 refuse temperature ; un effort faible convient aux recettes CSS interactives.
+        ...(isGpt6
+          ? { reasoning_effort: 'low' }
+          : rejected.get(settings.model)?.has('temperature')
+            ? {}
+            : { temperature: 0.2 }),
         response_format: {
           type: 'json_schema',
           json_schema: { name: 'recipe', strict: true, schema: recipeJsonSchema },

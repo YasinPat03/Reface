@@ -1,0 +1,217 @@
+{
+  "format": "reface/catalogue/v1",
+  "id": "c_b4a13e38-c7ef-4f5c-8b7f-bf534a40044b",
+  "title": "Youtube Homepage Titles Only",
+  "description": "Youtube homepage with only titles, Channel name, Channel picture",
+  "host": "www.youtube.com",
+  "pagePath": "/",
+  "pageUrl": "https://www.youtube.com/",
+  "createdAt": "2026-11-21T22:23:29.663Z",
+  "rules": [
+    {
+      "id": "r_cb5fa603",
+      "kind": "restyle",
+      "createdAt": "2026-11-21T22:19:33.104Z",
+      "prompt": "Youtube Homepage Titles Only",
+      "urlPattern": "https://www.youtube.com/",
+      "pagePath": "/",
+      "scope": "page",
+      "enabled": true,
+      "ops": [
+        {
+          "op": "hide",
+          "target": "top"
+        },
+        {
+          "op": "hide",
+          "target": "side"
+        },
+        {
+          "op": "hide",
+          "target": "shelf"
+        },
+        {
+          "op": "style",
+          "target": "feed",
+          "css": {
+            "display": "block !important",
+            "margin": "0 auto !important",
+            "max-width": "760px !important",
+            "width": "calc(100% - 32px) !important"
+          }
+        }
+      ],
+      "targets": {
+        "feed": {
+          "selectors": [
+            "ytd-rich-grid-renderer > #contents",
+            "ytd-rich-grid-renderer > div:nth-of-type(5)"
+          ],
+          "minMatches": 1
+        },
+        "shelf": {
+          "selectors": [
+            "ytd-rich-section-renderer",
+            "ytd-rich-section-renderer.style-scope.ytd-rich-grid-renderer",
+            "ytd-rich-grid-renderer ytd-rich-section-renderer"
+          ],
+          "minMatches": 1
+        },
+        "side": {
+          "selectors": [
+            "ytd-mini-guide-renderer[role=\"navigation\"]",
+            "ytd-mini-guide-renderer",
+            "ytd-mini-guide-renderer.style-scope.ytd-app"
+          ],
+          "minMatches": 1
+        },
+        "top": {
+          "selectors": [
+            "#masthead",
+            "ytd-masthead[role=\"banner\"]",
+            "ytd-masthead"
+          ],
+          "minMatches": 1
+        }
+      },
+      "css": "ytd-app:has(ytd-browse[page-subtype=\"home\"]) #masthead-container, ytd-app:has(ytd-browse[page-subtype=\"home\"]) #guide, ytd-browse[page-subtype=\"home\"] ytd-feed-filter-chip-bar-renderer, ytd-browse[page-subtype=\"home\"] ytd-rich-grid-renderer #header, ytd-browse[page-subtype=\"home\"] ytd-rich-section-renderer { display: none !important; }\nytd-app:has(ytd-browse[page-subtype=\"home\"]) #page-manager { margin: 0px !important; width: 100% !important; }\nytd-browse[page-subtype=\"home\"] ytd-rich-grid-renderer { --ytd-rich-grid-items-per-row: 1 !important; --ytd-rich-grid-item-margin: 0px !important; padding-top: 0px !important; }\nytd-rich-grid-renderer > #contents > ytd-rich-grid-row, ytd-rich-grid-row > #contents { display: block !important; width: 100% !important; }\nytd-rich-grid-renderer ytd-rich-item-renderer { border-bottom: 1px solid rgba(128, 128, 128, 0.28) !important; display: block !important; width: 100% !important; max-width: none !important; margin: 0px !important; padding: 10px 0px !important; box-sizing: border-box !important; }\nytd-rich-item-renderer :is(ytd-thumbnail, yt-thumbnail-view-model, a#thumbnail, #avatar-container, yt-avatar-stack-view-model, yt-avatar-view-model, #metadata-line, #menu, yt-lockup-metadata-view-model button, yt-lockup-metadata-view-model badge-shape) { display: none !important; }\nytd-rich-item-renderer yt-content-metadata-view-model .yt-content-metadata-view-model__metadata-row:not(:first-child) { display: none !important; }",
+      "explanation": "Youtube homepage with only titles, Channel name, Channel picture",
+      "intent": null,
+      "health": {
+        "lastOk": "2026-11-21T22:19:33.104Z",
+        "failures": 0,
+        "status": "ok"
+      }
+    },
+    {
+      "id": "r_43ac9a6d",
+      "kind": "restyle",
+      "createdAt": "2026-11-21T22:20:30.898Z",
+      "prompt": "Youtube Homepage Titles Only",
+      "urlPattern": "https://www.youtube.com/",
+      "pagePath": "/",
+      "scope": "page",
+      "enabled": true,
+      "ops": [
+        {
+          "op": "style",
+          "target": "page",
+          "css": {
+            "margin-inline": "0 !important",
+            "max-width": "none !important",
+            "width": "100% !important"
+          }
+        },
+        {
+          "op": "style",
+          "target": "grid",
+          "css": {
+            "max-width": "none !important",
+            "width": "100% !important"
+          }
+        },
+        {
+          "op": "style",
+          "target": "list",
+          "css": {
+            "box-sizing": "border-box",
+            "margin-inline": "0 !important",
+            "max-width": "none !important",
+            "width": "100% !important"
+          }
+        },
+        {
+          "op": "hide",
+          "target": "topbar"
+        },
+        {
+          "op": "style",
+          "target": "app",
+          "css": {
+            "--ytd-masthead-height": "0px !important"
+          }
+        }
+      ],
+      "targets": {
+        "app": {
+          "selectors": [
+            "ytd-app",
+            "body > ytd-app"
+          ],
+          "minMatches": 1
+        },
+        "grid": {
+          "selectors": [
+            "ytd-rich-grid-renderer",
+            "ytd-rich-grid-renderer.style-scope.ytd-two-column-browse-results-renderer"
+          ],
+          "minMatches": 1
+        },
+        "list": {
+          "selectors": [
+            "ytd-rich-grid-renderer > #contents",
+            "ytd-rich-grid-renderer > div:nth-of-type(5)"
+          ],
+          "minMatches": 1
+        },
+        "page": {
+          "selectors": [
+            "#page-manager",
+            "ytd-page-manager",
+            "ytd-page-manager.style-scope.ytd-app"
+          ],
+          "minMatches": 1
+        },
+        "topbar": {
+          "selectors": [
+            "#masthead",
+            "ytd-masthead[role=\"banner\"]",
+            "ytd-masthead"
+          ],
+          "minMatches": 1
+        }
+      },
+      "css": "ytd-rich-grid-renderer > #contents > ytd-rich-item-renderer { box-sizing: border-box !important; width: 100% !important; max-width: none !important; margin-inline: 0px !important; }",
+      "explanation": "Youtube homepage with only titles, Channel name, Channel picture",
+      "intent": null,
+      "health": {
+        "lastOk": "2026-11-21T22:20:30.898Z",
+        "failures": 0,
+        "status": "ok"
+      }
+    },
+    {
+      "id": "r_9a1df76f",
+      "kind": "restyle",
+      "createdAt": "2026-11-21T22:21:37.197Z",
+      "prompt": "Youtube Homepage Titles Only",
+      "urlPattern": "https://www.youtube.com/",
+      "pagePath": "/",
+      "scope": "page",
+      "enabled": true,
+      "ops": [
+        {
+          "op": "hide",
+          "target": "t1"
+        }
+      ],
+      "targets": {
+        "t1": {
+          "selectors": [
+            "#frosted-glass",
+            "div.with-chipbar.style-scope.ytd-app"
+          ],
+          "minMatches": 1
+        }
+      },
+      "css": "",
+      "explanation": "Youtube homepage with only titles, Channel name, Channel picture",
+      "intent": null,
+      "health": {
+        "lastOk": "2026-11-21T22:21:37.197Z",
+        "failures": 0,
+        "status": "ok"
+      }
+    }
+  ]
+}

@@ -58,17 +58,17 @@ const overlayPresent = () => page.evaluate(() => !!document.querySelector('[data
 console.log('Phase 4');
 
 await check('4.1 Échap annule le pointage', async () => {
-  await panel.getByRole('button', { name: '🎯 Pointer un élément' }).click();
+  await panel.getByRole('button', { name: 'Pointer un élément' }).click();
   await page.bringToFront();
   await page.waitForFunction(() => !!document.querySelector('[data-bp-picker]'));
   await page.keyboard.press('Escape');
-  await panel.getByRole('button', { name: '🎯 Pointer un élément' }).waitFor({ timeout: 2000 });
+  await panel.getByRole('button', { name: 'Pointer un élément' }).waitFor({ timeout: 2000 });
   assert(!(await overlayPresent()), 'overlay non retiré');
   assert((await panel.getByTestId('picked').count()) === 0, 'aucun élément ne devait être retenu');
 });
 
 await check('4.1 le clic de sélection ne déclenche pas la page', async () => {
-  await panel.getByRole('button', { name: '🎯 Pointer un élément' }).click();
+  await panel.getByRole('button', { name: 'Pointer un élément' }).click();
   await page.bringToFront();
   await page.waitForFunction(() => !!document.querySelector('[data-bp-picker]'));
   await hover('#buy');
@@ -90,7 +90,7 @@ await check('4.1 le clic de sélection ne déclenche pas la page', async () => {
 });
 
 await check('4.1 ↑ remonte au parent, puis 4.3 « Cacher cet élément » sans LLM', async () => {
-  await panel.getByRole('button', { name: '🎯 Pointer un élément' }).click();
+  await panel.getByRole('button', { name: 'Pointer un élément' }).click();
   await page.bringToFront();
   await page.waitForFunction(() => !!document.querySelector('[data-bp-picker]'));
   await hover('#c1');
@@ -118,11 +118,11 @@ await check('4.1 ↑ remonte au parent, puis 4.3 « Cacher cet élément » sans
 });
 
 await check('4.2 prompt ciblé : région pointée + sous-arbre envoyés au LLM', async () => {
-  await panel.getByRole('button', { name: 'Modifier' }).click();
+  await panel.getByRole('tab', { name: 'Modifier', exact: true }).click();
   // Rétablir les commentaires pour pointer à l'intérieur.
   await worker.evaluate(() => chrome.storage.local.set({ 'paused:127.0.0.1': true }));
   await page.waitForSelector('#comments', { state: 'visible' });
-  await panel.getByRole('button', { name: '🎯 Pointer un élément' }).click();
+  await panel.getByRole('button', { name: 'Pointer un élément' }).click();
   await page.bringToFront();
   await page.waitForFunction(() => !!document.querySelector('[data-bp-picker]'));
   await hover('#title');

@@ -1,0 +1,40 @@
+{
+  "format": "reface/catalogue/v1",
+  "id": "c_demo_youtube-reading",
+  "title": "YouTube, un peu plus calme",
+  "description": "Des textes plus lisibles et une page moins dense.",
+  "host": "www.youtube.com",
+  "pagePath": "/",
+  "pageUrl": "https://www.youtube.com/",
+  "createdAt": "2026-11-21T00:00:00.000Z",
+  "rules": [
+    {
+      "id": "r_demo_youtube-reading",
+      "kind": "restyle",
+      "createdAt": "2026-11-21T00:00:00.000Z",
+      "prompt": "YouTube, un peu plus calme",
+      "urlPattern": "https://www.youtube.com/",
+      "pagePath": "/",
+      "scope": "page",
+      "enabled": true,
+      "ops": [
+        {
+          "op": "theme",
+          "css": {
+            "font-size": "17px",
+            "line-height": "1.65"
+          }
+        }
+      ],
+      "targets": {},
+      "css": "",
+      "explanation": "Des textes plus lisibles et une page moins dense.",
+      "intent": null,
+      "health": {
+        "lastOk": null,
+        "failures": 0,
+        "status": "ok"
+      }
+    }
+  ]
+}

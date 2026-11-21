@@ -1,0 +1,40 @@
+{
+  "format": "reface/catalogue/v1",
+  "id": "c_9456816e-2f1d-43c4-af3f-0be6c1643234",
+  "title": "Lecture personnelle — démo",
+  "description": "Une typographie plus aérée, gardée pour cette page YouTube.",
+  "host": "www.youtube.com",
+  "pagePath": "/",
+  "pageUrl": "https://www.youtube.com/",
+  "createdAt": "2026-11-21T22:09:59.798Z",
+  "rules": [
+    {
+      "id": "r_cat_demo_youtube-reading_0",
+      "kind": "restyle",
+      "createdAt": "2026-11-21T00:00:00.000Z",
+      "prompt": "Lecture personnelle — démo",
+      "urlPattern": "https://www.youtube.com/",
+      "pagePath": "/",
+      "scope": "page",
+      "enabled": true,
+      "ops": [
+        {
+          "op": "theme",
+          "css": {
+            "font-size": "17px",
+            "line-height": "1.65"
+          }
+        }
+      ],
+      "targets": {},
+      "css": "",
+      "explanation": "Une typographie plus aérée, gardée pour cette page YouTube.",
+      "intent": null,
+      "health": {
+        "lastOk": null,
+        "failures": 0,
+        "status": "ok"
+      }
+    }
+  ]
+}

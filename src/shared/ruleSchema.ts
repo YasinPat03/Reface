@@ -23,6 +23,7 @@ export const ruleSchema = z.object({
   title: z.string().max(80).optional(),
   urlPattern: z.string().max(500),
   pagePath: z.string().max(2000).optional(),
+  scope: z.enum(['page', 'site']).optional(),
   section: z
     .string()
     .regex(/^[a-z0-9_-]{1,40}$/)

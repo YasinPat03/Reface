@@ -1,6 +1,13 @@
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { MoonIcon } from '@phosphor-icons/react/dist/csr/Moon';
+import { SunIcon } from '@phosphor-icons/react/dist/csr/Sun';
+import { CheckIcon } from '@phosphor-icons/react/dist/csr/Check';
+import { WarningCircleIcon } from '@phosphor-icons/react/dist/csr/WarningCircle';
 import '../shared/ui.css';
+import { ThemeBackground } from '../shared/ThemeBackground';
+import { Brand } from '../shared/Brand';
+import { useAppearance } from '../shared/appearance';
 import { callBg } from '../shared/messages';
 import { getSettings, setSettings } from '../shared/storage';
 import type { Settings } from '../shared/types';
@@ -22,10 +29,8 @@ type Test =
   | { status: 'ok'; models: string[]; modelFound: boolean }
   | { status: 'error'; message: string };
 
-const input =
-  'w-full rounded-md border border-zinc-300 bg-transparent px-2.5 py-1.5 text-sm outline-none focus:border-violet-500 dark:border-zinc-700';
-
 function Options() {
+  const { appearance, toggleAppearance } = useAppearance();
   const [settings, setLocal] = useState<Settings | null>(null);
   const [saved, setSaved] = useState(false);
   const [test, setTest] = useState<Test>({ status: 'idle' });
@@ -65,124 +70,155 @@ function Options() {
   }
 
   return (
-    <main className="mx-auto flex max-w-xl flex-col gap-6 p-6">
-      <header>
-        <h1 className="text-xl font-semibold">Browser Paint · Options</h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Le modèle d’IA qui génère les modifications. Votre clé reste sur cet appareil
-          (chrome.storage.local) et n’est envoyée qu’au fournisseur choisi.
-        </p>
-      </header>
-
-      <form onSubmit={save} className="flex flex-col gap-4">
-        <div className="flex flex-wrap gap-2">
-          {PROVIDERS.map((p) => (
-            <button
-              key={p.name}
-              type="button"
-              onClick={() => update({ baseUrl: p.baseUrl, model: p.model })}
-              className={`rounded-md border px-3 py-1 text-sm ${
-                settings.baseUrl === p.baseUrl
-                  ? 'border-violet-500 text-violet-700 dark:text-violet-300'
-                  : 'border-zinc-200 dark:border-zinc-800'
-              }`}
-            >
-              {p.name}
-            </button>
-          ))}
-        </div>
-
-        <label className="flex flex-col gap-1 text-sm font-medium">
-          Clé API
-          <div className="flex gap-2">
-            <input
-              className={input}
-              type={showKey ? 'text' : 'password'}
-              autoComplete="off"
-              spellCheck={false}
-              value={settings.apiKey}
-              onChange={(e) => update({ apiKey: e.target.value })}
-              placeholder="sk-…"
-            />
-            <button
-              type="button"
-              onClick={() => setShowKey(!showKey)}
-              className="rounded-md px-2 text-xs text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-            >
-              {showKey ? 'Masquer' : 'Afficher'}
-            </button>
-          </div>
-        </label>
-
-        <label className="flex flex-col gap-1 text-sm font-medium">
-          URL de base (API compatible OpenAI)
-          <input
-            className={input}
-            type="url"
-            required
-            value={settings.baseUrl}
-            onChange={(e) => update({ baseUrl: e.target.value })}
-          />
-        </label>
-
-        <label className="flex flex-col gap-1 text-sm font-medium">
-          Modèle
-          <input
-            className={input}
-            required
-            list="bp-models"
-            value={settings.model}
-            onChange={(e) => update({ model: e.target.value })}
-          />
-          <datalist id="bp-models">
-            {test.status === 'ok' && test.models.map((m) => <option key={m} value={m} />)}
-          </datalist>
-          <span className="text-xs font-normal text-zinc-500">
-            Choisissez un modèle rapide, sans mode « raisonnement », qui supporte les structured
-            outputs (json_schema).
-          </span>
-        </label>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="submit"
-            className="rounded-md bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-700"
-          >
-            Enregistrer
-          </button>
+    <>
+      <ThemeBackground appearance={appearance} />
+      <main className="options-shell">
+        <header className="app-header">
+          <Brand appearance={appearance} />
           <button
             type="button"
-            onClick={runTest}
-            disabled={test.status === 'testing'}
-            className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm disabled:opacity-50 dark:border-zinc-700"
+            className="icon-button"
+            aria-label={appearance === 'light' ? 'Activer le mode sombre' : 'Activer le mode clair'}
+            title={appearance === 'light' ? 'Mode sombre' : 'Mode clair'}
+            onClick={toggleAppearance}
           >
-            {test.status === 'testing' ? 'Test…' : 'Tester la connexion'}
+            {appearance === 'light' ? <MoonIcon size={19} /> : <SunIcon size={19} />}
           </button>
-          {saved && (
-            <span className="text-sm text-emerald-700 dark:text-emerald-400">Enregistré.</span>
-          )}
+        </header>
+        <div className="options-heading">
+          <p className="eyebrow">Configuration</p>
+          <h1>Réglages</h1>
+          <p>
+            Choisissez le fournisseur qui prépare vos modifications. Votre clé reste sur cet
+            appareil et n’est envoyée qu’au fournisseur choisi.
+          </p>
         </div>
-
-        {test.status === 'ok' && (
-          <p role="status" className="text-sm">
-            ✅ Connexion réussie ({test.models.length} modèles).{' '}
-            {test.modelFound ? (
-              <span>Le modèle « {settings.model} » est disponible.</span>
-            ) : (
-              <span className="text-amber-700 dark:text-amber-400">
-                « {settings.model} » n’apparaît pas dans la liste : choisissez-en un dans le champ
-                Modèle.
+        <form onSubmit={save}>
+          <section className="settings-section" aria-label="Fournisseur">
+            <h2>Fournisseur</h2>
+            <div className="provider-options">
+              {PROVIDERS.map((provider) => (
+                <button
+                  key={provider.name}
+                  type="button"
+                  aria-pressed={settings.baseUrl === provider.baseUrl}
+                  onClick={() => update({ baseUrl: provider.baseUrl, model: provider.model })}
+                  className="provider-button"
+                >
+                  {provider.name}
+                </button>
+              ))}
+            </div>
+          </section>
+          <section className="settings-section settings-fields" aria-label="Connexion">
+            <div>
+              <label className="field-label" htmlFor="bp-api-key">
+                Clé API
+              </label>
+              <div className="reveal-group">
+                <input
+                  id="bp-api-key"
+                  className="form-input"
+                  type={showKey ? 'text' : 'password'}
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={settings.apiKey}
+                  onChange={(e) => update({ apiKey: e.target.value })}
+                  placeholder="sk-…"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowKey(!showKey)}
+                  aria-controls="bp-api-key"
+                  aria-pressed={showKey}
+                >
+                  {showKey ? 'Masquer' : 'Afficher'}
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="field-label" htmlFor="bp-base-url">
+                URL de base (API compatible OpenAI)
+              </label>
+              <input
+                id="bp-base-url"
+                className="form-input"
+                type="url"
+                required
+                value={settings.baseUrl}
+                onChange={(e) => update({ baseUrl: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="field-label" htmlFor="bp-model">
+                Modèle
+              </label>
+              <input
+                id="bp-model"
+                className="form-input"
+                required
+                list="bp-models"
+                value={settings.model}
+                onChange={(e) => update({ model: e.target.value })}
+                aria-describedby="bp-model-help"
+              />
+              <datalist id="bp-models">
+                {test.status === 'ok' &&
+                  test.models.map((model) => <option key={model} value={model} />)}
+              </datalist>
+              <span id="bp-model-help" className="field-help">
+                Le modèle doit accepter les réponses JSON structurées. « Tester la connexion » liste
+                les modèles disponibles.
+              </span>
+            </div>
+          </section>
+          <div className="settings-actions">
+            <button type="submit" className="button button-primary">
+              Enregistrer
+            </button>
+            <button
+              type="button"
+              onClick={runTest}
+              disabled={test.status === 'testing'}
+              className="button"
+            >
+              {test.status === 'testing' ? 'Test…' : 'Tester la connexion'}
+            </button>
+            {saved && (
+              <span className="save-notice" role="status">
+                <CheckIcon size={16} aria-hidden="true" />
+                Enregistré.
               </span>
             )}
-          </p>
-        )}
-        {test.status === 'error' && (
-          <p role="alert" className="text-sm text-red-600">
-            {test.message}
-          </p>
-        )}
-      </form>
-    </main>
+          </div>
+          {test.status === 'ok' && (
+            <p
+              role="status"
+              className={`message ${test.modelFound ? 'message-success' : 'message-caution'}`}
+            >
+              <CheckIcon size={18} aria-hidden="true" />
+              <span>
+                Connexion réussie ({test.models.length} modèles).{' '}
+                {test.modelFound ? (
+                  <>Le modèle « {settings.model} » est disponible.</>
+                ) : (
+                  <>
+                    « {settings.model} » n’apparaît pas dans la liste : choisissez-en un dans le
+                    champ Modèle.
+                  </>
+                )}
+              </span>
+            </p>
+          )}
+          {test.status === 'error' && (
+            <p role="alert" className="message message-error">
+              <WarningCircleIcon size={18} aria-hidden="true" />
+              <span>{test.message}</span>
+            </p>
+          )}
+        </form>
+      </main>
+    </>
   );
 }
 

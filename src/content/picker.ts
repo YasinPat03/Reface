@@ -19,8 +19,11 @@ function createOverlay() {
   host.style.cssText = 'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483647';
   const root = host.attachShadow({ mode: 'closed' });
   root.innerHTML = `<style>
-    .box{position:fixed;border:2px solid #7c3aed;background:rgba(124,58,237,.12);border-radius:3px;transition:all .06s;pointer-events:none}
-    .tag{position:fixed;font:12px/1.4 ui-sans-serif,system-ui,sans-serif;background:#7c3aed;color:#fff;padding:2px 6px;border-radius:4px;white-space:nowrap;max-width:60vw;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+    .box{position:fixed;border:1.5px solid #aa4d31;background:rgba(170,77,49,.06);border-radius:1px;transition:left .08s,top .08s,width .08s,height .08s;pointer-events:none}
+    .box::before,.box::after{content:'';position:absolute;width:4px;height:4px;border:1px solid #aa4d31;background:#f3f0e7}
+    .box::before{top:-3px;left:-3px}.box::after{bottom:-3px;right:-3px}
+    .tag{position:fixed;font:12px/1.5 ui-monospace,monospace;background:#282b27;color:#faf8f0;border-left:3px solid #c17a57;padding:4px 8px;border-radius:1px;white-space:nowrap;max-width:min(360px,calc(100vw - 16px));overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+    @media(prefers-reduced-motion:reduce){.box{transition:none}}
   </style><div class="box"></div><div class="tag"></div>`;
   const box = root.querySelector('.box') as HTMLElement;
   const tag = root.querySelector('.tag') as HTMLElement;
@@ -37,8 +40,9 @@ function createOverlay() {
       });
       // textContent : jamais de HTML issu de la page.
       tag.textContent = label(element);
-      const top = r.top > 24 ? r.top - 22 : Math.min(r.bottom + 4, window.innerHeight - 22);
-      Object.assign(tag.style, { left: `${Math.max(r.left, 4)}px`, top: `${top}px` });
+      const top = r.top > 30 ? r.top - 28 : Math.min(r.bottom + 4, window.innerHeight - 28);
+      const left = Math.max(4, Math.min(r.left, window.innerWidth - tag.offsetWidth - 4));
+      Object.assign(tag.style, { left: `${left}px`, top: `${Math.max(top, 4)}px` });
     },
   };
 }

@@ -20,6 +20,7 @@ describe('completeJson : gestion des erreurs (5.3)', () => {
     const [url, init] = fetch.mock.calls[0]!;
     expect(url).toBe('https://api.test/v1/chat/completions');
     expect(JSON.parse(init.body).response_format.json_schema.strict).toBe(true);
+    expect(JSON.parse(init.body).temperature).toBe(0.2);
     expect(init.headers.Authorization).toBe('Bearer sk-test');
   });
 
@@ -28,7 +29,7 @@ describe('completeJson : gestion des erreurs (5.3)', () => {
     [403, '{}', /Clé API refusée/],
     [404, '{}', /introuvable/],
     [429, '{"error":{"code":"insufficient_quota"}}', /Quota/],
-    [400, '{}', /structured outputs/],
+    [400, '{}', /HTTP 400/],
     [
       400,
       '{"error":{"message":"Invalid schema for response_format","param":"response_format"}}',
@@ -38,6 +39,32 @@ describe('completeJson : gestion des erreurs (5.3)', () => {
     const fetch = vi.fn().mockResolvedValue(reply(status, body));
     vi.stubGlobal('fetch', fetch);
     await expect(completeJson(settings, messages)).rejects.toThrow(pattern);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['gpt-6.2-sol', 'gpt-6.2-astra', 'gpt-6-luna', 'openai/gpt-6.2-sol'])(
+    '%s : omet temperature et utilise un effort faible',
+    async (model) => {
+      const fetch = vi.fn().mockResolvedValue(ok({ a: 1 }));
+      vi.stubGlobal('fetch', fetch);
+      await completeJson({ ...settings, model }, messages);
+      const body = JSON.parse(fetch.mock.calls[0]![1].body);
+      expect(body).not.toHaveProperty('temperature');
+      expect(body.reasoning_effort).toBe('low');
+      expect(body.response_format.json_schema.strict).toBe(true);
+    },
+  );
+
+  it('HTTP 400 : indique le paramètre refusé sans exposer le message brut', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValue(
+        reply(400, { error: { param: 'reasoning_effort', message: 'private provider details' } }),
+      );
+    vi.stubGlobal('fetch', fetch);
+    const error = (await completeJson(settings, messages).catch((e: Error) => e)) as Error;
+    expect(error.message).toContain('reasoning_effort');
+    expect(error.message).not.toContain('private provider details');
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
