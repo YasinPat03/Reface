@@ -1,3 +1,5 @@
+import type { SiteContext } from './siteContext';
+
 // Modèles de données partagés. Voir PRD §4.
 
 /** Ops supportées par le MVP. Le backlog ajoutera insertLink, move, resize. */
@@ -41,6 +43,8 @@ export interface Rule {
   urlPattern: string;
   /** Chemin de la page où la règle a été créée : le health check ne vérifie que les pages du même gabarit. */
   pagePath?: string;
+  /** Section (type de page) où la règle s'applique, ex. « watch ». Absente ou null : tout le site. */
+  section?: string | null;
   enabled: boolean;
   ops: Op[];
   targets: Record<string, Target>;
@@ -61,6 +65,8 @@ export interface SiteRules {
 export interface RecipeTarget {
   regionIndex: number;
   selectorHints: string[];
+  /** « all_similar » : la région est un exemplaire d'une liste répétée et la demande vise toute la liste. */
+  scope?: 'one' | 'all_similar';
 }
 
 /** Réponse brute du LLM (validée par Zod en phase 2). */
@@ -93,6 +99,10 @@ export interface DistillResult {
   regionCount: number;
   /** Résumé typographique : balises présentes et styles calculés de base. */
   typography: string;
+  /** Identité du site : nom, catégorie, métadonnées. */
+  site: SiteContext;
+  /** Inventaire des images/vidéos visibles, groupées avec un sélecteur vérifié. */
+  media: string;
   /** Pour chaque sélecteur demandé dans `include`, l'index de région de l'élément (ou -1). */
   included: Record<string, number>;
 }
@@ -112,6 +122,8 @@ export interface Draft {
   /** CSS compilé, actuellement appliqué en preview. */
   previewCss: string;
   warnings: string[];
+  /** Régressions de mise en page détectées après la preview (en anglais, pour le LLM). */
+  layoutIssues?: string[];
 }
 
 /** Élément choisi avec le picker. */

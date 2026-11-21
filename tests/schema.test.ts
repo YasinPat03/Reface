@@ -18,7 +18,11 @@ describe('parseRecipe', () => {
       { op: 'hide', target: 't1' },
       { op: 'theme', css: { background: '#111' } },
     ]);
-    expect(recipe.targets.t1).toEqual({ regionIndex: 4, selectorHints: ['#comments'] });
+    expect(recipe.targets.t1).toEqual({
+      regionIndex: 4,
+      selectorHints: ['#comments'],
+      scope: 'one',
+    });
   });
 
   it('aller-retour toWire → parseRecipe', () => {

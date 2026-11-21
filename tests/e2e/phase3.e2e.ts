@@ -94,7 +94,7 @@ await check('3.4 Original / Modifié (temporaire, sans toucher au stockage)', as
   await panel.getByRole('radio', { name: 'Original' }).click();
   await page.waitForSelector('#comments', { state: 'visible', timeout: 2000 });
   const { 'css:127.0.0.1': css } = await storage(['css:127.0.0.1']);
-  assert(String(css).includes('#comments'), 'le stockage ne doit pas changer');
+  assert(JSON.stringify(css).includes('#comments'), 'le stockage ne doit pas changer');
   await panel.getByRole('radio', { name: 'Modifié' }).click();
   await page.waitForSelector('#comments', { state: 'hidden', timeout: 2000 });
 });

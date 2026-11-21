@@ -21,6 +21,7 @@ const wireTarget = z.object({
   /** Index de région de la distillation, ou -1 si seules les suggestions de sélecteur servent. */
   regionIndex: z.number().int().min(-1).max(10_000),
   selectorHints: z.array(z.string().max(300)).max(5),
+  scope: z.enum(['one', 'all_similar']).default('one'),
 });
 
 export const wireRecipe = z.object({
@@ -64,11 +65,17 @@ export const recipeJsonSchema = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['key', 'regionIndex', 'selectorHints'],
+        required: ['key', 'regionIndex', 'selectorHints', 'scope'],
         properties: {
           key: { type: 'string', description: 'Short key such as t1.' },
           regionIndex: { type: 'integer', description: 'Index [#n] of the region, or -1.' },
           selectorHints: { type: 'array', items: { type: 'string' } },
+          scope: {
+            type: 'string',
+            enum: ['one', 'all_similar'],
+            description:
+              '"all_similar" when the region is one item of a repeated list (outline similar=×N) and the request is about all those items; "one" for this specific element.',
+          },
         },
       },
     },
@@ -106,7 +113,7 @@ export function parseRecipe(raw: unknown): Recipe {
   const targets: Record<string, RecipeTarget> = Object.fromEntries(
     wire.targets.map((t) => [
       t.key,
-      { regionIndex: t.regionIndex, selectorHints: t.selectorHints },
+      { regionIndex: t.regionIndex, selectorHints: t.selectorHints, scope: t.scope },
     ]),
   );
   return { ops, targets, css: wire.css, explanation: wire.explanation };
@@ -120,7 +127,11 @@ export function toWire(recipe: Recipe): WireRecipe {
       target: op.target ?? '',
       declarations: Object.entries(op.css ?? {}).map(([property, value]) => ({ property, value })),
     })),
-    targets: Object.entries(recipe.targets).map(([key, t]) => ({ key, ...t })),
+    targets: Object.entries(recipe.targets).map(([key, t]) => ({
+      key,
+      ...t,
+      scope: t.scope ?? 'one',
+    })),
     css: recipe.css,
     explanation: recipe.explanation,
   };
