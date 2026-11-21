@@ -136,7 +136,7 @@ describe('private and public catalogue', () => {
     const rules = (stored['rules:example.com'] as { rules: Rule[] }).rules;
     expect(rules).toHaveLength(2);
     expect(rules.some((rule) => rule.id === 'r_unrelated')).toBe(true);
-    expect(stored['css:example.com']).not.toContain('r_cat_');
+    expect(JSON.stringify(stored['css:example.com'])).not.toContain('r_cat_');
     expect(stored['page-css:example.com']).toEqual({
       'https://example.com/article': expect.stringContaining('font-size:20px!important'),
     });
@@ -209,8 +209,8 @@ describe('page-specific replay', () => {
       sampleRule({ id: 'r_port', scope: 'page', urlPattern: 'https://example.com:444/article' }),
       sampleRule({ id: 'r_off', scope: 'page', enabled: false }),
     ];
-    expect(compileSite(rules)).toContain('r_global');
-    expect(compileSite(rules)).not.toContain('r_page');
+    expect(JSON.stringify(compileSite(rules))).toContain('r_global');
+    expect(JSON.stringify(compileSite(rules))).not.toContain('r_page');
     expect(Object.keys(compilePages(rules))).toEqual([
       'https://example.com/article',
       'https://example.com:444/article',
@@ -227,6 +227,6 @@ describe('page-specific replay', () => {
       }),
     ];
     expect(compilePages(rules)['https://example.com/article']).not.toContain('@import');
-    expect(compileSite(rules)).toBe('');
+    expect(compileSite(rules)).toEqual({});
   });
 });

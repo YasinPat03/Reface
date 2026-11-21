@@ -1,0 +1,93 @@
+# Handoff : état du projet Browser Paint
+
+Dernière mise à jour : 21 novembre 2026, sur `main` au commit de fusion `a492b56`. Ce document complète [`PRD.md`](PRD.md) (la spec) et [`plan.md`](plan.md) (l'arbre de tâches). En cas de doute, le code et les tests font foi.
+
+## 1. Où on en est
+
+- **Le MVP (phases 0 à 5 du plan) est terminé et sur `main`.**
+  - Un prompt produit une preview, qu'on garde ou qu'on annule.
+  - Le rejeu se fait au `document_start`, sans flash et sans appel à l'IA.
+  - Le panel donne la liste des règles, la bascule Original / Modifié, la pause par site et l'export/import.
+  - Le picker permet de pointer un élément, puis de le cacher sans passer par l'IA.
+  - Sont en place aussi : la liste des sites sensibles, le health check (badge « cassée ») et des messages d'erreur clairs.
+- **Après le MVP, deux correctifs sont fusionnés :**
+  1. `9798133`, compatibilité avec les modèles « raisonnement ». Un paramètre refusé par le modèle, comme `temperature`, est retiré, la requête est relancée, et le refus est mémorisé pour ce modèle. Les erreurs 400 affichent la raison donnée par le fournisseur.
+  2. `0f34acf`, contexte du site. L'IA comprend désormais les références indirectes : « les images » sur YouTube, ce sont les miniatures. Le détail est en section 3.
+  3. Branche `feat/split-changes`, changements séparés. Un long prompt « X, Y et Z » donne 3 changements, chacun avec une case à cocher dans la preview. Garder enregistre une règle par changement coché, et chaque règle s'active, se désactive ou se supprime seule (liste plate, le prompt d'origine reste dans le détail). Chaque changement garde **son** prompt (`attributePrompts` dans `agent.ts`) : « ajuste x » puis « ajuste y » donne les règles « ajuste x » et « ajuste y », pas « x → y ».
+- **Ce qui reste ouvert dans `plan.md` :**
+  - 5.4 : refaire la répétition sur le réseau de la salle.
+  - 5.6 : enregistrer la vidéo de secours.
+  - Le backlog A à H. Deux éléments y sont déjà partiellement faits :
+    - **B (classification de site) :** la table de domaines et la lecture de `og:type`/JSON-LD sont faites. Il manque l'appel LLM de repli et le cache.
+    - **E (navigation SPA) :** l'injecteur suit déjà les changements de section. Il manque la relance du health check et des futures ops DOM.
+- **Le dernier test live** avec `gpt-6-luna` est à **7/8** (`wiki-multi` vert ; `youtube-watch-images` instable, environ 1 essai sur 2, y compris sur `main`). Avant, il était à **7/7** (`node tests/e2e/live.ts`) : YouTube (recherche et page vidéo), 3 scénarios Wikipedia, Hacker News avec itération, GitHub.
+
+## 2. Décisions d'architecture (à respecter)
+
+| Sujet                     | Décision                                                                                                                                                                                                                                                                                                                                                    | Pourquoi                                                                                                                                                    |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stack                     | TypeScript, Vite 8, `@crxjs/vite-plugin` 3, React 19, Tailwind 4, Zod 4, MV3                                                                                                                                                                                                                                                                                | Choix de l'équipe (PRD §1).                                                                                                                                 |
+| TypeScript                | **5.9**, pas la 7                                                                                                                                                                                                                                                                                                                                           | `typescript-eslint` ne supporte pas TS 7.                                                                                                                   |
+| Sortie de l'IA            | **Recette JSON** (ops `hide`/`style`/`theme` + champ `css` libre), validée par Zod, compilée en CSS par l'extension                                                                                                                                                                                                                                         | Ce sont des données, pas du code : conforme MV3 et résistant à l'injection de prompt.                                                                       |
+| Structured outputs        | Le schéma « fil » (`src/shared/schema.ts`) n'a **aucun objet ouvert** : les déclarations sont des paires `{property, value}`, puis converties                                                                                                                                                                                                               | Exigence du mode `strict` des structured outputs.                                                                                                           |
+| Sélecteurs                | Le LLM désigne un `regionIndex`. **C'est l'extension qui construit les sélecteurs** (`src/content/selectors.ts`)                                                                                                                                                                                                                                            | Le LLM invente des sélecteurs fragiles. Les ids et classes générés (`mwDg8`, CSS modules, `prc-…`) et les classes utilitaires (`pr-2`, `mt-4`) sont exclus. |
+| Changements séparés       | La recette est `{changes: [{title, ops, targets, css}], explanation}`. Les clés de cible sont **propres à chaque changement**. `keep` crée une règle par changement coché (`Rule.title` + `Rule.prompt` d'origine partagé). L'ancien format plat reste accepté comme un seul changement. En itération, seuls les changements cochés sont renvoyés au LLM    | L'utilisateur veut pouvoir activer ou désactiver séparément chaque partie d'un long prompt.                                                                 |
+| Listes répétées           | `scope: "all_similar"` sur une cible, puis `groupSelector()` (ex. `ytd-video-renderer ytd-thumbnail`)                                                                                                                                                                                                                                                       | Sinon, seule la 1re carte d'une liste est modifiée.                                                                                                         |
+| Rejeu                     | `src/injector/index.iife.ts` lit `css:<host>` **directement** dans `chrome.storage.local`, sans jamais passer par le service worker                                                                                                                                                                                                                         | Évite le flash de page non modifiée (la leçon de Stylebot). Le bundle doit rester sous 2 KB (actuellement 1,35 KB).                                         |
+| Format IIFE               | **Les deux content scripts sont `*.iife.ts`**                                                                                                                                                                                                                                                                                                               | Le chargeur async de CRXJS retarde le `document_start`, crée une course au chargement et expose des `web_accessible_resources`.                             |
+| Stockage                  | `rules:<host>` (source de vérité), `css:<host>`, `paused:<host>`, `settings`. Les règles et le CSS sont écrits **ensemble** (`saveSiteRules`)                                                                                                                                                                                                               | L'injecteur ne voit jamais un état incohérent.                                                                                                              |
+| Portée des règles         | `css:<host>` est un **objet par section** : `{"*": css commun, "watch": …, "results": …}`. La section est le 1er segment du chemin (`src/shared/section.ts`), `home` pour `/`. Une nouvelle règle vaut pour sa section, et le badge dans la liste bascule vers « tout le site » (`section: null`). L'ancien format (chaîne) reste lu comme « tout le site » | Une règle créée sur `/results` cassait `/watch`. L'injecteur suit les navigations SPA (`popstate`, Navigation API, intervalle de 800 ms).                   |
+| Clé API                   | BYOK, dans `chrome.storage.local` (jamais dans `sync`). API compatible OpenAI (`/chat/completions`)                                                                                                                                                                                                                                                         | Aucun backend (PRD §1).                                                                                                                                     |
+| Contexte envoyé au LLM    | Par ordre : `<untrusted_site_context>` (nom, catégorie, vocabulaire de la catégorie), typographie, `<untrusted_media_inventory>` (groupes d'images : taille actuelle, sélecteur, contraintes de taille), puis `<untrusted_page_outline>` (au plus 150 régions, environ 10 000 caractères, répétitions résumées en `similar=×N`)                             | C'est la correction du problème « l'IA ne sait pas où elle est ». Le tout est délimité comme donnée non fiable.                                             |
+| Garde-fou de mise en page | `src/content/layoutCheck.ts` compare les textes avant et après la preview (écrasés, disparus, recouverts). En cas de régression, **une seule** auto-correction par le LLM, puis un avertissement                                                                                                                                                            | Les agrandissements cassaient les colonnes (titres YouTube réduits à 0 px).                                                                                 |
+| Sécurité CSS              | Regex interdites et allow-list de propriétés (`src/shared/cssSafety.ts`), puis parse CSSOM et `!important` forcé (`normalizeFreeCss`). Le compilateur refiltre à chaque compilation                                                                                                                                                                         | PRD §6. Il ne faut jamais assouplir ces règles.                                                                                                             |
+| Sites sensibles           | `src/shared/sensitive.ts` : aucun DOM n'est envoyé au LLM. Le rejeu et « Cacher cet élément » restent possibles. `127.0.0.1` est autorisé (tests et démo)                                                                                                                                                                                                   | PRD §6.4.                                                                                                                                                   |
+| Messagerie                | Contrat typé `BgApi`/`ContentApi` dans `src/shared/messages.ts`. Les erreurs remontent en texte. Les erreurs Chrome bas niveau sont traduites (« rechargez l'onglet »)                                                                                                                                                                                      | Pour ajouter un message : une entrée dans le contrat, puis un handler.                                                                                      |
+
+## 3. Carte du code
+
+- `src/injector/` contient le rejeu au `document_start` (seul code sur le chemin critique).
+- `src/content/` contient le script B, au `document_idle` :
+  - `distill.ts` : le plan de la page ;
+  - `context.ts` : le contexte du site et l'inventaire des médias ;
+  - `selectors.ts` : sélecteurs, empreintes et sélecteurs de groupe ;
+  - `preview.ts` : résolution des cibles, CSS libre et preview ;
+  - `layoutCheck.ts` : le garde-fou de mise en page ;
+  - `picker.ts`, `health.ts`.
+- `src/background/` contient le service worker :
+  - `agent.ts` : prompt système, `generate` (avec auto-correction), `keep`, `quickHide` ;
+  - `llm.ts` : fetch, timeout de 15 s, retries, paramètres refusés.
+- `src/shared/` est utilisé partout : types, schéma, compilateur, sécurité, stockage, règles, sections, contexte de site, sites sensibles.
+- `src/panel/` (React) contient `App` (contrôles et onglets), `Chat`, `Rules` et `tab.ts`. Le paramètre `?tabId=N` ouvre le panel dans un onglet, pour le debug et l'E2E.
+
+## 4. Commandes et tests
+
+```bash
+npm run build                 # typecheck + build → dist/ (à charger dans chrome://extensions)
+npm run lint && npm test      # ESLint + 86 tests unitaires (Vitest)
+npm run test:e2e              # build + Playwright/Chromium + faux LLM, phases 0 à 6 (6 = changements séparés)
+node tests/e2e/live.ts [filtre]   # VRAI LLM, pilote l'UI réelle, captures dans .live-shots/
+node tests/e2e/demo-sites.ts      # sites de démo réels, sans LLM
+node tests/e2e/distill-real.ts    # taille et durée de la distillation
+```
+
+- **Clé pour les tests live :** dans `.env.local` (modèle : `.env.example`) ou dans `env.local`, qui existe déjà chez l'utilisateur avec `BP_MODEL=gpt-6-luna`. Les deux sont ignorés par git. **Ne jamais lire ni afficher la clé**, seulement vérifier sa présence.
+- **Chromium Playwright :** `npx playwright install chromium`, déjà installé sur cette machine.
+- **ID de l'extension dans le Chrome de l'utilisateur :** `jkocniolhidkkcjikmkcjklohjakhkmn`. C'est l'ID d'une extension non empaquetée, dérivé du chemin de `dist/`. Après un build, l'utilisateur clique **↻** dans `chrome://extensions`, puis recharge la page.
+
+## 5. Problèmes connus et pistes
+
+1. **Latence :** 2 à 5 s pour une modif ciblée, 6 à 13 s sur YouTube, jusqu'à environ 20 s quand l'auto-correction s'enclenche. Pistes : un plan plus court pour les demandes simples, ou la diffusion progressive (streaming) de l'explication.
+2. **Variabilité du modèle :** sur la recherche YouTube, environ 1 essai sur 4 donne une preview correcte mais **pas de rejeu au rechargement**. Le CSS généré, par exemple `width: min(650px, 100%)`, se résout autrement une fois la page rechargée. Pistes : faire la vérification de mise en page et de taille aussi après le rejeu, ou demander au LLM des tailles en px sans `min()`.
+3. **Cartes « Mix » et playlists YouTube** (`yt-lockup-view-model`) : `groupSelector` échoue parfois, avec l'avertissement « impossible de viser tous les éléments similaires ».
+4. **Sections :** pour GitHub, le 1er segment est le propriétaire (`microsoft`), donc une règle de dépôt ne vaut que pour ce propriétaire. L'utilisateur peut basculer vers « tout le site ».
+5. **Health check :** il tourne au chargement seulement, pas lors des navigations SPA (backlog E).
+6. **Contrôle du navigateur :** le computer-use n'a pas les permissions macOS, et Claude in Chrome refuse les URLs `chrome-extension://`. Pour tester, il faut passer par Playwright (`live.ts`). L'utilisateur a dit d'oublier le contrôle de son navigateur.
+
+## 6. Conventions de travail (demandées par l'utilisateur)
+
+- **Langue :** l'utilisateur écrit en français. Les docs, les commits et les réponses sont en français. Le prompt système du LLM est en anglais.
+- **Commits :** à la fin de chaque phase ou correctif, faire un commit clair avec la ligne `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`, puis pusher. **Vérifier la branche courante avant de commiter.** L'utilisateur travaille parfois sur des branches, par exemple `fix/…`. Les fusions vers `main` se font uniquement à sa demande.
+- **Ne jamais commiter** `Untitled` : c'est un fichier vide de l'utilisateur à la racine, qu'il faut laisser tel quel. Ne pas commiter non plus `env.local`, `.env.local` ni `.live-shots/`.
+- **Quand quelque chose ne marche pas :** l'expliquer brièvement, puis itérer jusqu'à ce que les tests, live compris, soient verts.
+- **Tenir `plan.md` à jour :** cocher les cases au fur et à mesure.

@@ -1,3 +1,4 @@
+import { sectionOf } from './section';
 import { sameTheme } from './catalogueIdentity';
 export { sameTheme } from './catalogueIdentity';
 import { compileRule } from './compile';
@@ -48,7 +49,11 @@ export function capturePage(
   if (url.hostname !== site.host || !['http:', 'https:'].includes(url.protocol))
     throw new Error('La page a changé de site.');
   const rules = site.rules.filter(
-    (rule) => rule.enabled && (rule.scope !== 'page' || rule.pagePath === url.pathname),
+    (rule) =>
+      rule.enabled &&
+      (rule.scope === 'page'
+        ? rule.pagePath === url.pathname
+        : !rule.section || rule.section === sectionOf(url.pathname)),
   );
   if (!rules.length)
     throw new Error('Gardez une modification sur cette page avant de créer un thème.');
@@ -130,6 +135,7 @@ export async function applyCatalogueEntry(raw: unknown, pageUrl: string): Promis
       ...entry.rules[0]!,
       id: catalogueRuleId(entry, 0),
       prompt: entry.title,
+      title: entry.title,
       explanation: entry.description,
       ops: [],
       targets: {},

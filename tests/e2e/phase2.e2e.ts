@@ -124,7 +124,9 @@ const color = (selector: string) =>
   page.evaluate((s) => getComputedStyle(document.querySelector(s)!).color, selector);
 
 console.log('Phase 2');
-let draft: Record<string, unknown> & { targets: Record<string, { selectors: string[] }> };
+let draft: Record<string, unknown> & {
+  changes: { targets: Record<string, { selectors: string[] }> }[];
+};
 
 await check(
   '2.1/2.4 la requête LLM est distillée, délimitée, sans données de formulaire',
@@ -157,7 +159,7 @@ await check(
 );
 
 await check('2.5 regionIndex → sélecteurs robustes + empreinte', async () => {
-  const t1 = draft.targets.t1!;
+  const t1 = draft.changes[0]!.targets.t1!;
   assert(t1.selectors[0] === '#comments', `sélecteurs : ${JSON.stringify(t1.selectors)}`);
   assert(
     (t1 as unknown as { fingerprint: { tag: string } }).fingerprint.tag === 'aside',
@@ -208,7 +210,7 @@ await check(
       site.rules[0]!.prompt,
     );
     assert(site.rules[0]!.targets.t1.fingerprint, 'empreinte non enregistrée');
-    assert(String(stored['css:127.0.0.1']).includes('#comments'), 'CSS précompilé absent');
+    assert(JSON.stringify(stored['css:127.0.0.1']).includes('#comments'), 'CSS précompilé absent');
     assert(
       await page.evaluate(() => !document.getElementById('bp-preview')),
       'preview non retirée',

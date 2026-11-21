@@ -11,6 +11,9 @@ function isStableToken(token: string): boolean {
   // Hash après un double séparateur : « Root--KH-d », « box__a1B2 ».
   if (/(?:--|__)[A-Za-z0-9-]*[A-Z]/.test(token)) return false;
   if (/\d{3,}/.test(token)) return false;
+  // Classes utilitaires (Tailwind, Bootstrap, Primer) : pr-2, mt-4, col-6, d-flex… partagées par
+  // des centaines d'éléments, elles ne désignent rien de précis.
+  if (/^-?[a-z]{1,4}-(?:\d{1,2}|auto|flex|none|block|inline|grid)$/.test(token)) return false;
   if (/[A-Za-z0-9]*[A-Z][A-Za-z0-9]*\d|[a-z]\d[a-z]\d/.test(token) && token.length >= 6)
     return false;
   if (/(?:^|[_-])[a-zA-Z0-9]{5,}$/.test(token) && /[0-9]/.test(token)) return false;
@@ -123,4 +126,71 @@ export function fingerprint(element: Element): Fingerprint {
     textSample: textSample(element, 40),
     childCount: element.childElementCount,
   };
+}
+
+/** Signature « parlante » pour un sélecteur de groupe : balise custom, ou balise + 1re classe stable. */
+function groupSignature(element: Element): string | null {
+  const tag = element.tagName.toLowerCase();
+  if (tag.includes('-')) return tag;
+  const classes = stableClasses(element).slice(0, 2);
+  return classes.length ? `${tag}.${classes.join('.')}` : null;
+}
+
+function sameSignatureSiblings(element: Element): number {
+  const parent = element.parentElement;
+  if (!parent || element.id) return 1;
+  const signature = `${element.tagName}.${stableClasses(element).sort().join('.')}`;
+  return [...parent.children].filter(
+    (c) => !c.id && `${c.tagName}.${stableClasses(c).sort().join('.')}` === signature,
+  ).length;
+}
+
+/**
+ * Sélecteur qui vise l'élément ET ses équivalents dans les autres exemplaires d'une liste
+ * répétée (cartes vidéo, produits…) : « ytd-video-renderer ytd-thumbnail ».
+ * Retourne null si l'élément n'est pas dans une liste répétée.
+ */
+export function groupSelector(element: Element): string | null {
+  let item: Element | null = null;
+  for (
+    let e: Element | null = element, hops = 0;
+    e && e !== document.body && hops < 8;
+    e = e.parentElement, hops++
+  ) {
+    if (sameSignatureSiblings(e) >= 3 && groupSignature(e)) {
+      item = e;
+      break;
+    }
+  }
+  if (!item) return null;
+  const inner: string[] = [];
+  for (let e: Element | null = element; e && e !== item; e = e.parentElement) {
+    const signature = groupSignature(e);
+    if (signature) inner.unshift(signature);
+    if (inner.length >= 2) break;
+  }
+  if (element !== item && !inner.length) inner.push(element.tagName.toLowerCase());
+  // Conteneur de la liste (ancêtre parlant le plus proche) : limite la portée à CETTE liste.
+  let container: string | null = null;
+  for (
+    let e = item.parentElement, hops = 0;
+    e && e !== document.body && hops < 4;
+    e = e.parentElement, hops++
+  ) {
+    container = groupSignature(e);
+    if (container) break;
+  }
+  const candidates = [
+    [groupSignature(item)!, ...inner].join(' '),
+    container ? [container, groupSignature(item)!, ...inner].join(' ') : null,
+  ].filter((c): c is string => !!c && isSafeSelector(c));
+  for (const selector of candidates.reverse()) {
+    try {
+      const matches = [...document.querySelectorAll(selector)];
+      if (matches.includes(element) && matches.length >= 2) return selector;
+    } catch {
+      /* sélecteur invalide */
+    }
+  }
+  return null;
 }

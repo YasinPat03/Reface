@@ -5,7 +5,12 @@ import { beforeAll, describe, expect, it } from 'vitest';
 
 let source: string;
 beforeAll(async () => {
-  const raw = await readFile(new URL('../src/injector/index.iife.ts', import.meta.url), 'utf8');
+  const injector = await readFile(
+    new URL('../src/injector/index.iife.ts', import.meta.url),
+    'utf8',
+  );
+  const section = await readFile(new URL('../src/shared/section.ts', import.meta.url), 'utf8');
+  const raw = section.replace(/export /g, '') + injector.replace(/^import .*;\r?\n/m, '');
   source = ts.transpileModule(raw, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
   }).outputText;
@@ -20,6 +25,8 @@ async function fixture(data: Record<string, unknown>, pathname = '/article') {
     undefined;
   runInNewContext(source, {
     location,
+    addEventListener: () => undefined,
+    window: {},
     chrome: {
       storage: {
         local: { get: async () => data },

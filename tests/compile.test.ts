@@ -81,8 +81,22 @@ describe('compileSite', () => {
       rule({ id: 'r_on', css: 'h1{color:red!important}' }),
       rule({ id: 'r_off', enabled: false, css: 'h2{color:red!important}' }),
     ]);
-    expect(css).toContain('h1{');
-    expect(css).not.toContain('h2{');
+    expect(css['*']).toContain('h1{');
+    expect(JSON.stringify(css)).not.toContain('h2{');
+  });
+
+  it('range chaque règle dans sa section (tout le site si absente)', () => {
+    const css = compileSite([
+      rule({ id: 'r_site', css: 'h1{color:red!important}' }),
+      rule({ id: 'r_watch', section: 'watch', css: 'h2{color:blue!important}' }),
+    ]);
+    expect(Object.keys(css).sort()).toEqual(['*', 'watch']);
+    expect(css.watch).toContain('h2{');
+    expect(css['*']).not.toContain('h2{');
+  });
+
+  it('aucune règle active : objet vide', () => {
+    expect(compileSite([rule({ enabled: false, css: 'h1{color:red}' })])).toEqual({});
   });
 });
 

@@ -1,6 +1,6 @@
 // Contrat de messagerie typé : panel ↔ service worker ↔ content script.
 // Pour ajouter un message : une entrée dans BgApi ou ContentApi, puis un handler.
-import type { DistillResult, Draft, PickResult, Recipe, Settings } from './types';
+import type { DistillResult, Draft, DraftChange, PickResult, Recipe, Settings } from './types';
 
 interface Def<Req, Res> {
   req: Req;
@@ -15,8 +15,8 @@ export interface BgApi {
     { tabId: number; prompt: string; previous: Draft | null; pick: string | null },
     Draft
   >;
-  /** Enregistre le brouillon comme règle du site. */
-  keep: Def<{ tabId: number; draft: Draft }, { ruleId: string }>;
+  /** Enregistre chaque changement coché du brouillon comme une règle distincte du site. */
+  keep: Def<{ tabId: number; draft: Draft }, { ruleIds: string[] }>;
   /** Retire la preview. */
   discard: Def<{ tabId: number }, null>;
   /** Vérifie la clé et liste les modèles disponibles. */
@@ -31,6 +31,8 @@ export interface ContentApi {
   /** `focus` : élément pointé, inclus avec ses ancêtres ET son sous-arbre. */
   distill: Def<{ include: string[]; focus: string | null }, DistillResult>;
   preparePreview: Def<{ recipe: Recipe; prompts: string[] }, Draft>;
+  /** Cases cochées/décochées dans la preview : ne prévisualise que les changements `enabled`. */
+  updatePreview: Def<{ changes: DraftChange[] }, { previewCss: string }>;
   clearPreview: Def<Record<string, never>, null>;
   /** Bascule temporaire Original / Modifié (sans toucher au stockage). `set` absent = lecture. */
   original: Def<{ set?: boolean }, { original: boolean }>;

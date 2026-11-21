@@ -3,7 +3,15 @@ import { listen, type ContentApi } from '../shared/messages';
 import { distill } from './distill';
 import { checkHealth, scheduleHealthCheck } from './health';
 import { cancelPick, pick } from './picker';
-import { clearPreview, isOriginal, prepareDraft, setOriginal, withoutOurStyles } from './preview';
+import {
+  clearPreview,
+  compileChanges,
+  isOriginal,
+  prepareDraft,
+  setOriginal,
+  setPreview,
+  withoutOurStyles,
+} from './preview';
 
 listen<ContentApi>({
   async ping() {
@@ -14,6 +22,11 @@ listen<ContentApi>({
   },
   async preparePreview({ recipe, prompts }) {
     return prepareDraft(recipe, prompts);
+  },
+  async updatePreview({ changes }) {
+    const previewCss = compileChanges(changes);
+    setPreview(previewCss);
+    return { previewCss };
   },
   async clearPreview() {
     clearPreview();

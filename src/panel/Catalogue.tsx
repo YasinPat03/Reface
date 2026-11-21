@@ -1,3 +1,4 @@
+import { sectionOf } from '../shared/section';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Tabs } from '@base-ui/react/tabs';
 import {
@@ -38,7 +39,11 @@ export function Catalogue({
   const [message, setMessage] = useState<{ error: boolean; text: string } | null>(null);
   const pagePath = new URL(tab.url).pathname;
   const canSave = site.rules.some(
-    (rule) => rule.enabled && (rule.scope !== 'page' || rule.pagePath === pagePath),
+    (rule) =>
+      rule.enabled &&
+      (rule.scope === 'page'
+        ? rule.pagePath === pagePath
+        : !rule.section || rule.section === sectionOf(pagePath)),
   );
 
   useEffect(() => {

@@ -9,8 +9,13 @@ export async function persist(site: SiteRules): Promise<SiteRules> {
 }
 
 export async function addRule(host: string, rule: Rule): Promise<SiteRules> {
+  return addRules(host, [rule]);
+}
+
+/** Ajoute plusieurs règles en une seule écriture (l'injecteur ne voit jamais un état partiel). */
+export async function addRules(host: string, rules: Rule[]): Promise<SiteRules> {
   const site = await getSiteRules(host);
-  return persist({ ...site, rules: [...site.rules, rule] });
+  return persist({ ...site, rules: [...site.rules, ...rules] });
 }
 
 export async function updateRule(

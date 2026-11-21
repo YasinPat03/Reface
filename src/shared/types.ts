@@ -1,3 +1,5 @@
+import type { SiteContext } from './siteContext';
+
 // Modèles de données partagés. Voir PRD §4.
 
 /** Ops supportées par le MVP. Le backlog ajoutera insertLink, move, resize. */
@@ -37,12 +39,17 @@ export interface Rule {
   id: string;
   kind: 'restyle';
   createdAt: string;
+  /** Prompt d'origine (itérations jointes par « → »), partagé par les changements d'un même prompt. */
   prompt: string;
+  /** Libellé court de CE changement (un long prompt en produit plusieurs). Absent : afficher `prompt`. */
+  title?: string;
   urlPattern: string;
   /** Chemin de la page où la règle a été créée : le health check ne vérifie que les pages du même gabarit. */
   pagePath?: string;
   /** Catalogue themes apply only to their saved page. Legacy rules remain site-wide. */
   scope?: 'page' | 'site';
+  /** Section (type de page) où la règle s'applique, ex. « watch ». Absente ou null : tout le site. */
+  section?: string | null;
   enabled: boolean;
   ops: Op[];
   targets: Record<string, Target>;
@@ -63,13 +70,22 @@ export interface SiteRules {
 export interface RecipeTarget {
   regionIndex: number;
   selectorHints: string[];
+  /** « all_similar » : la région est un exemplaire d'une liste répétée et la demande vise toute la liste. */
+  scope?: 'one' | 'all_similar';
+}
+
+/** Un changement distinct demandé par l'utilisateur (un prompt « X, Y et Z » en donne trois). */
+export interface RecipeChange {
+  title: string;
+  ops: Op[];
+  /** Clés propres à ce changement. */
+  targets: Record<string, RecipeTarget>;
+  css: string;
 }
 
 /** Réponse brute du LLM (validée par Zod en phase 2). */
 export interface Recipe {
-  ops: Op[];
-  targets: Record<string, RecipeTarget>;
-  css: string;
+  changes: RecipeChange[];
   explanation: string;
 }
 
@@ -95,6 +111,10 @@ export interface DistillResult {
   regionCount: number;
   /** Résumé typographique : balises présentes et styles calculés de base. */
   typography: string;
+  /** Identité du site : nom, catégorie, métadonnées. */
+  site: SiteContext;
+  /** Inventaire des images/vidéos visibles, groupées avec un sélecteur vérifié. */
+  media: string;
   /** Pour chaque sélecteur demandé dans `include`, l'index de région de l'élément (ou -1). */
   included: Record<string, number>;
 }
@@ -106,14 +126,26 @@ export interface Draft {
   prompts: string[];
   /** Recette telle que renvoyée par le LLM (indices de région). */
   recipe: Recipe;
-  /** Règle résolue par l'extension : sélecteurs robustes, CSS normalisé. */
+  /** Changements résolus par l'extension : chacun deviendra une règle distincte au Keep. */
+  changes: DraftChange[];
+  explanation: string;
+  /** CSS compilé des changements cochés, actuellement appliqué en preview. */
+  previewCss: string;
+  warnings: string[];
+  /** Régressions de mise en page détectées après la preview (en anglais, pour le LLM). */
+  layoutIssues?: string[];
+}
+
+/** Changement résolu : sélecteurs robustes, CSS normalisé. */
+export interface DraftChange {
+  title: string;
   ops: Op[];
   targets: Record<string, Target>;
   css: string;
-  explanation: string;
-  /** CSS compilé, actuellement appliqué en preview. */
-  previewCss: string;
-  warnings: string[];
+  /** Coché dans la preview : seuls les changements cochés sont prévisualisés et enregistrés. */
+  enabled: boolean;
+  /** Prompt(s) qui ont produit CE changement (pas ceux des autres changements du brouillon). */
+  prompt?: string;
 }
 
 /** Élément choisi avec le picker. */

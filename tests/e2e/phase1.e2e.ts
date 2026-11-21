@@ -120,6 +120,36 @@ await check('1.3 une règle « hide » compilée est rejouée au reload', async 
   assert(!(await page.isVisible('#t')), 'le titre devrait être caché');
 });
 
+await check('1.5 règles par section : suivies lors d’une navigation SPA (pushState)', async () => {
+  // Règle limitée à la section « home » (page /), et une autre à tout le site.
+  await setStorage({
+    [`css:${host}`]: { home: `#t{color:${RED}!important}`, '*': 'body{margin:3px!important}' },
+  });
+  await page.goto(origin);
+  await page.waitForFunction(
+    (c) => getComputedStyle(document.getElementById('t')!).color === c,
+    RED,
+  );
+  await page.evaluate(() => history.pushState({}, '', '/watch?v=1'));
+  await page.waitForFunction(
+    () => getComputedStyle(document.getElementById('t')!).color === 'rgb(0, 128, 0)',
+    null,
+    { timeout: 3000 },
+  );
+  assert(
+    (await page.evaluate(() => getComputedStyle(document.body).margin)) === '3px',
+    'la règle « tout le site » doit rester',
+  );
+  await page.evaluate(() => history.back());
+  await page.waitForFunction(
+    (c) => getComputedStyle(document.getElementById('t')!).color === c,
+    RED,
+    {
+      timeout: 3000,
+    },
+  );
+});
+
 await context.close();
 server.close();
 done();

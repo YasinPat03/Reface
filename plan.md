@@ -79,7 +79,8 @@
 - [x] **5.3 Gestion des erreurs** : clé invalide, quota, timeout et JSON invalide donnent chacun un message clair
 - [ ] **5.4 Choix de 2 ou 3 sites de démo** et test des prompts répétés
   - [x] Sites choisis et vérifiés sans LLM (Wikipedia, Hacker News, GitHub) : `node tests/e2e/demo-sites.ts`
-  - [ ] Répéter les prompts avec la vraie clé API, sur le réseau de la salle (voir `DEMO.md`)
+  - [x] Prompts répétés avec un vrai modèle (gpt-6-luna, 1,8 à 8,4 s par modif) : `node tests/e2e/live.ts`
+  - [ ] Refaire la répétition sur le réseau de la salle (voir `DEMO.md`)
 - [x] **5.5 Script de démo** : prompt → preview → Keep → panel fermé → reload, la modif revient, puis Original/Modifié
 - [ ] **5.6 Vidéo de secours** de la démo (à enregistrer après la répétition avec la vraie clé)
 
@@ -91,18 +92,23 @@
 
 On choisit au fur et à mesure. Chacune s'appuie sur le MVP sans le casser.
 
+- [x] **Changements séparés** : un prompt « X, Y et Z » donne 3 changements (recette `changes[]`), cochables un par un en preview, et enregistrés comme 3 règles activables séparément (`tests/e2e/phase6.e2e.ts`, scénario live `wiki-multi`)
 - [ ] **A. Raccourcis vers pages enfouies** (F7/F8)
   - [ ] Op `insertLink` + allow-list de liens (https, même domaine enregistrable, `textContent` seulement)
   - [ ] Inventaire des liens dans la distillation, pour pouvoir promouvoir un lien caché
   - [ ] Record mode via `webNavigation`, avec les boutons « Démarrer » et « C'est cette page »
   - [ ] Style `match_siblings`, et un MutationObserver qui réinsère le bouton (au plus quelques fois)
 - [ ] **B. Classification de site** (F4) : table de domaines → `og:type`/JSON-LD → petit appel LLM, avec un cache de 30 jours
+  - [x] Table de domaines + `og:type`/JSON-LD + vocabulaire par catégorie envoyé au LLM (`src/shared/siteContext.ts`)
+  - [ ] Appel LLM de repli et cache de 30 jours
 - [ ] **C. Préférences par catégorie** (F5/F6)
   - [ ] Vocabulaire d'intents fixe et champ `intent` dans la recette
   - [ ] Fusion ADD/UPDATE/NOOP et calcul de la confiance
   - [ ] Carte de suggestion à la première visite, avec Preview/Apply/Pas ici/Jamais
 - [ ] **D. Self-heal** (F11) : re-match local par fingerprint, et réparation par le LLM seulement en dernier recours
 - [ ] **E. Navigation SPA** : `onHistoryStateUpdated` relance les ops DOM et le health check
+  - [x] L'injecteur suit les changements de section (règles limitées au type de page)
+  - [ ] Relancer le health check (et les futures ops DOM) à chaque navigation
 - [ ] **F. Ops DOM `move`/`resize`** (ce que le CSS ne sait pas faire)
 - [ ] **G. Gemini Nano** pour la classification sur l'appareil
 - [ ] **H. Crawl agent / macro click-path** (F9/F10)

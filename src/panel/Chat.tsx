@@ -98,6 +98,12 @@ export function Chat({
         previous: draft,
         pick: picked?.selector ?? null,
       });
+      // Panel neuf + service worker resté à l'ancienne version (dist/ recompilé sans ↻).
+      if (!Array.isArray(next?.changes)) {
+        throw new Error(
+          'ReFace a été mis à jour : rechargez l’extension (↻ dans chrome://extensions), puis l’onglet.',
+        );
+      }
       draftTab.current = tab.id;
       setDraft(next);
       setPrompt('');
@@ -116,12 +122,30 @@ export function Chat({
       await callBg('keep', { tabId: draftTab.current, draft });
       setDraft(null);
       setPicked(null);
-      setNotice('Modification enregistrée. Elle reviendra à chaque visite.');
+      const kept = draft.changes.filter((c) => c.enabled).length;
+      setNotice(
+        kept > 1
+          ? `${kept} modifications enregistrées. Elles reviendront à chaque visite.`
+          : 'Modification enregistrée. Elle reviendra à chaque visite.',
+      );
       onSaved?.();
     } catch (e) {
       setError(errorMessage(e));
     } finally {
       setStatus('idle');
+    }
+  }
+
+  /** Coche/décoche un changement : la preview est mise à jour en direct dans la page. */
+  async function toggleChange(index: number, enabled: boolean) {
+    if (!draft || draftTab.current === null) return;
+    const changes = draft.changes.map((c, i) => (i === index ? { ...c, enabled } : c));
+    setDraft({ ...draft, changes });
+    try {
+      const { previewCss } = await callContent(draftTab.current, 'updatePreview', { changes });
+      setDraft((current) => (current ? { ...current, changes, previewCss } : current));
+    } catch (e) {
+      setError(errorMessage(e));
     }
   }
 
@@ -186,6 +210,23 @@ export function Chat({
               <span className="draft-unsaved">Non enregistré</span>
             </div>
             <p className="draft-explanation">{draft.explanation || 'Modification prête.'}</p>
+            {draft.changes.length > 1 && (
+              <ul data-testid="draft-changes" className="draft-changes">
+                {draft.changes.map((change, i) => (
+                  <li key={`${i}-${change.title}`}>
+                    <input
+                      type="checkbox"
+                      className="draft-change-toggle"
+                      checked={change.enabled}
+                      disabled={busy}
+                      aria-label={change.title}
+                      onChange={(event) => void toggleChange(i, event.target.checked)}
+                    />
+                    <span className={change.enabled ? '' : 'is-disabled'}>{change.title}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
             {draft.warnings.map((w) => (
               <p key={w} className="draft-warning">
                 <WarningCircleIcon size={16} aria-hidden="true" />
@@ -204,7 +245,11 @@ export function Chat({
               <button
                 type="button"
                 onClick={keepDraft}
-                disabled={busy || !draft.previewCss.trim()}
+                disabled={
+                  busy ||
+                  !draft.previewCss.trim() ||
+                  !draft.changes.some((change) => change.enabled)
+                }
                 className="button button-primary"
               >
                 <CheckIcon size={16} aria-hidden="true" />

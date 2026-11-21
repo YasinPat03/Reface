@@ -1,3 +1,4 @@
+import { sectionOf } from '../shared/section';
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { TrashSimpleIcon } from '@phosphor-icons/react/dist/csr/TrashSimple';
@@ -48,7 +49,7 @@ export function Rules({ site, onCatalogue }: { site: SiteRules; onCatalogue: () 
                   aria-expanded={open === rule.id}
                   className={`rule-title ${rule.enabled ? '' : 'is-disabled'}`}
                 >
-                  {rule.prompt}
+                  {rule.title ?? rule.prompt}
                   {rule.health.status === 'suspect' && (
                     <span
                       className="health-label"
@@ -58,6 +59,30 @@ export function Rules({ site, onCatalogue }: { site: SiteRules; onCatalogue: () 
                       cassée
                     </span>
                   )}
+                </button>
+                <button
+                  type="button"
+                  className="rule-scope"
+                  data-testid="rule-scope"
+                  disabled={rule.scope === 'page'}
+                  title={
+                    rule.scope === 'page'
+                      ? 'Thème du Catalogue : cette page uniquement.'
+                      : 'Changer la portée : ce type de page ou tout le site.'
+                  }
+                  onClick={() =>
+                    run(() =>
+                      updateRule(site.host, rule.id, {
+                        section: rule.section ? null : sectionOf(rule.pagePath ?? '/'),
+                      }),
+                    )
+                  }
+                >
+                  {rule.scope === 'page'
+                    ? 'cette page'
+                    : rule.section
+                      ? `/${rule.section === 'home' ? '' : rule.section}`
+                      : 'tout le site'}
                 </button>
                 <button
                   type="button"
@@ -79,7 +104,11 @@ export function Rules({ site, onCatalogue }: { site: SiteRules; onCatalogue: () 
                     style={{ overflow: 'hidden' }}
                   >
                     <div className="rule-details">
-                      {rule.explanation && <p>{rule.explanation}</p>}
+                      {rule.title ? (
+                        <p>Prompt d’origine : « {rule.prompt} »</p>
+                      ) : (
+                        rule.explanation && <p>{rule.explanation}</p>
+                      )}
                       <p>Créée le {new Date(rule.createdAt).toLocaleString('fr-CA')}</p>
                       <p className="rule-selector">
                         {Object.values(rule.targets)

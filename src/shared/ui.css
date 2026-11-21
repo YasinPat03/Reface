@@ -1162,3 +1162,31 @@ button:disabled {
 .rule-tools .button:hover:not(:disabled) {
   background: #171717;
 }
+
+.draft-changes {
+  list-style: none;
+  padding: 0;
+  margin: 14px 0;
+}
+.draft-changes li {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+}
+.rule-scope {
+  background: var(--surface);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 3px;
+  border-radius: 2px;
+}
+
+.draft-change-toggle {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
