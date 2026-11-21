@@ -19,20 +19,20 @@
   - [x] Types `Rule`, `Recipe`, `Op` et `SiteRules`, d'après PRD §4
   - [x] Clés de stockage `rules:<host>`, `css:<host>`, `settings`, `paused:<host>`
   - [x] Union typée des messages panel ↔ SW ↔ content
-- [ ] **0.4 Hello world de bout en bout** : un bouton du panel déclenche un ping vers le SW, qui le relaie au content, qui le renvoie au panel
+- [x] **0.4 Hello world de bout en bout** : un bouton du panel déclenche un ping vers le SW, qui le relaie au content, qui le renvoie au panel
 
 ### Phase 1 : Replay rapide (Personne A)
 
-- [ ] **1.1 Injecteur `document_start`**
-  - [ ] `chrome.storage.local.get("css:"+host)` est lu directement, sans passer par le SW
-  - [ ] Ajoute `<style id="bp-styles">` sur `document.documentElement`
-  - [ ] Respecte `paused:<host>`
-  - [ ] Bundle < 2 KB, sans aucune dépendance
-- [ ] **1.2 Mise à jour live** : `storage.onChanged` remplace le `<style>` sans recharger la page
-- [ ] **1.3 Compilateur** (`shared/compile.ts`)
-  - [ ] Recette → chaîne CSS avec `!important`
-  - [ ] Recompile `css:<host>` à partir de toutes les règles `enabled`
-- [ ] **1.4 Vérification FOUC** : hard reload avec CPU ×4 throttle, aucun flash visible
+- [x] **1.1 Injecteur `document_start`**
+  - [x] `chrome.storage.local.get("css:"+host)` est lu directement, sans passer par le SW
+  - [x] Ajoute `<style id="bp-styles">` sur `document.documentElement`
+  - [x] Respecte `paused:<host>`
+  - [x] Bundle < 2 KB, sans aucune dépendance
+- [x] **1.2 Mise à jour live** : `storage.onChanged` remplace le `<style>` sans recharger la page
+- [x] **1.3 Compilateur** (`shared/compile.ts`)
+  - [x] Recette → chaîne CSS avec `!important`
+  - [x] Recompile `css:<host>` à partir de toutes les règles `enabled`
+- [x] **1.4 Vérification FOUC** : hard reload avec CPU ×4 throttle, aucun flash visible
 
 ### Phase 2 : Boucle agent (Personne B)
 

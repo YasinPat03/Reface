@@ -47,3 +47,14 @@ export async function getSettings(): Promise<Settings> {
 export async function setSettings(settings: Settings): Promise<void> {
   await local().set({ [keys.settings]: settings });
 }
+
+/**
+ * Écrit les règles ET le CSS précompilé en une seule opération,
+ * pour que l'injecteur ne voie jamais un état incohérent.
+ */
+export async function saveSiteRules(site: SiteRules, compiledCss: string): Promise<void> {
+  const update: Record<string, unknown> = { [keys.rules(site.host)]: site };
+  if (compiledCss) update[keys.css(site.host)] = compiledCss;
+  await local().set(update);
+  if (!compiledCss) await local().remove(keys.css(site.host));
+}
