@@ -1,6 +1,6 @@
 // Contrat de messagerie typé : panel ↔ service worker ↔ content script.
 // Pour ajouter un message : une entrée dans BgApi ou ContentApi, puis un handler.
-import type { DistillResult, Draft, Recipe } from './types';
+import type { DistillResult, Draft, Recipe, Settings } from './types';
 
 interface Def<Req, Res> {
   req: Req;
@@ -19,6 +19,8 @@ export interface BgApi {
   keep: Def<{ tabId: number; draft: Draft }, { ruleId: string }>;
   /** Retire la preview. */
   discard: Def<{ tabId: number }, null>;
+  /** Vérifie la clé et liste les modèles disponibles. */
+  testConnection: Def<Settings, { models: string[]; modelFound: boolean }>;
 }
 
 /** Messages traités par le content script B (document_idle). */
@@ -27,6 +29,8 @@ export interface ContentApi {
   distill: Def<{ include: string[] }, DistillResult>;
   preparePreview: Def<{ recipe: Recipe; prompts: string[] }, Draft>;
   clearPreview: Def<Record<string, never>, null>;
+  /** Bascule temporaire Original / Modifié (sans toucher au stockage). `set` absent = lecture. */
+  original: Def<{ set?: boolean }, { original: boolean }>;
 }
 
 type Envelope<A> = {

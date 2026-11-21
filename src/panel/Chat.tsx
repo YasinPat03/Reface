@@ -5,7 +5,14 @@ import { errorMessage, type ActiveTab } from './tab';
 
 type Status = 'idle' | 'generating' | 'saving';
 
-export function Chat({ tab }: { tab: ActiveTab }) {
+const EXAMPLES = [
+  'Cache les commentaires',
+  'Texte plus grand et plus aéré',
+  'Mode sombre',
+  'Cache la barre latérale',
+];
+
+export function Chat({ tab, onSaved }: { tab: ActiveTab; onSaved?: () => void }) {
   const [prompt, setPrompt] = useState('');
   const [draft, setDraft] = useState<Draft | null>(null);
   const [status, setStatus] = useState<Status>('idle');
@@ -59,6 +66,7 @@ export function Chat({ tab }: { tab: ActiveTab }) {
       await callBg('keep', { tabId: draftTab.current, draft });
       setDraft(null);
       setNotice('Modification enregistrée. Elle reviendra à chaque visite.');
+      onSaved?.();
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -105,6 +113,21 @@ export function Chat({ tab }: { tab: ActiveTab }) {
           {status === 'generating' ? 'Génération…' : draft ? 'Réviser' : 'Prévisualiser'}
         </button>
       </form>
+
+      {!draft && !prompt && (
+        <div className="flex flex-wrap gap-1.5">
+          {EXAMPLES.map((example) => (
+            <button
+              key={example}
+              type="button"
+              onClick={() => setPrompt(example)}
+              className="rounded-full border border-zinc-200 px-2.5 py-1 text-xs text-zinc-600 hover:border-violet-400 hover:text-violet-700 dark:border-zinc-800 dark:text-zinc-400"
+            >
+              {example}
+            </button>
+          ))}
+        </div>
+      )}
 
       {error && (
         <p

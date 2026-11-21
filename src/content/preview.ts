@@ -107,7 +107,9 @@ function previewElement(): HTMLStyleElement {
 }
 
 export function setPreview(css: string): void {
-  previewElement().textContent = css;
+  const style = previewElement();
+  style.textContent = css;
+  style.disabled = original;
 }
 
 export function clearPreview(): void {
@@ -153,4 +155,22 @@ export function withoutOurStyles<T>(fn: () => T): T {
   } finally {
     styles.forEach((s, i) => (s.disabled = previous[i]!));
   }
+}
+
+/** Mode « Original » : désactive temporairement tous les styles Browser Paint de l'onglet. */
+let original = false;
+const ORIGINAL_STYLE_IDS = ['bp-styles', 'bp-preview'];
+
+export function setOriginal(on: boolean): boolean {
+  original = on;
+  for (const id of ORIGINAL_STYLE_IDS) {
+    const style = document.getElementById(id) as HTMLStyleElement | null;
+    if (style) style.disabled = on;
+  }
+  document.documentElement.toggleAttribute('data-bp-original', on);
+  return original;
+}
+
+export function isOriginal(): boolean {
+  return original;
 }

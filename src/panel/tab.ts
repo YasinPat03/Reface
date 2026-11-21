@@ -6,8 +6,13 @@ export interface ActiveTab {
   host: string;
 }
 
+/** `?tabId=N` : ouvre le panel dans un onglet en visant un autre onglet (debug, tests E2E). */
+const pinnedTabId = Number(new URLSearchParams(location.search).get('tabId')) || null;
+
 export async function getActiveTab(): Promise<ActiveTab | null> {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const [tab] = pinnedTabId
+    ? [await chrome.tabs.get(pinnedTabId).catch(() => undefined)]
+    : await chrome.tabs.query({ active: true, currentWindow: true });
   if (tab?.id === undefined || !tab.url) return null;
   let host = '';
   try {

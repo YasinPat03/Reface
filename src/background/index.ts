@@ -1,6 +1,7 @@
 // Service worker : agent core. Aucun état en mémoire globale (le SW s'endort après ~30 s).
 import { callContent, listen, type BgApi } from '../shared/messages';
 import { generate, keep } from './agent';
+import { listModels } from './llm';
 
 const enablePanelOnClick = () =>
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.error);
@@ -24,5 +25,9 @@ listen<BgApi>({
   async discard({ tabId }) {
     await callContent(tabId, 'clearPreview', {});
     return null;
+  },
+  async testConnection(settings) {
+    const models = await listModels(settings);
+    return { models, modelFound: models.includes(settings.model) };
   },
 });

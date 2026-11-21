@@ -60,11 +60,11 @@
 
 ### Phase 3 : Side panel et gestion (Personne C)
 
-- [ ] **3.1 Page Options** : clé API, base URL, modèle, bouton « Tester la connexion »
-- [ ] **3.2 Onglet Chat** : prompt, état « génération… », explication, boutons Preview/Keep/Discard
-- [ ] **3.3 Liste des règles du site** : toggle on/off, supprimer, voir le prompt d'origine
-- [ ] **3.4 Contrôles globaux** : interrupteur « Pause sur ce site » et bascule « Original / Modifié » pour la démo
-- [ ] **3.5 Export/Import JSON** des règles
+- [x] **3.1 Page Options** : clé API, base URL, modèle, bouton « Tester la connexion »
+- [x] **3.2 Onglet Chat** : prompt, état « génération… », explication, boutons Preview/Keep/Discard
+- [x] **3.3 Liste des règles du site** : toggle on/off, supprimer, voir le prompt d'origine
+- [x] **3.4 Contrôles globaux** : interrupteur « Pause sur ce site » et bascule « Original / Modifié » pour la démo
+- [x] **3.5 Export/Import JSON** des règles
 
 ### Phase 4 : Element picker (Personne C, après la phase 3)
 

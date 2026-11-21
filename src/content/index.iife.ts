@@ -1,7 +1,7 @@
 // Content script B (document_idle) : distillation, preview, picker, health check.
 import { listen, type ContentApi } from '../shared/messages';
 import { distill } from './distill';
-import { clearPreview, prepareDraft, withoutOurStyles } from './preview';
+import { clearPreview, isOriginal, prepareDraft, setOriginal, withoutOurStyles } from './preview';
 
 listen<ContentApi>({
   async ping() {
@@ -16,5 +16,8 @@ listen<ContentApi>({
   async clearPreview() {
     clearPreview();
     return null;
+  },
+  async original({ set }) {
+    return { original: set === undefined ? isOriginal() : setOriginal(set) };
   },
 });

@@ -18,6 +18,8 @@
       style.id = STYLE_ID;
     }
     if (style.textContent !== text) style.textContent = text;
+    // Mode « Original » activé depuis le panel (attribut posé par le content script).
+    style.disabled = document.documentElement.hasAttribute('data-bp-original');
     // <head> n'existe peut-être pas encore : documentElement suffit.
     if (!style.isConnected) document.documentElement.appendChild(style);
   }

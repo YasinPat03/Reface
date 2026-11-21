@@ -35,3 +35,27 @@ export async function recompile(host: string): Promise<SiteRules> {
 export function newRuleId(): string {
   return `r_${crypto.randomUUID().slice(0, 8)}`;
 }
+
+/** Toutes les règles de tous les sites (pour l'export). */
+export async function getAllSites(): Promise<SiteRules[]> {
+  const all = await chrome.storage.local.get(null);
+  return Object.entries(all)
+    .filter(([key]) => key.startsWith('rules:'))
+    .map(([, value]) => value as SiteRules)
+    .filter((site) => site.rules.length > 0);
+}
+
+/** Fusionne des sites importés : une règle de même id est remplacée. Retourne le nombre de règles. */
+export async function importSites(sites: SiteRules[]): Promise<number> {
+  let count = 0;
+  for (const incoming of sites) {
+    const site = await getSiteRules(incoming.host);
+    const ids = new Set(incoming.rules.map((r) => r.id));
+    await persist({
+      host: incoming.host,
+      rules: [...site.rules.filter((r) => !ids.has(r.id)), ...incoming.rules],
+    });
+    count += incoming.rules.length;
+  }
+  return count;
+}

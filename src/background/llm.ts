@@ -104,3 +104,28 @@ export async function completeJson(settings: Settings, messages: ChatMessage[]):
     throw error;
   }
 }
+
+/** Test de connexion : GET /models (supporté par OpenAI, Groq, Gemini en mode compatible). */
+export async function listModels(settings: Settings): Promise<string[]> {
+  if (!settings.apiKey.trim()) throw new LlmError('Renseignez une clé API.', false);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const response = await fetch(`${settings.baseUrl.replace(/\/+$/, '')}/models`, {
+      signal: controller.signal,
+      headers: { Authorization: `Bearer ${settings.apiKey}` },
+    });
+    const body = await response.text();
+    if (!response.ok) throw describeHttpError(response.status, body);
+    const data = JSON.parse(body) as { data?: { id?: string }[] };
+    return (data.data ?? [])
+      .map((m) => String(m.id ?? '').replace(/^models\//, ''))
+      .filter(Boolean)
+      .sort();
+  } catch (error) {
+    if (error instanceof LlmError) throw error;
+    throw new LlmError('Impossible de joindre l’API. Vérifiez l’URL de base.', false);
+  } finally {
+    clearTimeout(timer);
+  }
+}
