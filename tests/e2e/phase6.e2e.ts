@@ -180,7 +180,13 @@ await check('supprimer un changement garde les autres', async () => {
     null,
     { timeout: 2000 },
   );
+  // La liste se met à jour via storage.onChanged : attendre que la ligne disparaisse.
+  await rows.nth(1).waitFor({ state: 'detached', timeout: 2000 });
   assert((await rows.count()) === 1, 'mauvaise règle supprimée');
+  assert(
+    (await rows.first().textContent())?.includes('Cacher les commentaires'),
+    'mauvaise règle supprimée',
+  );
 });
 
 await context.close();

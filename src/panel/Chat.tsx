@@ -93,6 +93,12 @@ export function Chat({
         previous: draft,
         pick: picked?.selector ?? null,
       });
+      // Panel neuf + service worker resté à l'ancienne version (dist/ recompilé sans ↻).
+      if (!Array.isArray(next?.changes)) {
+        throw new Error(
+          'Browser Paint a été mis à jour : rechargez l’extension (↻ dans chrome://extensions), puis l’onglet.',
+        );
+      }
       draftTab.current = tab.id;
       setDraft(next);
       setPrompt('');

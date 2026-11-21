@@ -149,6 +149,11 @@ async function generateDraft(
   const recipe = parseRecipe(await completeJson(settings, messages));
   const prompts = [...(previous?.prompts ?? []), text];
   const draft = await callContent(tabId, 'preparePreview', { recipe, prompts });
+  // Content script resté à l'ancienne version (onglet ouvert avant la mise à jour).
+  if (!Array.isArray(draft?.changes)) {
+    await callContent(tabId, 'clearPreview', {}).catch(() => null);
+    throw new Error('Browser Paint a été mis à jour : rechargez l’onglet.');
+  }
   if (!draft.layoutIssues?.length) return draft;
 
   // Auto-correction (une seule fois) : on renvoie au LLM ce que sa modif a cassé.
