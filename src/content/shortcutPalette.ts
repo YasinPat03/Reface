@@ -203,7 +203,7 @@ function open(host: string, shortcuts: Shortcut[], hotkeys: Hotkeys): { close: (
     empty.append(
       hotkeys.record
         ? hint('Appuyez sur ', [hotkeys.record], ' pour en enregistrer un.')
-        : 'Créez-en un depuis le panel Browser Paint.',
+        : 'Créez-en un depuis le panel ReFace.',
     );
   }
   footer.append(
