@@ -22,7 +22,7 @@ export async function startServer(pages: Pages): Promise<{ server: Server; origi
   return { server, origin: `http://127.0.0.1:${address.port}` };
 }
 
-export async function launch(): Promise<{
+export async function launch(extraArgs: string[] = []): Promise<{
   context: BrowserContext;
   worker: Worker;
   extensionId: string;
@@ -31,7 +31,7 @@ export async function launch(): Promise<{
   const context = await chromium.launchPersistentContext(profile, {
     channel: 'chromium',
     headless: process.env.HEADED !== '1',
-    args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`],
+    args: [`--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`, ...extraArgs],
   });
   const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
   const extensionId = new URL(worker.url()).host;

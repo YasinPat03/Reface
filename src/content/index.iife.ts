@@ -1,6 +1,7 @@
 // Content script B (document_idle) : distillation, preview, picker, health check.
 import { listen, type ContentApi } from '../shared/messages';
 import { distill } from './distill';
+import { checkHealth, scheduleHealthCheck } from './health';
 import { cancelPick, pick } from './picker';
 import { clearPreview, isOriginal, prepareDraft, setOriginal, withoutOurStyles } from './preview';
 
@@ -23,7 +24,10 @@ listen<ContentApi>({
     cancelPick();
     return null;
   },
+  healthCheck: () => checkHealth(0),
   async original({ set }) {
     return { original: set === undefined ? isOriginal() : setOriginal(set) };
   },
 });
+
+scheduleHealthCheck();

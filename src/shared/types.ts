@@ -39,6 +39,8 @@ export interface Rule {
   createdAt: string;
   prompt: string;
   urlPattern: string;
+  /** Chemin de la page où la règle a été créée : le health check ne vérifie que les pages du même gabarit. */
+  pagePath?: string;
   enabled: boolean;
   ops: Op[];
   targets: Record<string, Target>;

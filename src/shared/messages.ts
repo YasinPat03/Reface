@@ -37,6 +37,8 @@ export interface ContentApi {
   /** Lance le picker ; répond à la sélection (null si annulé). */
   pick: Def<Record<string, never>, PickResult | null>;
   cancelPick: Def<Record<string, never>, null>;
+  /** Lance le health check tout de suite (bouton « Vérifier », tests). */
+  healthCheck: Def<Record<string, never>, { checked: number; suspect: number }>;
 }
 
 type Envelope<A> = {
@@ -62,12 +64,31 @@ export function callBg<K extends keyof BgApi>(
   return unwrap(chrome.runtime.sendMessage({ type, payload }));
 }
 
+/** Erreurs Chrome bas niveau → messages compréhensibles. */
+function friendlyChromeError(error: unknown): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/Receiving end does not exist|Could not establish connection/i.test(message)) {
+    return new Error('Browser Paint n’est pas encore chargé dans cette page : rechargez l’onglet.');
+  }
+  if (/message port closed|message channel closed/i.test(message)) {
+    return new Error('La page a été rechargée ou fermée pendant l’opération. Réessayez.');
+  }
+  if (/Cannot access|cannot be scripted|extensions gallery/i.test(message)) {
+    return new Error('Chrome interdit aux extensions de modifier cette page.');
+  }
+  return error instanceof Error ? error : new Error(message);
+}
+
 export function callContent<K extends keyof ContentApi>(
   tabId: number,
   type: K,
   payload: ContentApi[K]['req'],
 ): Promise<ContentApi[K]['res']> {
-  return unwrap(chrome.tabs.sendMessage(tabId, { type, payload }));
+  return unwrap(
+    chrome.tabs.sendMessage(tabId, { type, payload }).catch((error: unknown) => {
+      throw friendlyChromeError(error);
+    }),
+  );
 }
 
 type Handlers<A> = {

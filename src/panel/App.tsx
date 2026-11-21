@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { callContent } from '../shared/messages';
+import { sensitiveReason } from '../shared/sensitive';
 import { setPaused } from '../shared/storage';
 import { Chat } from './Chat';
 import { useSite } from './hooks';
@@ -88,9 +89,9 @@ function Site({ tab }: { tab: ActiveTab }) {
 
       {/* Chat reste monté (preview en cours conservée) quand on consulte la liste. */}
       <div hidden={view !== 'edit'}>
-        <Chat tab={tab} onSaved={() => setView('rules')} />
+        <Chat tab={tab} aiBlocked={sensitiveReason(tab.url)} onSaved={() => setView('rules')} />
       </div>
-      {view === 'rules' && <Rules site={site} />}
+      {view === 'rules' && <Rules site={site} tabId={tab.id} />}
     </>
   );
 }

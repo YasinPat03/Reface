@@ -1,7 +1,7 @@
 // Distillation du DOM (PRD §5) : une ligne par grande région, ~2k tokens max.
 // Jamais de valeurs de formulaire ; emails et longues suites de chiffres expurgés.
 import type { DistillResult } from '../shared/types';
-import { stableClasses } from './selectors';
+import { isStableId, stableClasses } from './selectors';
 
 const MAX_REGIONS = 150;
 /** Budget de caractères pour les lignes de régions (~2,5k tokens). */
@@ -21,17 +21,9 @@ const SKIP = new Set([
   'svg',
 ]);
 const FORM_TEXT = new Set(['TEXTAREA', 'SELECT', 'INPUT', 'OPTION', 'SCRIPT', 'STYLE', 'NOSCRIPT']);
-const LANDMARKS = new Set([
-  'HEADER',
-  'NAV',
-  'MAIN',
-  'ASIDE',
-  'FOOTER',
-  'ARTICLE',
-  'SECTION',
-  'FORM',
-  'DIALOG',
-]);
+const LANDMARKS = new Set(['HEADER', 'NAV', 'MAIN', 'ASIDE', 'FOOTER', 'DIALOG']);
+/** Conteneurs sémantiques fréquents (souvent très nombreux) : bonus plus faible. */
+const SECTIONING = new Set(['ARTICLE', 'SECTION', 'FORM', 'TABLE', 'FIGURE']);
 
 /** Éléments de la dernière distillation : regionIndex → Element. */
 let regions: Element[] = [];
@@ -173,12 +165,15 @@ export function distill(include: string[] = [], focus: string | null = null): Di
     let score = 0;
     if (isForced) score += 100;
     if (LANDMARKS.has(tag)) score += 10;
+    else if (SECTIONING.has(tag)) score += 3;
     if (element.hasAttribute('role')) score += 6;
     if (tag.includes('-')) score += 5;
-    if (element.id) score += 3;
+    if (element.id && isStableId(element.id)) score += 3;
     if (element.childElementCount >= 3) score += 2;
     if (area > 0.1) score += 4;
     else if (area > 0.03) score += 2;
+    // Loin sous la ligne de flottaison : un peu moins prioritaire.
+    if (rect.top + window.scrollY > window.innerHeight * 4) score -= 2;
     if (/^H[1-3]$/.test(tag)) score += 3;
     // Seuil bas : c'est le tri par score + le budget qui décident ensuite.
     const keep = isForced || score >= 4;

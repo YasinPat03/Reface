@@ -12,7 +12,16 @@ const EXAMPLES = [
   'Cache la barre latérale',
 ];
 
-export function Chat({ tab, onSaved }: { tab: ActiveTab; onSaved?: () => void }) {
+export function Chat({
+  tab,
+  aiBlocked = null,
+  onSaved,
+}: {
+  tab: ActiveTab;
+  /** Raison pour laquelle l'IA est désactivée sur ce site (deny-list), ou null. */
+  aiBlocked?: string | null;
+  onSaved?: () => void;
+}) {
   const [prompt, setPrompt] = useState('');
   const [draft, setDraft] = useState<Draft | null>(null);
   const [status, setStatus] = useState<Status>('idle');
@@ -123,6 +132,15 @@ export function Chat({ tab, onSaved }: { tab: ActiveTab; onSaved?: () => void })
 
   return (
     <section className="flex flex-col gap-3">
+      {aiBlocked && (
+        <p
+          data-testid="ai-blocked"
+          className="rounded-md bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+        >
+          🔒 {aiBlocked} L’IA est désactivée ici : aucun contenu n’est envoyé. Vous pouvez quand
+          même pointer un élément pour le cacher.
+        </p>
+      )}
       <form onSubmit={submit} className="flex flex-col gap-2">
         <label htmlFor="bp-prompt" className="text-sm font-medium">
           {draft ? 'Affiner la modification' : 'Que voulez-vous changer ?'}
@@ -140,7 +158,7 @@ export function Chat({ tab, onSaved }: { tab: ActiveTab; onSaved?: () => void })
           rows={3}
           placeholder={draft ? 'Ex. : un peu plus grand' : 'Ex. : cache les commentaires'}
           className="resize-none rounded-md border border-zinc-300 bg-transparent p-2 text-sm outline-none focus:border-violet-500 dark:border-zinc-700"
-          disabled={busy}
+          disabled={busy || !!aiBlocked}
         />
         {picked && (
           <div
@@ -185,7 +203,7 @@ export function Chat({ tab, onSaved }: { tab: ActiveTab; onSaved?: () => void })
           </button>
           <button
             type="submit"
-            disabled={busy || !prompt.trim()}
+            disabled={busy || !prompt.trim() || !!aiBlocked}
             className="rounded-md bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
           >
             {status === 'generating' ? 'Génération…' : draft ? 'Réviser' : 'Prévisualiser'}
@@ -198,7 +216,7 @@ export function Chat({ tab, onSaved }: { tab: ActiveTab; onSaved?: () => void })
         )}
       </form>
 
-      {!draft && !prompt && (
+      {!draft && !prompt && !aiBlocked && (
         <div className="flex flex-wrap gap-1.5">
           {EXAMPLES.map((example) => (
             <button

@@ -1,0 +1,107 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { completeJson, listModels } from '../src/background/llm';
+
+const settings = { apiKey: 'sk-test', baseUrl: 'https://api.test/v1/', model: 'm' };
+const messages = [{ role: 'user' as const, content: 'x' }];
+
+function reply(status: number, body: unknown) {
+  return new Response(typeof body === 'string' ? body : JSON.stringify(body), { status });
+}
+const ok = (content: unknown) =>
+  reply(200, { choices: [{ message: { content: JSON.stringify(content) } }] });
+
+afterEach(() => vi.unstubAllGlobals());
+
+describe('completeJson : gestion des erreurs (5.3)', () => {
+  it('renvoie le JSON du message et appelle /chat/completions en json_schema strict', async () => {
+    const fetch = vi.fn().mockResolvedValue(ok({ a: 1 }));
+    vi.stubGlobal('fetch', fetch);
+    await expect(completeJson(settings, messages)).resolves.toEqual({ a: 1 });
+    const [url, init] = fetch.mock.calls[0]!;
+    expect(url).toBe('https://api.test/v1/chat/completions');
+    expect(JSON.parse(init.body).response_format.json_schema.strict).toBe(true);
+    expect(init.headers.Authorization).toBe('Bearer sk-test');
+  });
+
+  it.each([
+    [401, '{}', /Clé API refusée/],
+    [403, '{}', /Clé API refusée/],
+    [404, '{}', /introuvable/],
+    [429, '{"error":{"code":"insufficient_quota"}}', /Quota/],
+    [400, '{}', /structured outputs/],
+  ])('HTTP %i → message clair, sans retry', async (status, body, pattern) => {
+    const fetch = vi.fn().mockResolvedValue(reply(status, body));
+    vi.stubGlobal('fetch', fetch);
+    await expect(completeJson(settings, messages)).rejects.toThrow(pattern);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('429 limite de débit : un retry', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(reply(429, '{}'))
+      .mockResolvedValueOnce(ok({ b: 2 }));
+    vi.stubGlobal('fetch', fetch);
+    await expect(completeJson(settings, messages)).resolves.toEqual({ b: 2 });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('JSON invalide deux fois : message clair après un retry', async () => {
+    const fetch = vi
+      .fn()
+      .mockImplementation(async () =>
+        reply(200, { choices: [{ message: { content: 'pas du json' } }] }),
+      );
+    vi.stubGlobal('fetch', fetch);
+    await expect(completeJson(settings, messages)).rejects.toThrow(/JSON invalide/);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('timeout : message clair', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockImplementation(
+          (_url: string, init: RequestInit) =>
+            new Promise((_resolve, reject) =>
+              init.signal!.addEventListener('abort', () =>
+                reject(new DOMException('aborted', 'AbortError')),
+              ),
+            ),
+        ),
+    );
+    const result = completeJson(settings, messages).catch((e: Error) => e);
+    await vi.advanceTimersByTimeAsync(31_000);
+    expect(((await result) as Error).message).toMatch(/trop de temps/);
+    vi.useRealTimers();
+  });
+
+  it('refus du modèle : message clair', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(reply(200, { choices: [{ message: { refusal: 'non' } }] })),
+    );
+    await expect(completeJson(settings, messages)).rejects.toThrow(/refusé : non/);
+  });
+
+  it('clé vide : pas d’appel réseau', async () => {
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    await expect(completeJson({ ...settings, apiKey: ' ' }, messages)).rejects.toThrow(
+      /Aucune clé/,
+    );
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('listModels', () => {
+  it('liste et trie les modèles (préfixe models/ de Gemini retiré)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(reply(200, { data: [{ id: 'models/b' }, { id: 'a' }] })),
+    );
+    await expect(listModels(settings)).resolves.toEqual(['a', 'b']);
+  });
+});

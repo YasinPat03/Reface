@@ -21,6 +21,7 @@ export const ruleSchema = z.object({
   createdAt: z.string().max(40),
   prompt: z.string().max(2000),
   urlPattern: z.string().max(500),
+  pagePath: z.string().max(2000).optional(),
   enabled: z.boolean(),
   ops: z
     .array(

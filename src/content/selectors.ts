@@ -7,12 +7,30 @@ import { textSample } from './distill';
 /** Classes générées (CSS-in-JS, hash) : instables d'un déploiement à l'autre. */
 function isStableToken(token: string): boolean {
   if (!token || token.length > 40) return false;
-  if (/^(?:css|sc|jss|emotion|styled|svelte|chakra|mui)-/i.test(token)) return false;
+  if (/^(?:css|sc|jss|emotion|styled|svelte|chakra|mui|prc)-/i.test(token)) return false;
+  // Hash après un double séparateur : « Root--KH-d », « box__a1B2 ».
+  if (/(?:--|__)[A-Za-z0-9-]*[A-Z]/.test(token)) return false;
   if (/\d{3,}/.test(token)) return false;
   if (/[A-Za-z0-9]*[A-Z][A-Za-z0-9]*\d|[a-z]\d[a-z]\d/.test(token) && token.length >= 6)
     return false;
   if (/(?:^|[_-])[a-zA-Z0-9]{5,}$/.test(token) && /[0-9]/.test(token)) return false;
+  // Suffixe de module CSS du type « -pHPop » ou « __nfGOuR » (casse mélangée).
+  if (
+    /[-_]{1,2}(?=[A-Za-z0-9]{4,8}$)(?=[A-Za-z0-9]*[a-z])(?=[A-Za-z0-9]*[A-Z])[A-Za-z0-9]+$/.test(
+      token,
+    )
+  )
+    return false;
   return /^[a-zA-Z_][\w-]*$/.test(token);
+}
+
+/** Identifiant lisible (pas un id généré du type « mwDg8 » ou « r1a2b3 »). */
+export function isStableId(id: string): boolean {
+  return (
+    isStableToken(id) &&
+    !/^[a-z]{1,3}[A-Z0-9][A-Za-z0-9]{1,6}$/.test(id) &&
+    !/\d/.test(id.slice(-2))
+  );
 }
 
 export function stableClasses(element: Element): string[] {
@@ -38,10 +56,11 @@ function localCandidates(element: Element): string[] {
   const tag = element.tagName.toLowerCase();
   const out: string[] = [];
   const id = element.id;
-  if (id && isStableToken(id)) out.push(`#${id}`);
-  else if (id) {
+  if (id && isStableId(id)) out.push(`#${id}`);
+  else if (id && !/^[A-Za-z_][\w-]*$/.test(id) && !/\d{3,}/.test(id)) {
+    // Id lisible mais non utilisable tel quel en CSS (ex. « main:content ») : sélecteur d'attribut.
     const a = attr('id', id);
-    if (a && !/\d{4,}/.test(id)) out.push(`${tag}${a}`);
+    if (a) out.push(`${tag}${a}`);
   }
   for (const name of ['data-testid', 'data-test', 'aria-label', 'role']) {
     const value = element.getAttribute(name);

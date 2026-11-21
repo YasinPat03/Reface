@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { callContent } from '../shared/messages';
 import { getAllSites, importSites, removeRule, updateRule } from '../shared/rules';
 import { makeExport, parseExport } from '../shared/ruleSchema';
 import type { SiteRules } from '../shared/types';
@@ -16,7 +17,7 @@ function download(name: string, data: unknown) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function Rules({ site }: { site: SiteRules }) {
+export function Rules({ site, tabId }: { site: SiteRules; tabId: number }) {
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -130,6 +131,28 @@ export function Rules({ site }: { site: SiteRules }) {
           className="rounded-md border border-zinc-200 px-2 py-1 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
         >
           Tout exporter
+        </button>
+        <button
+          type="button"
+          disabled={!site.rules.length}
+          onClick={() =>
+            run(async () => {
+              const { checked, suspect } = await callContent(tabId, 'healthCheck', {});
+              setMessage(
+                checked === 0
+                  ? { kind: 'ok', text: 'Aucune règle à vérifier sur cette page.' }
+                  : suspect
+                    ? {
+                        kind: 'error',
+                        text: `${suspect} règle(s) sur ${checked} ne trouvent plus leurs éléments.`,
+                      }
+                    : { kind: 'ok', text: `${checked} règle(s) vérifiée(s) : tout fonctionne.` },
+              );
+            })
+          }
+          className="rounded-md border border-zinc-200 px-2 py-1 hover:bg-zinc-50 disabled:opacity-40 dark:border-zinc-800 dark:hover:bg-zinc-900"
+        >
+          Vérifier
         </button>
         <button
           type="button"

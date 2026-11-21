@@ -74,12 +74,14 @@
 
 ### Phase 5 : Durcissement MVP et démo (tout le monde)
 
-- [ ] **5.1 Deny-list des sites sensibles** (banques, email, `chrome://`, IP intranet) : aucun DOM n'est envoyé, le replay continue de fonctionner
-- [ ] **5.2 Health check basique** : un sélecteur qui ne matche plus marque la règle « suspecte » avec un badge rouge
-- [ ] **5.3 Gestion des erreurs** : clé invalide, quota, timeout et JSON invalide donnent chacun un message clair
+- [x] **5.1 Deny-list des sites sensibles** (banques, email, `chrome://`, IP intranet) : aucun DOM n'est envoyé, le replay continue de fonctionner
+- [x] **5.2 Health check basique** : un sélecteur qui ne matche plus marque la règle « suspecte » avec un badge rouge
+- [x] **5.3 Gestion des erreurs** : clé invalide, quota, timeout et JSON invalide donnent chacun un message clair
 - [ ] **5.4 Choix de 2 ou 3 sites de démo** et test des prompts répétés
-- [ ] **5.5 Script de démo** : prompt → preview → Keep → panel fermé → reload, la modif revient, puis Original/Modifié
-- [ ] **5.6 Vidéo de secours** de la démo
+  - [x] Sites choisis et vérifiés sans LLM (Wikipedia, Hacker News, GitHub) : `node tests/e2e/demo-sites.ts`
+  - [ ] Répéter les prompts avec la vraie clé API, sur le réseau de la salle (voir `DEMO.md`)
+- [x] **5.5 Script de démo** : prompt → preview → Keep → panel fermé → reload, la modif revient, puis Original/Modifié
+- [ ] **5.6 Vidéo de secours** de la démo (à enregistrer après la répétition avec la vraie clé)
 
 > **Jalon MVP** : les phases 0 à 5 sont cochées. La démo de base marche de bout en bout.
 
