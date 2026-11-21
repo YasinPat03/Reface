@@ -114,9 +114,15 @@ Réponse attendue du LLM (structured output) :
 
 ```jsonc
 {
-  "ops": [{ "op": "hide|style|theme", "target": "t1", "css": { "display": "none" } }],
-  "targets": { "t1": { "regionIndex": 12, "selectorHints": ["#comments"] } },
-  "css": "", // échappatoire : CSS libre, soumis aux mêmes validations
+  // Un changement par chose demandée : « cache X, agrandis Y » = 2 changements = 2 règles.
+  "changes": [
+    {
+      "title": "Cacher les commentaires",
+      "ops": [{ "op": "hide|style|theme", "target": "t1", "css": { "display": "none" } }],
+      "targets": { "t1": { "regionIndex": 12, "selectorHints": ["#comments"] } },
+      "css": "", // échappatoire : CSS libre, soumis aux mêmes validations
+    },
+  ],
   "explanation": "Cache la section des commentaires.",
 }
 ```

@@ -111,12 +111,30 @@ export function Chat({
       await callBg('keep', { tabId: draftTab.current, draft });
       setDraft(null);
       setPicked(null);
-      setNotice('Modification enregistrée. Elle reviendra à chaque visite.');
+      const kept = draft.changes.filter((c) => c.enabled).length;
+      setNotice(
+        kept > 1
+          ? `${kept} modifications enregistrées. Elles reviendront à chaque visite.`
+          : 'Modification enregistrée. Elle reviendra à chaque visite.',
+      );
       onSaved?.();
     } catch (e) {
       setError(errorMessage(e));
     } finally {
       setStatus('idle');
+    }
+  }
+
+  /** Coche/décoche un changement : la preview est mise à jour en direct dans la page. */
+  async function toggleChange(index: number, enabled: boolean) {
+    if (!draft || draftTab.current === null) return;
+    const changes = draft.changes.map((c, i) => (i === index ? { ...c, enabled } : c));
+    setDraft({ ...draft, changes });
+    try {
+      const { previewCss } = await callContent(draftTab.current, 'updatePreview', { changes });
+      setDraft((current) => (current ? { ...current, changes, previewCss } : current));
+    } catch (e) {
+      setError(errorMessage(e));
     }
   }
 
@@ -248,6 +266,26 @@ export function Chat({
         >
           <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">Preview</p>
           <p className="text-sm">{draft.explanation || 'Modification prête.'}</p>
+          {draft.changes.length > 1 && (
+            <ul data-testid="draft-changes" className="flex flex-col gap-1">
+              {draft.changes.map((change, i) => (
+                <li key={`${i}-${change.title}`}>
+                  <label className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-900">
+                    <input
+                      type="checkbox"
+                      checked={change.enabled}
+                      disabled={busy}
+                      onChange={(e) => void toggleChange(i, e.target.checked)}
+                      className="accent-violet-600"
+                    />
+                    <span className={change.enabled ? '' : 'text-zinc-400 line-through'}>
+                      {change.title}
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          )}
           {draft.warnings.map((w) => (
             <p key={w} className="text-xs text-amber-700 dark:text-amber-400">
               ⚠️ {w}
@@ -265,7 +303,7 @@ export function Chat({
             <button
               type="button"
               onClick={keepDraft}
-              disabled={busy || !draft.previewCss.trim()}
+              disabled={busy || !draft.previewCss.trim() || !draft.changes.some((c) => c.enabled)}
               className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
             >
               {status === 'saving' ? 'Enregistrement…' : 'Garder'}

@@ -20,6 +20,7 @@ export const ruleSchema = z.object({
   kind: z.literal('restyle'),
   createdAt: z.string().max(40),
   prompt: z.string().max(2000),
+  title: z.string().max(80).optional(),
   urlPattern: z.string().max(500),
   pagePath: z.string().max(2000).optional(),
   section: z

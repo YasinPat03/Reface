@@ -73,9 +73,14 @@ for (const s of SCENARIOS) {
       throw new Error(`région introuvable dans la distillation (${distilled.regionCount} régions)`);
     const regionIndex = Number(line.match(/\[#(\d+)\]/)![1]);
     const recipe = {
-      ops: [{ op: s.op, target: 't1', ...(s.css ? { css: s.css } : {}) }],
-      targets: { t1: { regionIndex, selectorHints: [] } },
-      css: '',
+      changes: [
+        {
+          title: s.name,
+          ops: [{ op: s.op, target: 't1', ...(s.css ? { css: s.css } : {}) }],
+          targets: { t1: { regionIndex, selectorHints: [] } },
+          css: '',
+        },
+      ],
       explanation: s.name,
     };
     const draft = (await send('preparePreview', { recipe, prompts: [s.name] })).data;
@@ -89,7 +94,7 @@ for (const s of SCENARIOS) {
     await page.waitForTimeout(800);
     if (!(await page.evaluate(s.verify))) throw new Error('non rejoué après reload');
     console.log(
-      `  ✓ ${s.name}\n      région [#${regionIndex}] → ${draft.targets.t1.selectors.join(' | ')}`,
+      `  ✓ ${s.name}\n      région [#${regionIndex}] → ${draft.changes[0].targets.t1.selectors.join(' | ')}`,
     );
   } catch (error) {
     failures++;

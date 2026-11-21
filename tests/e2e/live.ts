@@ -38,6 +38,8 @@ interface Scenario {
   grow?: number;
   /** Contrôle de mise en page supplémentaire (true = OK), évalué après l'effet. */
   layout?: string;
+  /** Nombre de changements séparés attendus (une règle chacun, activables un par un). */
+  changes?: number;
 }
 
 /** Cartes vidéo YouTube : la miniature ne chevauche pas le titre, et le titre reste lisible. */
@@ -99,6 +101,19 @@ const SCENARIOS: Scenario[] = [
     url: 'https://en.wikipedia.org/wiki/Golden_ratio',
     prompts: ['Mets le titre principal en rouge'],
     verify: `(() => { const [r, g, b] = getComputedStyle(document.querySelector('#firstHeading')).color.match(/\\d+/g).map(Number); return r > 150 && g < 100 && b < 100; })()`,
+  },
+  {
+    name: 'wiki-multi',
+    url: 'https://en.wikipedia.org/wiki/Golden_ratio',
+    prompts: [
+      "Cache la table des matières, mets le titre principal en rouge et agrandis le texte de l'article",
+    ],
+    changes: 3,
+    verify: `(() => {
+      const [r, g, b] = getComputedStyle(document.querySelector('#firstHeading')).color.match(/\\d+/g).map(Number);
+      const p = document.querySelector('.mw-parser-output p:not(.mw-empty-elt)');
+      return !document.querySelector('#mw-panel-toc')?.checkVisibility() && r > 150 && g < 100 && b < 100 && parseFloat(getComputedStyle(p).fontSize) >= 17;
+    })()`,
   },
   {
     name: 'hn-dark',
@@ -163,6 +178,19 @@ for (const s of SCENARIOS.filter((x) => !filter || x.name.includes(filter))) {
         `  « ${prompt} » → ${ms} ms · ${explanation}${warnings.length ? ` · ${warnings.join(' ')}` : ''}`,
       );
     }
+    {
+      const titles = await panel
+        .getByTestId('draft-changes')
+        .locator('label')
+        .allTextContents()
+        .catch(() => []);
+      console.log(
+        `    changements : ${titles.map((t) => `« ${t} »`).join(', ') || 'aucune liste'}`,
+      );
+      if (s.changes && titles.length !== s.changes) {
+        throw new Error(`${titles.length} changement(s) au lieu de ${s.changes}`);
+      }
+    }
     await page.screenshot({ path: `${out}/${s.name}-preview.png` });
     const css = await page.evaluate(() => document.getElementById('bp-preview')?.textContent ?? '');
     const check = async (): Promise<boolean> => {
@@ -183,7 +211,22 @@ for (const s of SCENARIOS.filter((x) => !filter || x.name.includes(filter))) {
     await panel.getByTestId('rules').waitFor({ timeout: 5000 });
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(800);
-    const replayOk = await check();
+    let replayOk = await check();
+    if (s.changes) {
+      const host = new URL(s.url).hostname;
+      const prompt = s.prompts.join(' → ');
+      const rows = await worker.evaluate(
+        async ([h, p]) =>
+          (
+            (await chrome.storage.local.get(`rules:${h}`))[`rules:${h}`] as {
+              rules: { prompt: string }[];
+            }
+          ).rules.filter((r) => r.prompt === p).length,
+        [host, prompt] as const,
+      );
+      console.log(`    règles enregistrées pour ce prompt : ${rows}`);
+      if (rows !== s.changes) replayOk = false;
+    }
     if (!replayOk) {
       const debug = await page.evaluate(() => ({
         styles: document.getElementById('bp-styles')?.textContent?.length ?? -1,

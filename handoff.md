@@ -13,13 +13,14 @@ Dernière mise à jour : 21 novembre 2026, sur `main` au commit de fusion `a492b
 - **Après le MVP, deux correctifs sont fusionnés :**
   1. `9798133`, compatibilité avec les modèles « raisonnement ». Un paramètre refusé par le modèle, comme `temperature`, est retiré, la requête est relancée, et le refus est mémorisé pour ce modèle. Les erreurs 400 affichent la raison donnée par le fournisseur.
   2. `0f34acf`, contexte du site. L'IA comprend désormais les références indirectes : « les images » sur YouTube, ce sont les miniatures. Le détail est en section 3.
+  3. Branche `feat/split-changes`, changements séparés. Un long prompt « X, Y et Z » donne 3 changements, chacun avec une case à cocher dans la preview. Garder enregistre une règle par changement coché, et chaque règle s'active, se désactive ou se supprime seule (liste plate, le prompt d'origine reste dans le détail).
 - **Ce qui reste ouvert dans `plan.md` :**
   - 5.4 : refaire la répétition sur le réseau de la salle.
   - 5.6 : enregistrer la vidéo de secours.
   - Le backlog A à H. Deux éléments y sont déjà partiellement faits :
     - **B (classification de site) :** la table de domaines et la lecture de `og:type`/JSON-LD sont faites. Il manque l'appel LLM de repli et le cache.
     - **E (navigation SPA) :** l'injecteur suit déjà les changements de section. Il manque la relance du health check et des futures ops DOM.
-- **Le dernier test live** avec `gpt-6-luna` est à **7/7** (`node tests/e2e/live.ts`) : YouTube (recherche et page vidéo), 3 scénarios Wikipedia, Hacker News avec itération, GitHub.
+- **Le dernier test live** avec `gpt-6-luna` est à **7/8** (`wiki-multi` vert ; `youtube-watch-images` instable, environ 1 essai sur 2, y compris sur `main`). Avant, il était à **7/7** (`node tests/e2e/live.ts`) : YouTube (recherche et page vidéo), 3 scénarios Wikipedia, Hacker News avec itération, GitHub.
 
 ## 2. Décisions d'architecture (à respecter)
 
@@ -30,6 +31,7 @@ Dernière mise à jour : 21 novembre 2026, sur `main` au commit de fusion `a492b
 | Sortie de l'IA            | **Recette JSON** (ops `hide`/`style`/`theme` + champ `css` libre), validée par Zod, compilée en CSS par l'extension                                                                                                                                                                                                                                         | Ce sont des données, pas du code : conforme MV3 et résistant à l'injection de prompt.                                                                       |
 | Structured outputs        | Le schéma « fil » (`src/shared/schema.ts`) n'a **aucun objet ouvert** : les déclarations sont des paires `{property, value}`, puis converties                                                                                                                                                                                                               | Exigence du mode `strict` des structured outputs.                                                                                                           |
 | Sélecteurs                | Le LLM désigne un `regionIndex`. **C'est l'extension qui construit les sélecteurs** (`src/content/selectors.ts`)                                                                                                                                                                                                                                            | Le LLM invente des sélecteurs fragiles. Les ids et classes générés (`mwDg8`, CSS modules, `prc-…`) et les classes utilitaires (`pr-2`, `mt-4`) sont exclus. |
+| Changements séparés       | La recette est `{changes: [{title, ops, targets, css}], explanation}`. Les clés de cible sont **propres à chaque changement**. `keep` crée une règle par changement coché (`Rule.title` + `Rule.prompt` d'origine partagé). L'ancien format plat reste accepté comme un seul changement. En itération, seuls les changements cochés sont renvoyés au LLM    | L'utilisateur veut pouvoir activer ou désactiver séparément chaque partie d'un long prompt.                                                                 |
 | Listes répétées           | `scope: "all_similar"` sur une cible, puis `groupSelector()` (ex. `ytd-video-renderer ytd-thumbnail`)                                                                                                                                                                                                                                                       | Sinon, seule la 1re carte d'une liste est modifiée.                                                                                                         |
 | Rejeu                     | `src/injector/index.iife.ts` lit `css:<host>` **directement** dans `chrome.storage.local`, sans jamais passer par le service worker                                                                                                                                                                                                                         | Évite le flash de page non modifiée (la leçon de Stylebot). Le bundle doit rester sous 2 KB (actuellement 1,35 KB).                                         |
 | Format IIFE               | **Les deux content scripts sont `*.iife.ts`**                                                                                                                                                                                                                                                                                                               | Le chargeur async de CRXJS retarde le `document_start`, crée une course au chargement et expose des `web_accessible_resources`.                             |
@@ -62,8 +64,8 @@ Dernière mise à jour : 21 novembre 2026, sur `main` au commit de fusion `a492b
 
 ```bash
 npm run build                 # typecheck + build → dist/ (à charger dans chrome://extensions)
-npm run lint && npm test      # ESLint + 84 tests unitaires (Vitest)
-npm run test:e2e              # build + Playwright/Chromium + faux LLM, phases 0 à 5
+npm run lint && npm test      # ESLint + 86 tests unitaires (Vitest)
+npm run test:e2e              # build + Playwright/Chromium + faux LLM, phases 0 à 6 (6 = changements séparés)
 node tests/e2e/live.ts [filtre]   # VRAI LLM, pilote l'UI réelle, captures dans .live-shots/
 node tests/e2e/demo-sites.ts      # sites de démo réels, sans LLM
 node tests/e2e/distill-real.ts    # taille et durée de la distillation

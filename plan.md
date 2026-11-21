@@ -92,6 +92,7 @@
 
 On choisit au fur et à mesure. Chacune s'appuie sur le MVP sans le casser.
 
+- [x] **Changements séparés** : un prompt « X, Y et Z » donne 3 changements (recette `changes[]`), cochables un par un en preview, et enregistrés comme 3 règles activables séparément (`tests/e2e/phase6.e2e.ts`, scénario live `wiki-multi`)
 - [ ] **A. Raccourcis vers pages enfouies** (F7/F8)
   - [ ] Op `insertLink` + allow-list de liens (https, même domaine enregistrable, `textContent` seulement)
   - [ ] Inventaire des liens dans la distillation, pour pouvoir promouvoir un lien caché
