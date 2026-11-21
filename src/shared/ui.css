@@ -1190,3 +1190,67 @@ button:disabled {
   height: 16px;
   flex-shrink: 0;
 }
+
+/* Personal accessibility controls. */
+.workspace-nav {
+  flex-wrap: wrap;
+}
+.accessibility-panel h1 {
+  font-size: 24px;
+  line-height: 1.2;
+  margin: 16px 0;
+}
+.accessibility-fields {
+  border: 0;
+  padding: 0;
+  margin: 24px 0 0;
+  min-width: 0;
+}
+.accessibility-card {
+  border-top: 1px solid var(--line);
+  padding: 22px 0;
+}
+.accessibility-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.accessibility-heading h2 {
+  font-size: 19px;
+  margin: 6px 0 0;
+}
+.accessibility-card p {
+  color: var(--muted);
+  margin: 12px 0 0;
+}
+.accessibility-options {
+  display: grid;
+  gap: 16px;
+  margin-top: 22px;
+}
+.accessibility-options label {
+  display: grid;
+  gap: 8px;
+  font-weight: 500;
+}
+.accessibility-options select {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.accessibility-reset {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  padding: 10px;
+}
+.accessibility-fields:disabled {
+  opacity: 0.65;
+}

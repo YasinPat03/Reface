@@ -102,3 +102,22 @@ describe('page-specific injector replay', () => {
     expect(page.css()).toBe('p{color:blue}');
   });
 });
+
+describe('accessibility replay', () => {
+  it('persists alongside modifications, reacts live, and respects pause and reset', async () => {
+    const page = await fixture({
+      'css:example.com': 'p{color:red}',
+      'accessibility-css:example.com': 'button{min-height:44px}',
+    });
+    expect(page.css()).toContain('p{color:red}');
+    expect(page.css()).toContain('min-height:44px');
+    page.change({ 'paused:example.com': { newValue: true } });
+    expect(page.css()).toBe('');
+    page.change({ 'paused:example.com': { newValue: false } });
+    expect(page.css()).toContain('min-height:44px');
+    page.navigate('/other');
+    expect(page.css()).toContain('min-height:44px');
+    page.change({ 'accessibility-css:example.com': { newValue: '' } });
+    expect(page.css()).toBe('p{color:red}');
+  });
+});

@@ -13,11 +13,12 @@ import { setPaused } from '../shared/storage';
 import { Chat } from './Chat';
 import { useSite } from './hooks';
 import { Rules } from './Rules';
+import { Accessibility } from './Accessibility';
 import { Catalogue } from './Catalogue';
 import { useActiveTab, type ActiveTab } from './tab';
 import { AssemblyDiagram, Segmented, Switch } from './ui';
 
-type View = 'edit' | 'rules' | 'catalogue';
+type View = 'edit' | 'rules' | 'catalogue' | 'accessibility';
 
 function Site({ tab }: { tab: ActiveTab }) {
   const { site, paused } = useSite(tab.host);
@@ -118,6 +119,9 @@ function Site({ tab }: { tab: ActiveTab }) {
           <Tabs.Tab value="catalogue" className="workspace-tab">
             Catalogue
           </Tabs.Tab>
+          <Tabs.Tab value="accessibility" className="workspace-tab">
+            Accessibilité
+          </Tabs.Tab>
           <Tabs.Indicator className="workspace-indicator" />
         </Tabs.List>
         <Tabs.Panel value="edit" keepMounted className="workspace-panel">
@@ -131,6 +135,9 @@ function Site({ tab }: { tab: ActiveTab }) {
               setView('catalogue');
             }}
           />
+        </Tabs.Panel>
+        <Tabs.Panel value="accessibility" className="workspace-panel">
+          <Accessibility host={tab.host} />
         </Tabs.Panel>
         <Tabs.Panel value="catalogue" className="workspace-panel">
           <Catalogue key={saveRequest} tab={tab} site={site} initialSave={saveRequest > 0} />
