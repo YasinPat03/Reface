@@ -96,7 +96,9 @@ On choisit au fur et à mesure. Chacune s'appuie sur le MVP sans le casser.
 - [ ] **A. Raccourcis vers pages enfouies** (F7/F8)
   - [ ] Op `insertLink` + allow-list de liens (https, même domaine enregistrable, `textContent` seulement)
   - [ ] Inventaire des liens dans la distillation, pour pouvoir promouvoir un lien caché
-  - [ ] Record mode via `webNavigation`, avec les boutons « Démarrer » et « C'est cette page »
+  - [x] Record mode, côté panel : « Créer un raccourci », navigation, puis « C'est cette page ». Les raccourcis sont rangés par site dans l'onglet « Raccourcis » et s'ouvrent en un clic. Module isolé `src/panel/shortcuts/` + `src/shared/shortcuts.ts`, suivi par `tabs.onUpdated` (pas besoin de `webNavigation`), `tests/e2e/phase7.e2e.ts`
+  - [x] Raccourci clavier ⌘⇧E (sans ouvrir le panel) : 1re pression, l'enregistrement démarre (pastille dans la page, badge « REC ») ; 2e pression, la page est enregistrée. Synchronisé avec le panel (`tests/e2e/phase8.e2e.ts`)
+  - [x] Palette ⌘⇧X : la liste des raccourcis du site au centre de la page, navigation au clavier (↑/↓, Entrée, ⌘/Ctrl+Entrée) ou à la souris, fermeture par Échap ou ⌘⇧X (`tests/e2e/phase9.e2e.ts`)
   - [ ] Style `match_siblings`, et un MutationObserver qui réinsère le bouton (au plus quelques fois)
 - [ ] **B. Classification de site** (F4) : table de domaines → `og:type`/JSON-LD → petit appel LLM, avec un cache de 30 jours
   - [x] Table de domaines + `og:type`/JSON-LD + vocabulaire par catégorie envoyé au LLM (`src/shared/siteContext.ts`)

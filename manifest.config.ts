@@ -23,6 +23,19 @@ export default defineManifest({
   background: { service_worker: 'src/background/index.ts', type: 'module' },
   side_panel: { default_path: 'src/panel/index.html' },
   options_page: 'src/options/index.html',
+  commands: {
+    // ⌘⇧E : libre dans Chrome et macOS (listes officielles vérifiées). Modifiable dans
+    // chrome://extensions/shortcuts. Voir src/background/shortcutHotkey.ts.
+    'record-shortcut': {
+      suggested_key: { default: 'Ctrl+Shift+E', mac: 'Command+Shift+E' },
+      description: 'Raccourci : démarrer l’enregistrement, puis enregistrer la page atteinte',
+    },
+    // ⌘⇧X : l'autre lettre libre à la fois dans Chrome et macOS.
+    'open-shortcuts': {
+      suggested_key: { default: 'Ctrl+Shift+X', mac: 'Command+Shift+X' },
+      description: 'Raccourcis : afficher ou fermer la liste des raccourcis du site',
+    },
+  },
   content_scripts: [
     {
       matches: ['http://*/*', 'https://*/*'],

@@ -1,0 +1,147 @@
+/* Raccourcis : compléments au design ReFace (src/shared/ui.css, non modifié).
+   Uniquement les variables CSS de ui.css : la bascule clair/sombre de l'app s'applique d'elle-même. */
+
+/* ---------- Onglet « Raccourcis » ---------- */
+.shortcut-tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.shortcut-tab-icon {
+  display: none;
+}
+/* Panel étroit : 4 onglets ne tiennent pas, l'onglet se réduit à l'icône + le nombre. */
+@media (max-width: 399px) {
+  .shortcut-tab-icon {
+    display: inline-block;
+  }
+  .shortcut-tab-text {
+    display: none;
+  }
+}
+
+/* ---------- Liste ---------- */
+.shortcut-link {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: inherit;
+  text-decoration: none;
+}
+.shortcut-label {
+  font-weight: 500;
+}
+.shortcut-path {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shortcut-here {
+  flex-shrink: 0;
+  padding-top: 3px;
+}
+.shortcut-rename {
+  align-items: center;
+}
+.shortcut-rename .form-input {
+  padding: 7px 10px;
+  font-size: 13px;
+}
+.shortcut-rename .button {
+  min-height: 34px;
+  padding: 6px 12px;
+}
+.shortcuts-workspace .rule-tools .button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.shortcuts-workspace .rule-tools .field-help {
+  margin-top: 2px;
+}
+.shortcut-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--muted);
+}
+.shortcut-key {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  white-space: nowrap;
+  color: var(--ink);
+}
+
+/* ---------- Barre d'enregistrement ---------- */
+.shortcut-recording {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 22px;
+  padding: 14px 0 14px 14px;
+  border-left: 2px solid var(--accent);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+.shortcut-recording p {
+  margin: 0;
+}
+.shortcut-recording-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.shortcut-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--error);
+  animation: shortcut-pulse 1.2s ease-in-out infinite;
+}
+@keyframes shortcut-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shortcut-dot {
+    animation: none;
+  }
+}
+.shortcut-page {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--surface);
+}
+.shortcut-page-title {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shortcut-page-url {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shortcut-recording .message {
+  margin-top: 0;
+  padding: 4px 0 4px 10px;
+}
+.shortcut-recording-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.shortcut-recording-other {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}

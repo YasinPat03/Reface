@@ -3,6 +3,8 @@ import { listen, type ContentApi } from '../shared/messages';
 import { distill } from './distill';
 import { checkHealth, scheduleHealthCheck } from './health';
 import { cancelPick, pick } from './picker';
+import './shortcutOverlay';
+import './shortcutPalette';
 import {
   clearPreview,
   compileChanges,

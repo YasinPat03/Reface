@@ -15,14 +15,16 @@ import { useSite } from './hooks';
 import { Rules } from './Rules';
 import { Accessibility } from './Accessibility';
 import { Catalogue } from './Catalogue';
+import { RecordingBar, ShortcutsTab, ShortcutsTabLabel, useShortcutCount } from './shortcuts';
 import { useActiveTab, type ActiveTab } from './tab';
 import { AssemblyDiagram, Segmented, Switch } from './ui';
 
-type View = 'edit' | 'rules' | 'catalogue';
+type View = 'edit' | 'rules' | 'catalogue' | 'shortcuts';
 
 function Site({ tab }: { tab: ActiveTab }) {
   const { site, paused } = useSite(tab.host);
   const [saveRequest, setSaveRequest] = useState(0);
+  const shortcutCount = useShortcutCount(tab.host);
   const [view, setView] = useState<View>('edit');
   const [original, setOriginalState] = useState(false);
   const [controlError, setControlError] = useState<string | null>(null);
@@ -97,6 +99,13 @@ function Site({ tab }: { tab: ActiveTab }) {
           </p>
         )}
       </section>
+      <RecordingBar
+        tab={tab}
+        onSaved={() => {
+          setSaveRequest(0);
+          setView('shortcuts');
+        }}
+      />
       <Tabs.Root
         value={view}
         onValueChange={(value) => {
@@ -119,6 +128,13 @@ function Site({ tab }: { tab: ActiveTab }) {
           <Tabs.Tab value="catalogue" className="workspace-tab">
             Catalogue
           </Tabs.Tab>
+          <Tabs.Tab
+            value="shortcuts"
+            className="workspace-tab"
+            aria-label={`Raccourcis (${shortcutCount})`}
+          >
+            <ShortcutsTabLabel count={shortcutCount} />
+          </Tabs.Tab>
           <Tabs.Indicator className="workspace-indicator" />
         </Tabs.List>
         <Tabs.Panel value="edit" keepMounted className="workspace-panel">
@@ -135,6 +151,9 @@ function Site({ tab }: { tab: ActiveTab }) {
         </Tabs.Panel>
         <Tabs.Panel value="catalogue" className="workspace-panel">
           <Catalogue key={saveRequest} tab={tab} site={site} initialSave={saveRequest > 0} />
+        </Tabs.Panel>
+        <Tabs.Panel value="shortcuts" className="workspace-panel">
+          <ShortcutsTab tab={tab} />
         </Tabs.Panel>
       </Tabs.Root>
       <footer className="app-footer">
