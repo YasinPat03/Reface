@@ -32,7 +32,7 @@ export default defineManifest({
     },
     {
       matches: ['http://*/*', 'https://*/*'],
-      js: ['src/content/index.ts'],
+      js: ['src/content/index.iife.ts'],
       run_at: 'document_idle',
     },
   ],

@@ -80,3 +80,34 @@ export const DEFAULT_SETTINGS: Settings = {
   baseUrl: 'https://api.openai.com/v1',
   model: 'gpt-4o-mini',
 };
+
+/** Résultat de la distillation du DOM (PRD §5). */
+export interface DistillResult {
+  url: string;
+  title: string;
+  host: string;
+  /** Une ligne par région, indentée selon la profondeur. */
+  regions: string;
+  regionCount: number;
+  /** Résumé typographique : balises présentes et styles calculés de base. */
+  typography: string;
+  /** Pour chaque sélecteur demandé dans `include`, l'index de région de l'élément (ou -1). */
+  included: Record<string, number>;
+}
+
+/** Modification en preview, pas encore enregistrée. */
+export interface Draft {
+  host: string;
+  /** Prompts successifs (itérations). */
+  prompts: string[];
+  /** Recette telle que renvoyée par le LLM (indices de région). */
+  recipe: Recipe;
+  /** Règle résolue par l'extension : sélecteurs robustes, CSS normalisé. */
+  ops: Op[];
+  targets: Record<string, Target>;
+  css: string;
+  explanation: string;
+  /** CSS compilé, actuellement appliqué en preview. */
+  previewCss: string;
+  warnings: string[];
+}

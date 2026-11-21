@@ -111,3 +111,18 @@ describe('cssSafety', () => {
     expect(isSafeSelector('a{')).toBe(false);
   });
 });
+
+describe('allow-list des propriétés', () => {
+  it.each([
+    'display',
+    'grid-template-columns',
+    'background-color',
+    'font-size',
+    'border-top-left-radius',
+    '--accent',
+    'inset-inline-start',
+  ])('autorise %s', (property) => expect(isSafeDeclaration(property, '1px')).toBe(true));
+  it.each(['content', 'all', '-moz-binding', 'behavior'])('refuse %s', (property) =>
+    expect(isSafeDeclaration(property, 'x')).toBe(false),
+  );
+});

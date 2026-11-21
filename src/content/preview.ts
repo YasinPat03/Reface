@@ -1,0 +1,156 @@
+// Résolution de la recette (regionIndex → sélecteurs), normalisation du CSS libre et preview.
+import { compileRule } from '../shared/compile';
+import { cssViolation, isAllowedProperty } from '../shared/cssSafety';
+import type { Draft, Recipe, Target } from '../shared/types';
+import { regionAt } from './distill';
+import { buildSelectors, fingerprint } from './selectors';
+
+const PREVIEW_ID = 'bp-preview';
+
+/**
+ * Parse le CSS libre via le CSSOM du navigateur : seules les règles de style (et leurs
+ * conteneurs @media/@supports/@container) survivent ; chaque déclaration passe en !important ;
+ * les propriétés hors allow-list sont retirées.
+ */
+export function normalizeFreeCss(css: string, warnings: string[]): string {
+  const source = css.trim();
+  if (!source) return '';
+  const violation = cssViolation(source);
+  if (violation) throw new Error(`Le CSS proposé par l’IA a été refusé : ${violation}`);
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync(source);
+  const dropped = new Set<string>();
+
+  const clean = (rules: CSSRuleList): string[] => {
+    const out: string[] = [];
+    for (const rule of rules) {
+      if (rule instanceof CSSStyleRule) {
+        for (const property of [...rule.style]) {
+          if (!isAllowedProperty(property)) {
+            dropped.add(property);
+            rule.style.removeProperty(property);
+          } else {
+            rule.style.setProperty(property, rule.style.getPropertyValue(property), 'important');
+          }
+        }
+        if (rule.style.length) out.push(rule.cssText);
+      } else if (
+        rule instanceof CSSMediaRule ||
+        rule instanceof CSSSupportsRule ||
+        rule instanceof CSSContainerRule
+      ) {
+        const inner = clean(rule.cssRules);
+        if (inner.length)
+          out.push(
+            `@${rule.cssText.slice(1, rule.cssText.indexOf('{')).trim()}{${inner.join('\n')}}`,
+          );
+      } else if (rule instanceof CSSKeyframesRule) {
+        out.push(rule.cssText);
+      } else {
+        dropped.add(rule.cssText.slice(0, 20));
+      }
+    }
+    return out;
+  };
+
+  const result = clean(sheet.cssRules).join('\n');
+  if (dropped.size) warnings.push(`Éléments CSS ignorés : ${[...dropped].slice(0, 5).join(', ')}.`);
+  // Revérification après sérialisation par le navigateur.
+  const after = cssViolation(result);
+  if (after) throw new Error(`Le CSS proposé par l’IA a été refusé : ${after}`);
+  return result;
+}
+
+/** Transforme chaque cible de la recette en sélecteurs robustes + empreinte. */
+export function resolveTargets(recipe: Recipe, warnings: string[]): Record<string, Target> {
+  const targets: Record<string, Target> = {};
+  for (const [key, ref] of Object.entries(recipe.targets)) {
+    const element = regionAt(ref.regionIndex);
+    if (element) {
+      const selectors = buildSelectors(element, ref.selectorHints);
+      if (selectors.length) {
+        targets[key] = { selectors, fingerprint: fingerprint(element), minMatches: 1 };
+        continue;
+      }
+    }
+    // Pas d'index exploitable : on se rabat sur les suggestions du LLM qui matchent vraiment.
+    const hints = ref.selectorHints.filter((hint) => {
+      try {
+        return document.querySelectorAll(hint).length > 0;
+      } catch {
+        return false;
+      }
+    });
+    if (hints.length) {
+      const first = document.querySelector(hints[0]!)!;
+      targets[key] = {
+        selectors: hints.slice(0, 3),
+        fingerprint: fingerprint(first),
+        minMatches: 1,
+      };
+    } else {
+      warnings.push(`Cible ${key} introuvable sur la page : ignorée.`);
+    }
+  }
+  return targets;
+}
+
+function previewElement(): HTMLStyleElement {
+  let style = document.getElementById(PREVIEW_ID) as HTMLStyleElement | null;
+  if (!style) {
+    style = document.createElement('style');
+    style.id = PREVIEW_ID;
+  }
+  // Toujours après bp-styles pour que la preview l'emporte.
+  document.documentElement.appendChild(style);
+  return style;
+}
+
+export function setPreview(css: string): void {
+  previewElement().textContent = css;
+}
+
+export function clearPreview(): void {
+  document.getElementById(PREVIEW_ID)?.remove();
+}
+
+/** Construit le brouillon complet et l'applique en preview. */
+export function prepareDraft(recipe: Recipe, prompts: string[]): Draft {
+  const warnings: string[] = [];
+  const targets = resolveTargets(recipe, warnings);
+  const ops = recipe.ops.filter((op) => !op.target || op.target in targets);
+  const css = normalizeFreeCss(recipe.css, warnings);
+  const previewCss = compileRule({ ops, targets, css });
+  if (!previewCss.trim()) {
+    warnings.push('Cette modification ne produit aucun changement visible.');
+  }
+  setPreview(previewCss);
+  return {
+    host: location.hostname,
+    prompts,
+    recipe,
+    ops,
+    targets,
+    css,
+    explanation: recipe.explanation,
+    previewCss,
+    warnings,
+  };
+}
+
+/**
+ * Exécute `fn` avec les styles Browser Paint désactivés (rien n'est peint entre-temps :
+ * tout est synchrone), pour que la distillation voie la page d'origine.
+ */
+export function withoutOurStyles<T>(fn: () => T): T {
+  const styles = ['bp-styles', 'bp-preview']
+    .map((id) => document.getElementById(id) as HTMLStyleElement | null)
+    .filter((s): s is HTMLStyleElement => !!s);
+  const previous = styles.map((s) => s.disabled);
+  styles.forEach((s) => (s.disabled = true));
+  try {
+    return fn();
+  } finally {
+    styles.forEach((s, i) => (s.disabled = previous[i]!));
+  }
+}

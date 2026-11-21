@@ -23,11 +23,107 @@ export function cssViolation(text: string): string | null {
   return null;
 }
 
-const PROPERTY = /^-?[a-z][a-z0-9-]*$/;
+const PROPERTY = /^(?:--|-)?[a-z][a-z0-9-]*$/;
+
+/**
+ * Allow-list des propriétés (PRD §6) : apparence et mise en page uniquement.
+ * Exclut notamment `content` (injection de texte) et `all` (remise à zéro brutale).
+ */
+const ALLOWED_PROPERTY = new RegExp(
+  '^(?:' +
+    [
+      'display',
+      'visibility',
+      'opacity',
+      'position',
+      'top',
+      'right',
+      'bottom',
+      'left',
+      'inset(?:-.+)?',
+      'z-index',
+      'float',
+      'clear',
+      'overflow(?:-.+)?',
+      'box-sizing',
+      '(?:min-|max-)?(?:width|height)',
+      '(?:min-|max-)?(?:block|inline)-size',
+      'margin(?:-.+)?',
+      'padding(?:-.+)?',
+      'border(?:-.+)?',
+      'outline(?:-.+)?',
+      'background(?:-.+)?',
+      'color',
+      'accent-color',
+      'caret-color',
+      'font(?:-.+)?',
+      'line-height',
+      'letter-spacing',
+      'word-spacing',
+      'text-(?:.+)',
+      'white-space(?:-.+)?',
+      'word-break',
+      'overflow-wrap',
+      'hyphens',
+      'vertical-align',
+      'list-style(?:-.+)?',
+      'flex(?:-.+)?',
+      'grid(?:-.+)?',
+      'gap',
+      'row-gap',
+      'column-gap',
+      'order',
+      'align-(?:.+)',
+      'justify-(?:.+)',
+      'place-(?:.+)',
+      'box-shadow',
+      'filter',
+      'backdrop-filter',
+      'transform(?:-.+)?',
+      'translate',
+      'rotate',
+      'scale',
+      'transition(?:-.+)?',
+      'animation(?:-.+)?',
+      'cursor',
+      'pointer-events',
+      'user-select',
+      'object-fit',
+      'object-position',
+      'aspect-ratio',
+      'columns',
+      'column-(?:.+)',
+      'table-layout',
+      'border-collapse',
+      'border-spacing',
+      'scroll-(?:.+)',
+      'content-visibility',
+      'isolation',
+      'mix-blend-mode',
+      'clip-path',
+      'resize',
+      'direction',
+      'writing-mode',
+      'zoom',
+      'color-scheme',
+      'appearance',
+      'container(?:-.+)?',
+      'contain',
+      'tab-size',
+      'quotes',
+      '-webkit-(?:line-clamp|box-orient|text-.+|font-smoothing|appearance|user-select)',
+      '--[a-z0-9-]+',
+    ].join('|') +
+    ')$',
+);
+
+export function isAllowedProperty(property: string): boolean {
+  return ALLOWED_PROPERTY.test(property);
+}
 
 /** Valide une déclaration isolée (propriété + valeur), sans `;`, `{` ni `}`. */
 export function isSafeDeclaration(property: string, value: string): boolean {
-  if (!PROPERTY.test(property)) return false;
+  if (!PROPERTY.test(property) || !isAllowedProperty(property)) return false;
   if (/[;{}]/.test(value) || value.length > 500) return false;
   return cssViolation(`${property}:${value}`) === null;
 }

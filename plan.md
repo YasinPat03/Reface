@@ -36,27 +36,27 @@
 
 ### Phase 2 : Boucle agent (Personne B)
 
-- [ ] **2.1 Distillation DOM** (`content/distill.ts`)
-  - [ ] Régions : landmarks, éléments custom et gros conteneurs, avec index, tag, id, classes stables, rect et un échantillon de 60 caractères de texte
-  - [ ] Plafond d'environ 150 régions, pas de valeurs de formulaire, emails et chiffres expurgés
-- [ ] **2.2 Schéma de recette** (`shared/schema.ts`)
-  - [ ] Ops MVP : `hide`, `style`, `theme`, plus un champ `css` libre en échappatoire
-  - [ ] `targets` : `regionIndex` + `selectorHints`
-  - [ ] Champ `explanation` (on prévoit aussi `intent` optionnel pour plus tard)
-- [ ] **2.3 Validation et sécurité**
-  - [ ] Zod, puis une allow-list de propriétés CSS
-  - [ ] Rejet de `url()`, `@import`, `attr()`, `expression`, `javascript:` (regex dans PRD §6)
-  - [ ] Parse via `CSSStyleSheet`
-- [ ] **2.4 Appel LLM** (`background/llm.ts`)
-  - [ ] Client compatible OpenAI (base URL + modèle + clé lus depuis `settings`)
-  - [ ] Structured output (`json_schema`), raisonnement désactivé, timeout de 15 s et un retry
-  - [ ] Le texte de la page est encadré comme donnée non fiable
-- [ ] **2.5 Sélecteurs** : l'extension transforme `regionIndex` en 2 ou 3 sélecteurs stables (id non généré, `data-testid`/aria/role, classes non hashées)
-- [ ] **2.6 Preview / Keep / Discard**
-  - [ ] La preview est injectée dans un `<style id="bp-preview">` séparé
-  - [ ] Keep écrit `rules:<host>`, recompile `css:<host>` et enregistre les fingerprints
-  - [ ] Discard retire la preview
-- [ ] **2.7 Itération** : un prompt de suivi révise la preview en cours
+- [x] **2.1 Distillation DOM** (`content/distill.ts`)
+  - [x] Régions : landmarks, éléments custom et gros conteneurs, avec index, tag, id, classes stables, rect et un échantillon de 60 caractères de texte
+  - [x] Plafond d'environ 150 régions, pas de valeurs de formulaire, emails et chiffres expurgés
+- [x] **2.2 Schéma de recette** (`shared/schema.ts`)
+  - [x] Ops MVP : `hide`, `style`, `theme`, plus un champ `css` libre en échappatoire
+  - [x] `targets` : `regionIndex` + `selectorHints`
+  - [x] Champ `explanation` (on prévoit aussi `intent` optionnel pour plus tard)
+- [x] **2.3 Validation et sécurité**
+  - [x] Zod, puis une allow-list de propriétés CSS
+  - [x] Rejet de `url()`, `@import`, `attr()`, `expression`, `javascript:` (regex dans PRD §6)
+  - [x] Parse via `CSSStyleSheet`
+- [x] **2.4 Appel LLM** (`background/llm.ts`)
+  - [x] Client compatible OpenAI (base URL + modèle + clé lus depuis `settings`)
+  - [x] Structured output (`json_schema`), raisonnement désactivé, timeout de 15 s et un retry
+  - [x] Le texte de la page est encadré comme donnée non fiable
+- [x] **2.5 Sélecteurs** : l'extension transforme `regionIndex` en 2 ou 3 sélecteurs stables (id non généré, `data-testid`/aria/role, classes non hashées)
+- [x] **2.6 Preview / Keep / Discard**
+  - [x] La preview est injectée dans un `<style id="bp-preview">` séparé
+  - [x] Keep écrit `rules:<host>`, recompile `css:<host>` et enregistre les fingerprints
+  - [x] Discard retire la preview
+- [x] **2.7 Itération** : un prompt de suivi révise la preview en cours
 
 ### Phase 3 : Side panel et gestion (Personne C)
 

@@ -1,5 +1,6 @@
 // Contrat de messagerie typé : panel ↔ service worker ↔ content script.
 // Pour ajouter un message : une entrée dans BgApi ou ContentApi, puis un handler.
+import type { DistillResult, Draft, Recipe } from './types';
 
 interface Def<Req, Res> {
   req: Req;
@@ -9,11 +10,23 @@ interface Def<Req, Res> {
 /** Messages traités par le service worker. */
 export interface BgApi {
   ping: Def<{ tabId: number }, { host: string; content: 'ok' | 'unreachable' }>;
+  /** Prompt → LLM → recette → preview. `previous` = brouillon en cours (itération). */
+  generate: Def<
+    { tabId: number; prompt: string; previous: Draft | null; pick: string | null },
+    Draft
+  >;
+  /** Enregistre le brouillon comme règle du site. */
+  keep: Def<{ tabId: number; draft: Draft }, { ruleId: string }>;
+  /** Retire la preview. */
+  discard: Def<{ tabId: number }, null>;
 }
 
 /** Messages traités par le content script B (document_idle). */
 export interface ContentApi {
   ping: Def<Record<string, never>, { host: string }>;
+  distill: Def<{ include: string[] }, DistillResult>;
+  preparePreview: Def<{ recipe: Recipe; prompts: string[] }, Draft>;
+  clearPreview: Def<Record<string, never>, null>;
 }
 
 type Envelope<A> = {
