@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import {
-  RECORD_COMMAND,
   getRecording,
   getShortcuts,
   shortcutKeys,
@@ -71,20 +70,19 @@ export function useRecording(): ShortcutRecording | null {
   return recording;
 }
 
-/** Touche attribuée au raccourci clavier (ex. « ⇧⌘E ») ; '' si aucune, null pendant le chargement. */
-export function useHotkey(): string | null {
+/** Touche attribuée à une commande (ex. « ⇧⌘E ») ; '' si aucune, null pendant le chargement. */
+export function useHotkey(command: string): string | null {
   const [hotkey, setHotkey] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
     void chrome.commands.getAll().then(
-      (commands) =>
-        alive && setHotkey(commands.find((c) => c.name === RECORD_COMMAND)?.shortcut ?? ''),
+      (commands) => alive && setHotkey(commands.find((c) => c.name === command)?.shortcut ?? ''),
       () => null,
     );
     return () => {
       alive = false;
     };
-  }, []);
+  }, [command]);
   return hotkey;
 }
 

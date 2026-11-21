@@ -1,8 +1,11 @@
 import { useState, type MouseEvent } from 'react';
 import {
   MAX_LABEL,
+  PALETTE_COMMAND,
+  RECORD_COMMAND,
   removeShortcut,
   renameShortcut,
+  shortcutPath,
   startRecording,
   type Shortcut,
 } from '../../shared/shortcuts';
@@ -17,20 +20,53 @@ function hostOf(url: string): string {
   }
 }
 
-function pathOf(url: string): string {
-  try {
-    const u = new URL(url);
-    return decodeURIComponent(u.pathname + u.search + u.hash);
-  } catch {
-    return url;
-  }
+/** Ligne d'astuce pour une touche ; sans touche attribuée, propose de la configurer. */
+function HotkeyHint({
+  hotkey,
+  name,
+  action,
+  testId,
+  onConfigure,
+}: {
+  hotkey: string | null;
+  /** Nom court de l'action, pour le cas sans touche. */
+  name: string;
+  action: string;
+  testId: string;
+  onConfigure: () => void;
+}) {
+  if (hotkey === null) return null;
+  return (
+    <p className="text-xs text-zinc-500" data-testid={testId}>
+      {hotkey ? (
+        <>
+          <kbd className="rounded border border-zinc-300 px-1 font-sans dark:border-zinc-700">
+            {hotkey}
+          </kbd>{' '}
+          {action}
+        </>
+      ) : (
+        <>
+          Aucune touche n’est attribuée pour {name}.{' '}
+          <button
+            type="button"
+            onClick={onConfigure}
+            className="text-violet-700 underline-offset-2 hover:underline dark:text-violet-300"
+          >
+            Configurer
+          </button>
+        </>
+      )}
+    </p>
+  );
 }
 
 /** Onglet « Raccourcis » : créer un raccourci, puis y aller en un clic. */
 export function ShortcutsTab({ tab }: { tab: ActiveTab }) {
   const site = useShortcuts(tab.host);
   const recording = useRecording();
-  const hotkey = useHotkey();
+  const recordKey = useHotkey(RECORD_COMMAND);
+  const paletteKey = useHotkey(PALETTE_COMMAND);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
 
@@ -38,6 +74,9 @@ export function ShortcutsTab({ tab }: { tab: ActiveTab }) {
     setError(null);
     fn().catch((e) => setError(errorMessage(e)));
   };
+
+  const configureKeys = () =>
+    run(() => chrome.tabs.create({ url: 'chrome://extensions/shortcuts' }));
 
   // Clic : l'onglet courant va sur la page. Cmd/Ctrl-clic ou clic molette : nouvel onglet.
   function go(event: MouseEvent, shortcut: Shortcut) {
@@ -75,33 +114,20 @@ export function ShortcutsTab({ tab }: { tab: ActiveTab }) {
           Naviguez ensuite jusqu’à la page voulue : elle sera accessible en un clic depuis cet
           onglet, chaque fois que vous êtes sur {tab.host}.
         </p>
-        {hotkey !== null && (
-          <p className="text-xs text-zinc-500" data-testid="hotkey-hint">
-            {hotkey ? (
-              <>
-                Astuce :{' '}
-                <kbd className="rounded border border-zinc-300 px-1 font-sans dark:border-zinc-700">
-                  {hotkey}
-                </kbd>{' '}
-                sur n’importe quelle page démarre un raccourci sans ouvrir le panel, puis
-                l’enregistre.
-              </>
-            ) : (
-              <>
-                Aucune touche n’est attribuée au raccourci clavier.{' '}
-                <button
-                  type="button"
-                  onClick={() =>
-                    run(() => chrome.tabs.create({ url: 'chrome://extensions/shortcuts' }))
-                  }
-                  className="text-violet-700 underline-offset-2 hover:underline dark:text-violet-300"
-                >
-                  Configurer
-                </button>
-              </>
-            )}
-          </p>
-        )}
+        <HotkeyHint
+          hotkey={recordKey}
+          testId="hotkey-hint"
+          name="enregistrer un raccourci"
+          action="sur n’importe quelle page : démarre un raccourci sans ouvrir le panel, puis l’enregistre."
+          onConfigure={configureKeys}
+        />
+        <HotkeyHint
+          hotkey={paletteKey}
+          testId="palette-hint"
+          name="afficher les raccourcis"
+          action="affiche les raccourcis du site directement sur la page."
+          onConfigure={configureKeys}
+        />
       </div>
 
       {site.shortcuts.length === 0 ? (
@@ -157,7 +183,7 @@ export function ShortcutsTab({ tab }: { tab: ActiveTab }) {
                       <span className="line-clamp-2 font-medium">{shortcut.label}</span>
                       <span className="block truncate font-mono text-[10px] text-zinc-500">
                         {otherHost ? `${otherHost} · ` : ''}
-                        {pathOf(shortcut.url)}
+                        {shortcutPath(shortcut.url)}
                       </span>
                     </a>
                     {here && (
