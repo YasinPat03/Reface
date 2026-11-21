@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { callBg } from '../shared/messages';
-import type { Draft } from '../shared/types';
+import { callBg, callContent } from '../shared/messages';
+import type { Draft, PickResult } from '../shared/types';
 import { errorMessage, type ActiveTab } from './tab';
 
-type Status = 'idle' | 'generating' | 'saving';
+type Status = 'idle' | 'generating' | 'saving' | 'picking';
 
 const EXAMPLES = [
   'Cache les commentaires',
@@ -18,6 +18,7 @@ export function Chat({ tab, onSaved }: { tab: ActiveTab; onSaved?: () => void })
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [picked, setPicked] = useState<PickResult | null>(null);
   const draftTab = useRef<number | null>(null);
 
   // Le composant est remonté à chaque changement de site (key={host}) :
@@ -34,6 +35,41 @@ export function Chat({ tab, onSaved }: { tab: ActiveTab; onSaved?: () => void })
     },
     [],
   );
+  // Un picker encore actif dans la page est annulé si le panel change de site.
+  useEffect(() => () => void callContent(tab.id, 'cancelPick', {}).catch(() => null), [tab.id]);
+
+  async function startPick() {
+    if (status === 'picking') {
+      await callContent(tab.id, 'cancelPick', {}).catch(() => null);
+      return;
+    }
+    setStatus('picking');
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await callContent(tab.id, 'pick', {});
+      if (result) setPicked(result);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setStatus('idle');
+    }
+  }
+
+  async function hidePicked() {
+    if (!picked) return;
+    setStatus('saving');
+    setError(null);
+    try {
+      await callBg('quickHide', { tabId: tab.id, pick: picked });
+      setPicked(null);
+      onSaved?.();
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setStatus('idle');
+    }
+  }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -46,7 +82,7 @@ export function Chat({ tab, onSaved }: { tab: ActiveTab; onSaved?: () => void })
         tabId: tab.id,
         prompt,
         previous: draft,
-        pick: null,
+        pick: picked?.selector ?? null,
       });
       draftTab.current = tab.id;
       setDraft(next);
@@ -65,6 +101,7 @@ export function Chat({ tab, onSaved }: { tab: ActiveTab; onSaved?: () => void })
     try {
       await callBg('keep', { tabId: draftTab.current, draft });
       setDraft(null);
+      setPicked(null);
       setNotice('Modification enregistrée. Elle reviendra à chaque visite.');
       onSaved?.();
     } catch (e) {
@@ -105,13 +142,60 @@ export function Chat({ tab, onSaved }: { tab: ActiveTab; onSaved?: () => void })
           className="resize-none rounded-md border border-zinc-300 bg-transparent p-2 text-sm outline-none focus:border-violet-500 dark:border-zinc-700"
           disabled={busy}
         />
-        <button
-          type="submit"
-          disabled={busy || !prompt.trim()}
-          className="self-end rounded-md bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
-        >
-          {status === 'generating' ? 'Génération…' : draft ? 'Réviser' : 'Prévisualiser'}
-        </button>
+        {picked && (
+          <div
+            data-testid="picked"
+            className="flex items-center gap-2 rounded-md bg-violet-50 px-2 py-1.5 text-xs dark:bg-violet-950"
+          >
+            <span className="shrink-0">🎯</span>
+            <span className="min-w-0 flex-1 truncate font-mono" title={picked.selector}>
+              {picked.label}
+            </span>
+            <button
+              type="button"
+              onClick={hidePicked}
+              disabled={busy}
+              className="shrink-0 rounded bg-white px-2 py-0.5 font-medium text-violet-700 shadow-sm hover:bg-violet-100 disabled:opacity-50 dark:bg-zinc-900 dark:text-violet-300"
+            >
+              Cacher cet élément
+            </button>
+            <button
+              type="button"
+              aria-label="Oublier l’élément pointé"
+              onClick={() => setPicked(null)}
+              className="shrink-0 px-1 text-zinc-400 hover:text-zinc-700"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+        <div className="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={startPick}
+            disabled={status === 'generating' || status === 'saving'}
+            aria-pressed={status === 'picking'}
+            className={`rounded-md border px-2.5 py-1.5 text-sm disabled:opacity-50 ${
+              status === 'picking'
+                ? 'border-violet-500 bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-300'
+                : 'border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900'
+            }`}
+          >
+            {status === 'picking' ? 'Annuler le pointage' : '🎯 Pointer un élément'}
+          </button>
+          <button
+            type="submit"
+            disabled={busy || !prompt.trim()}
+            className="rounded-md bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
+          >
+            {status === 'generating' ? 'Génération…' : draft ? 'Réviser' : 'Prévisualiser'}
+          </button>
+        </div>
+        {status === 'picking' && (
+          <p role="status" className="text-xs text-zinc-500">
+            Cliquez sur un élément de la page. ↑ pour sélectionner son parent, Échap pour annuler.
+          </p>
+        )}
       </form>
 
       {!draft && !prompt && (

@@ -1,6 +1,6 @@
 // Contrat de messagerie typé : panel ↔ service worker ↔ content script.
 // Pour ajouter un message : une entrée dans BgApi ou ContentApi, puis un handler.
-import type { DistillResult, Draft, Recipe, Settings } from './types';
+import type { DistillResult, Draft, PickResult, Recipe, Settings } from './types';
 
 interface Def<Req, Res> {
   req: Req;
@@ -21,16 +21,22 @@ export interface BgApi {
   discard: Def<{ tabId: number }, null>;
   /** Vérifie la clé et liste les modèles disponibles. */
   testConnection: Def<Settings, { models: string[]; modelFound: boolean }>;
+  /** Cache l'élément pointé, sans LLM. */
+  quickHide: Def<{ tabId: number; pick: PickResult }, { ruleId: string }>;
 }
 
 /** Messages traités par le content script B (document_idle). */
 export interface ContentApi {
   ping: Def<Record<string, never>, { host: string }>;
-  distill: Def<{ include: string[] }, DistillResult>;
+  /** `focus` : élément pointé, inclus avec ses ancêtres ET son sous-arbre. */
+  distill: Def<{ include: string[]; focus: string | null }, DistillResult>;
   preparePreview: Def<{ recipe: Recipe; prompts: string[] }, Draft>;
   clearPreview: Def<Record<string, never>, null>;
   /** Bascule temporaire Original / Modifié (sans toucher au stockage). `set` absent = lecture. */
   original: Def<{ set?: boolean }, { original: boolean }>;
+  /** Lance le picker ; répond à la sélection (null si annulé). */
+  pick: Def<Record<string, never>, PickResult | null>;
+  cancelPick: Def<Record<string, never>, null>;
 }
 
 type Envelope<A> = {

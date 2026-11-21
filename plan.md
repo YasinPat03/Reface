@@ -68,9 +68,9 @@
 
 ### Phase 4 : Element picker (Personne C, après la phase 3)
 
-- [ ] **4.1 Mode « pointer un élément »** : surbrillance au survol, la sélection se fait au clic, Échap annule
-- [ ] **4.2 Contexte prioritaire** : le sous-arbre et les ancêtres de l'élément choisi sont envoyés en entier dans la distillation
-- [ ] **4.3 Ops rapides sans LLM** : « Cacher cet élément » en un clic
+- [x] **4.1 Mode « pointer un élément »** : surbrillance au survol, la sélection se fait au clic, Échap annule
+- [x] **4.2 Contexte prioritaire** : le sous-arbre et les ancêtres de l'élément choisi sont envoyés en entier dans la distillation
+- [x] **4.3 Ops rapides sans LLM** : « Cacher cet élément » en un clic
 
 ### Phase 5 : Durcissement MVP et démo (tout le monde)
 

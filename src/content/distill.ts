@@ -6,6 +6,7 @@ import { stableClasses } from './selectors';
 const MAX_REGIONS = 150;
 /** Budget de caractères pour les lignes de régions (~2,5k tokens). */
 const CHAR_BUDGET = 10_000;
+const MAX_FOCUS_DESCENDANTS = 30;
 const SKIP = new Set([
   'SCRIPT',
   'STYLE',
@@ -107,7 +108,7 @@ interface Candidate {
  * Parcourt le DOM et garde les régions utiles : landmarks, rôles ARIA, éléments custom,
  * gros conteneurs. Les éléments de `include` (picker, itération) et leurs ancêtres sont forcés.
  */
-export function distill(include: string[] = []): DistillResult {
+export function distill(include: string[] = [], focus: string | null = null): DistillResult {
   const viewportArea = Math.max(window.innerWidth * window.innerHeight, 1);
   const forced = new Set<Element>();
   const includedElements = new Map<string, Element>();
@@ -122,6 +123,31 @@ export function distill(include: string[] = []): DistillResult {
     includedElements.set(selector, element);
     for (let e: Element | null = element; e && e !== document.body; e = e.parentElement)
       forced.add(e);
+  }
+
+  // Élément pointé : ses descendants visibles (les plus grands d'abord) sont forcés aussi.
+  if (focus) {
+    let focused: Element | null = null;
+    try {
+      focused = document.querySelector(focus);
+    } catch {
+      /* ignoré */
+    }
+    if (focused) {
+      if (!include.includes(focus)) {
+        include = [...include, focus];
+        includedElements.set(focus, focused);
+        for (let e: Element | null = focused; e && e !== document.body; e = e.parentElement)
+          forced.add(e);
+      }
+      [...focused.querySelectorAll('*')]
+        .filter((e) => !SKIP.has(e.tagName))
+        .map((e) => ({ e, rect: e.getBoundingClientRect() }))
+        .filter(({ e, rect }) => isVisible(e, rect))
+        .sort((a, b) => b.rect.width * b.rect.height - a.rect.width * a.rect.height)
+        .slice(0, MAX_FOCUS_DESCENDANTS)
+        .forEach(({ e }) => forced.add(e));
+    }
   }
 
   const candidates: Candidate[] = [];

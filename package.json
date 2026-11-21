@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",
-    "test:e2e": "npm run build && node tests/e2e/phase1.e2e.ts && node tests/e2e/phase2.e2e.ts && node tests/e2e/phase3.e2e.ts"
+    "test:e2e": "npm run build && for f in tests/e2e/phase*.e2e.ts; do node \"$f\" || exit 1; done"
   },
   "dependencies": {
     "react": "^19.3.1",

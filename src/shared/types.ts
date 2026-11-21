@@ -111,3 +111,13 @@ export interface Draft {
   previewCss: string;
   warnings: string[];
 }
+
+/** Élément choisi avec le picker. */
+export interface PickResult {
+  /** Sélecteur unique principal. */
+  selector: string;
+  selectors: string[];
+  /** Libellé lisible (tag#id · texte), affiché dans le panel. */
+  label: string;
+  fingerprint: Fingerprint;
+}

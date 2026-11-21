@@ -3,7 +3,7 @@ import { callContent } from '../shared/messages';
 import { addRule, newRuleId } from '../shared/rules';
 import { parseRecipe, toWire } from '../shared/schema';
 import { getSettings, getSiteRules } from '../shared/storage';
-import type { DistillResult, Draft, Recipe, Rule } from '../shared/types';
+import type { DistillResult, Draft, PickResult, Recipe, Rule } from '../shared/types';
 import { completeJson, type ChatMessage } from './llm';
 
 const SYSTEM_PROMPT = [
@@ -75,7 +75,7 @@ export async function generate(
     ...(pick ? [pick] : []),
     ...(previous ? Object.values(previous.targets).flatMap((t) => t.selectors.slice(0, 1)) : []),
   ];
-  const page = await callContent(tabId, 'distill', { include });
+  const page = await callContent(tabId, 'distill', { include, focus: pick });
   const saved = (await getSiteRules(page.host)).rules;
   const current = previous ? reindex(previous, page.included) : null;
   const picked = pick ? (page.included[pick] ?? -1) : null;
@@ -86,27 +86,58 @@ export async function generate(
   return callContent(tabId, 'preparePreview', { recipe, prompts });
 }
 
-export async function keep(tabId: number, draft: Draft): Promise<{ ruleId: string }> {
+async function tabOrigin(tabId: number): Promise<{ host: string; origin: string }> {
   const tab = await chrome.tabs.get(tabId);
-  const host = tab.url ? new URL(tab.url).hostname : '';
-  if (!host || host !== draft.host) throw new Error('L’onglet a changé de site depuis la preview.');
+  if (!tab.url) throw new Error('Onglet introuvable.');
+  const url = new URL(tab.url);
+  return { host: url.hostname, origin: url.origin };
+}
+
+function newRule(
+  origin: string,
+  fields: Pick<Rule, 'prompt' | 'ops' | 'targets' | 'css' | 'explanation'>,
+): Rule {
   const now = new Date().toISOString();
-  const rule: Rule = {
+  return {
     id: newRuleId(),
     kind: 'restyle',
     createdAt: now,
-    prompt: draft.prompts.join(' → '),
-    urlPattern: `${new URL(tab.url!).origin}/*`,
+    urlPattern: `${origin}/*`,
     enabled: true,
+    intent: null,
+    health: { lastOk: now, failures: 0, status: 'ok' },
+    ...fields,
+  };
+}
+
+export async function keep(tabId: number, draft: Draft): Promise<{ ruleId: string }> {
+  const { host, origin } = await tabOrigin(tabId);
+  if (host !== draft.host) throw new Error('L’onglet a changé de site depuis la preview.');
+  const rule = newRule(origin, {
+    prompt: draft.prompts.join(' → '),
     ops: draft.ops,
     targets: draft.targets,
     css: draft.css,
     explanation: draft.explanation,
-    intent: null,
-    health: { lastOk: now, failures: 0, status: 'ok' },
-  };
+  });
   // La règle est écrite (l'injecteur l'applique en live) AVANT de retirer la preview : pas de flash.
   await addRule(host, rule);
   await callContent(tabId, 'clearPreview', {}).catch(() => null);
+  return { ruleId: rule.id };
+}
+
+/** « Cacher cet élément » : règle créée directement depuis le picker, sans appel au LLM. */
+export async function quickHide(tabId: number, pick: PickResult): Promise<{ ruleId: string }> {
+  const { host, origin } = await tabOrigin(tabId);
+  const rule = newRule(origin, {
+    prompt: `Cacher « ${pick.label} »`,
+    ops: [{ op: 'hide', target: 't1' }],
+    targets: {
+      t1: { selectors: pick.selectors.slice(0, 3), fingerprint: pick.fingerprint, minMatches: 1 },
+    },
+    css: '',
+    explanation: 'Élément caché depuis le picker.',
+  });
+  await addRule(host, rule);
   return { ruleId: rule.id };
 }

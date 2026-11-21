@@ -1,6 +1,6 @@
 // Service worker : agent core. Aucun état en mémoire globale (le SW s'endort après ~30 s).
 import { callContent, listen, type BgApi } from '../shared/messages';
-import { generate, keep } from './agent';
+import { generate, keep, quickHide } from './agent';
 import { listModels } from './llm';
 
 const enablePanelOnClick = () =>
@@ -26,6 +26,7 @@ listen<BgApi>({
     await callContent(tabId, 'clearPreview', {});
     return null;
   },
+  quickHide: ({ tabId, pick }) => quickHide(tabId, pick),
   async testConnection(settings) {
     const models = await listModels(settings);
     return { models, modelFound: models.includes(settings.model) };
