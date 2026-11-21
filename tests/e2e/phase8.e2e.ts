@@ -102,7 +102,7 @@ await panel.goto(ext(`src/panel/index.html?tabId=${tabId}`));
 await site.bringToFront();
 
 await check('8.5 le raccourci apparaît dans le panel, avec l’astuce de la touche', async () => {
-  await panel.getByRole('button', { name: 'Raccourcis (1)' }).click();
+  await panel.getByRole('tab', { name: 'Raccourcis (1)' }).click();
   await panel.getByTestId('shortcut').filter({ hasText: 'Page enfouie' }).waitFor();
   await panel.getByTestId('hotkey-hint').filter({ hasText: EXPECTED_KEY }).waitFor();
 });
