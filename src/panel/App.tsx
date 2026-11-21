@@ -5,13 +5,15 @@ import { setPaused } from '../shared/storage';
 import { Chat } from './Chat';
 import { useSite } from './hooks';
 import { Rules } from './Rules';
+import { RecordingBar, ShortcutsTab, useShortcutCount } from './shortcuts';
 import { useActiveTab, type ActiveTab } from './tab';
 import { Segmented, Switch } from './ui';
 
-type View = 'edit' | 'rules';
+type View = 'edit' | 'rules' | 'shortcuts';
 
 function Site({ tab }: { tab: ActiveTab }) {
   const { site, paused } = useSite(tab.host);
+  const shortcutCount = useShortcutCount(tab.host);
   const [view, setView] = useState<View>('edit');
   const [original, setOriginalState] = useState(false);
 
@@ -64,12 +66,14 @@ function Site({ tab }: { tab: ActiveTab }) {
           En pause : aucune modification n’est appliquée sur {tab.host}.
         </p>
       )}
+      <RecordingBar tab={tab} onSaved={() => setView('shortcuts')} />
 
       <nav className="flex gap-4 border-b border-zinc-200 text-sm dark:border-zinc-800">
         {(
           [
             ['edit', 'Modifier'],
             ['rules', `Modifications (${enabledCount}/${site.rules.length})`],
+            ['shortcuts', `Raccourcis (${shortcutCount})`],
           ] as const
         ).map(([value, label]) => (
           <button
@@ -92,6 +96,7 @@ function Site({ tab }: { tab: ActiveTab }) {
         <Chat tab={tab} aiBlocked={sensitiveReason(tab.url)} onSaved={() => setView('rules')} />
       </div>
       {view === 'rules' && <Rules site={site} tabId={tab.id} />}
+      {view === 'shortcuts' && <ShortcutsTab tab={tab} />}
     </>
   );
 }
