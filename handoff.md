@@ -13,7 +13,7 @@ Dernière mise à jour : 21 novembre 2026, sur `main` au commit de fusion `a492b
 - **Après le MVP, deux correctifs sont fusionnés :**
   1. `9798133`, compatibilité avec les modèles « raisonnement ». Un paramètre refusé par le modèle, comme `temperature`, est retiré, la requête est relancée, et le refus est mémorisé pour ce modèle. Les erreurs 400 affichent la raison donnée par le fournisseur.
   2. `0f34acf`, contexte du site. L'IA comprend désormais les références indirectes : « les images » sur YouTube, ce sont les miniatures. Le détail est en section 3.
-  3. Branche `feat/split-changes`, changements séparés. Un long prompt « X, Y et Z » donne 3 changements, chacun avec une case à cocher dans la preview. Garder enregistre une règle par changement coché, et chaque règle s'active, se désactive ou se supprime seule (liste plate, le prompt d'origine reste dans le détail).
+  3. Branche `feat/split-changes`, changements séparés. Un long prompt « X, Y et Z » donne 3 changements, chacun avec une case à cocher dans la preview. Garder enregistre une règle par changement coché, et chaque règle s'active, se désactive ou se supprime seule (liste plate, le prompt d'origine reste dans le détail). Chaque changement garde **son** prompt (`attributePrompts` dans `agent.ts`) : « ajuste x » puis « ajuste y » donne les règles « ajuste x » et « ajuste y », pas « x → y ».
 - **Ce qui reste ouvert dans `plan.md` :**
   - 5.4 : refaire la répétition sur le réseau de la salle.
   - 5.6 : enregistrer la vidéo de secours.

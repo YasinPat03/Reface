@@ -40,6 +40,8 @@ interface Scenario {
   layout?: string;
   /** Nombre de changements séparés attendus (une règle chacun, activables un par un). */
   changes?: number;
+  /** Chaque règle créée ne porte que le prompt qui l'a produite (pas « x → y »). */
+  soloPrompts?: boolean;
 }
 
 /** Cartes vidéo YouTube : la miniature ne chevauche pas le titre, et le titre reste lisible. */
@@ -116,6 +118,14 @@ const SCENARIOS: Scenario[] = [
     })()`,
   },
   {
+    name: 'wiki-two-commands',
+    url: 'https://en.wikipedia.org/wiki/Golden_ratio',
+    prompts: ['Mets le titre principal en rouge', 'Cache la table des matières'],
+    changes: 2,
+    soloPrompts: true,
+    verify: `!document.querySelector('#mw-panel-toc')?.checkVisibility()`,
+  },
+  {
     name: 'hn-dark',
     url: 'https://news.ycombinator.com/',
     prompts: ['Mode sombre', 'un peu moins contrasté'],
@@ -150,6 +160,7 @@ for (const s of SCENARIOS.filter((x) => !filter || x.name.includes(filter))) {
       s.url,
     );
     const before = s.measure ? Number(await page.evaluate(s.measure)) : 0;
+    const startedAt = new Date().toISOString();
     await panel.goto(`chrome-extension://${extensionId}/src/panel/index.html?tabId=${tabId}`);
     for (const [i, prompt] of s.prompts.entries()) {
       await panel
@@ -214,17 +225,25 @@ for (const s of SCENARIOS.filter((x) => !filter || x.name.includes(filter))) {
     let replayOk = await check();
     if (s.changes) {
       const host = new URL(s.url).hostname;
-      const prompt = s.prompts.join(' → ');
-      const rows = await worker.evaluate(
-        async ([h, p]) =>
+      const created = await worker.evaluate(
+        async ([h, since]) =>
           (
             (await chrome.storage.local.get(`rules:${h}`))[`rules:${h}`] as {
-              rules: { prompt: string }[];
+              rules: { prompt: string; title?: string; createdAt: string }[];
             }
-          ).rules.filter((r) => r.prompt === p).length,
-        [host, prompt] as const,
+          ).rules
+            .filter((r) => r.createdAt >= since)
+            .map((r) => ({ label: r.title ?? r.prompt, prompt: r.prompt })),
+        [host, startedAt] as const,
       );
-      console.log(`    règles enregistrées pour ce prompt : ${rows}`);
+      console.log(
+        `    règles enregistrées : ${created.map((r) => `« ${r.label} » (prompt : ${r.prompt})`).join(', ')}`,
+      );
+      const rows = created.length;
+      if (s.soloPrompts && !created.every((r) => s.prompts.includes(r.prompt))) {
+        console.log('    une règle porte le prompt d’un autre changement');
+        replayOk = false;
+      }
       if (rows !== s.changes) replayOk = false;
     }
     if (!replayOk) {

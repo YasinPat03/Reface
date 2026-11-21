@@ -142,6 +142,8 @@ export interface DraftChange {
   css: string;
   /** Coché dans la preview : seuls les changements cochés sont prévisualisés et enregistrés. */
   enabled: boolean;
+  /** Prompt(s) qui ont produit CE changement (pas ceux des autres changements du brouillon). */
+  prompt?: string;
 }
 
 /** Élément choisi avec le picker. */

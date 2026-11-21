@@ -1,4 +1,5 @@
 // Boucle agent (PRD §3) : distillation → LLM → recette validée → preview ; Keep → règle.
+import { compileRule } from '../shared/compile';
 import { callContent } from '../shared/messages';
 import { addRule, addRules, newRuleId } from '../shared/rules';
 import { parseRecipe, toWire } from '../shared/schema';
@@ -80,7 +81,44 @@ function reindex(previous: Draft, included: Record<string, number>): Recipe {
   return { changes, explanation: previous.explanation };
 }
 
+/**
+ * Attribue à chaque changement le prompt qui l'a produit, pour que « ajuste x » puis « ajuste y »
+ * donne les règles « ajuste x » et « ajuste y », et non « ajuste x → ajuste y ».
+ * - Un nouveau changement ne porte que le nouveau prompt.
+ * - Si le suivi a ajouté un changement, il portait sur lui : les autres gardent leur prompt
+ *   (le LLM les réécrit souvent à l'identique, à quelques détails près).
+ * - Sinon, le suivi révise l'existant : les changements modifiés ajoutent « → nouveau prompt ».
+ * Les changements sont appariés par titre, ou d'office s'il n'y en a qu'un avant et après.
+ */
+export function attributePrompts(draft: Draft, previous: Draft | null, text: string): Draft {
+  const kept = (previous?.changes ?? []).filter((change) => change.enabled);
+  // Un seul changement avant et après : c'est le même, révisé (même si le LLM l'a renommé).
+  const key = (title: string) =>
+    kept.length === 1 && draft.changes.length === 1 ? '' : title.trim().toLowerCase();
+  const before = new Map(kept.map((change) => [key(change.title), change] as const));
+  const fallback = previous?.prompts.join(' → ');
+  const added = draft.changes.some((change) => !before.has(key(change.title)));
+  const changes = draft.changes.map((change) => {
+    const old = before.get(key(change.title));
+    if (!old) return { ...change, prompt: text };
+    const origin = old.prompt ?? fallback ?? text;
+    const revised = !added && compileRule(old) !== compileRule(change);
+    return { ...change, prompt: revised ? `${origin} → ${text}` : origin };
+  });
+  return { ...draft, changes };
+}
+
 export async function generate(
+  tabId: number,
+  prompt: string,
+  previous: Draft | null,
+  pick: string | null,
+): Promise<Draft> {
+  const draft = await generateDraft(tabId, prompt, previous, pick);
+  return attributePrompts(draft, previous, prompt.trim());
+}
+
+async function generateDraft(
   tabId: number,
   prompt: string,
   previous: Draft | null,
@@ -178,10 +216,10 @@ export async function keep(tabId: number, draft: Draft): Promise<{ ruleIds: stri
   if (host !== draft.host) throw new Error('L’onglet a changé de site depuis la preview.');
   const kept = draft.changes.filter((change) => change.enabled);
   if (!kept.length) throw new Error('Cochez au moins un changement à garder.');
-  const prompt = draft.prompts.join(' → ');
+  const joined = draft.prompts.join(' → ');
   const rules = kept.map((change) =>
     newRule(origin, path, {
-      prompt,
+      prompt: change.prompt ?? joined,
       // Un seul changement : le libellé n'apporte rien de plus que le prompt.
       ...(draft.changes.length > 1 ? { title: change.title } : {}),
       ops: change.ops,
