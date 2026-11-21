@@ -208,7 +208,7 @@ await check(
       site.rules[0]!.prompt,
     );
     assert(site.rules[0]!.targets.t1.fingerprint, 'empreinte non enregistrée');
-    assert(String(stored['css:127.0.0.1']).includes('#comments'), 'CSS précompilé absent');
+    assert(JSON.stringify(stored['css:127.0.0.1']).includes('#comments'), 'CSS précompilé absent');
     assert(
       await page.evaluate(() => !document.getElementById('bp-preview')),
       'preview non retirée',

@@ -3,7 +3,8 @@ import { compileRule } from '../shared/compile';
 import { cssViolation, isAllowedProperty } from '../shared/cssSafety';
 import type { Draft, Recipe, Target } from '../shared/types';
 import { regionAt } from './distill';
-import { buildSelectors, fingerprint } from './selectors';
+import { detectLayoutRegressions } from './layoutCheck';
+import { buildSelectors, fingerprint, groupSelector } from './selectors';
 
 const PREVIEW_ID = 'bp-preview';
 
@@ -67,7 +68,14 @@ export function resolveTargets(recipe: Recipe, warnings: string[]): Record<strin
   for (const [key, ref] of Object.entries(recipe.targets)) {
     const element = regionAt(ref.regionIndex);
     if (element) {
-      const selectors = buildSelectors(element, ref.selectorHints);
+      // Toute une liste répétée : un sélecteur de groupe d'abord, puis l'exemplaire en repli.
+      const group = ref.scope === 'all_similar' ? groupSelector(element) : null;
+      if (ref.scope === 'all_similar' && !group) {
+        warnings.push(
+          `Cible ${key} : impossible de viser tous les éléments similaires, seul le premier sera modifié.`,
+        );
+      }
+      const selectors = group ? [group] : buildSelectors(element, ref.selectorHints);
       if (selectors.length) {
         targets[key] = { selectors, fingerprint: fingerprint(element), minMatches: 1 };
         continue;
@@ -126,7 +134,22 @@ export function prepareDraft(recipe: Recipe, prompts: string[]): Draft {
   if (!previewCss.trim()) {
     warnings.push('Cette modification ne produit aucun changement visible.');
   }
-  setPreview(previewCss);
+  // Mesure avant/après la nouvelle preview (synchrone : rien n'est peint entre les deux).
+  const hidden = Object.entries(targets)
+    .filter(([key]) => ops.some((op) => op.op === 'hide' && op.target === key))
+    .flatMap(([, t]) => t.selectors);
+  const layoutIssues = detectLayoutRegressions(
+    () => setPreview(previewCss),
+    () => setPreview(''),
+    (element) =>
+      hidden.some((selector) => {
+        try {
+          return !!element.closest(selector);
+        } catch {
+          return false;
+        }
+      }) || getComputedStyle(element).display === 'none',
+  );
   return {
     host: location.hostname,
     prompts,
@@ -137,6 +160,7 @@ export function prepareDraft(recipe: Recipe, prompts: string[]): Draft {
     explanation: recipe.explanation,
     previewCss,
     warnings,
+    layoutIssues,
   };
 }
 

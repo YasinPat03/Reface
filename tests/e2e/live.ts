@@ -32,10 +32,56 @@ interface Scenario {
   url: string;
   prompts: string[];
   /** Expression évaluée dans la page : true si l'effet attendu est visible. */
-  verify: string;
+  verify?: string;
+  /** Alternative à verify : une mesure numérique qui doit croître d'au moins `grow` (ex. 1.15 = +15 %). */
+  measure?: string;
+  grow?: number;
+  /** Contrôle de mise en page supplémentaire (true = OK), évalué après l'effet. */
+  layout?: string;
 }
 
+/** Cartes vidéo YouTube : la miniature ne chevauche pas le titre, et le titre reste lisible. */
+const YT_LAYOUT_OK = `(() => {
+  const cards = [...document.querySelectorAll('ytd-video-renderer, yt-lockup-view-model')]
+    .filter((c) => c.getBoundingClientRect().top < innerHeight * 2 && c.getBoundingClientRect().width > 0)
+    .slice(0, 6);
+  const problems = [];
+  for (const card of cards) {
+    const thumb = card.querySelector('ytd-thumbnail, yt-thumbnail-view-model');
+    const title = card.querySelector('#video-title, h3, [class*="Title"]');
+    if (!thumb || !title) continue;
+    const a = thumb.getBoundingClientRect(), b = title.getBoundingClientRect();
+    const overlap = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+    if (overlap > 0.1 * b.width * b.height) problems.push('chevauchement');
+    if (b.width < 120) problems.push('titre écrasé (' + Math.round(b.width) + 'px)');
+  }
+  return problems.length ? problems.join(', ') : true;
+})()`;
+
+/** Largeur médiane des miniatures visibles (img de plus de 100 px de large). */
+const THUMB_WIDTH = `(() => {
+  const widths = [...document.querySelectorAll('ytd-thumbnail img, yt-thumbnail-view-model img, ytd-thumbnail, yt-thumbnail-view-model')]
+    .map((e) => e.getBoundingClientRect().width).filter((w) => w > 60).sort((a, b) => a - b);
+  return widths[widths.length >> 1] ?? 0;
+})()`;
+
 const SCENARIOS: Scenario[] = [
+  {
+    name: 'youtube-search-images',
+    url: 'https://www.youtube.com/results?search_query=lofi+music',
+    prompts: ['Modifie-moi les images plus grosses'],
+    measure: THUMB_WIDTH,
+    grow: 1.1,
+    layout: YT_LAYOUT_OK,
+  },
+  {
+    name: 'youtube-watch-images',
+    url: 'https://www.youtube.com/watch?v=jfKfPfyJRdk',
+    prompts: ['Modifie-moi les images plus grosses'],
+    measure: THUMB_WIDTH,
+    grow: 1.15,
+    layout: YT_LAYOUT_OK,
+  },
   {
     name: 'wiki-toc',
     url: 'https://en.wikipedia.org/wiki/Golden_ratio',
@@ -88,6 +134,7 @@ for (const s of SCENARIOS.filter((x) => !filter || x.name.includes(filter))) {
       async (u) => (await chrome.tabs.query({ url: u.split('?')[0] + '*' })).at(-1)!.id!,
       s.url,
     );
+    const before = s.measure ? Number(await page.evaluate(s.measure)) : 0;
     await panel.goto(`chrome-extension://${extensionId}/src/panel/index.html?tabId=${tabId}`);
     for (const [i, prompt] of s.prompts.entries()) {
       await panel
@@ -118,12 +165,40 @@ for (const s of SCENARIOS.filter((x) => !filter || x.name.includes(filter))) {
     }
     await page.screenshot({ path: `${out}/${s.name}-preview.png` });
     const css = await page.evaluate(() => document.getElementById('bp-preview')?.textContent ?? '');
-    const previewOk = await page.evaluate(s.verify);
+    const check = async (): Promise<boolean> => {
+      if (s.layout) {
+        const layout = await page.evaluate(s.layout);
+        if (layout !== true) {
+          console.log(`    mise en page : ${layout}`);
+          return false;
+        }
+      }
+      if (s.verify) return Boolean(await page.evaluate(s.verify));
+      const after = Number(await page.evaluate(s.measure!));
+      console.log(`    mesure : ${Math.round(before)} → ${Math.round(after)}`);
+      return after >= before * (s.grow ?? 1.1);
+    };
+    const previewOk = await check();
     await panel.getByRole('button', { name: 'Garder' }).click();
     await panel.getByTestId('rules').waitFor({ timeout: 5000 });
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(800);
-    const replayOk = await page.evaluate(s.verify);
+    const replayOk = await check();
+    if (!replayOk) {
+      const debug = await page.evaluate(() => ({
+        styles: document.getElementById('bp-styles')?.textContent?.length ?? -1,
+        sample: document.getElementById('bp-styles')?.textContent?.slice(0, 600),
+        path: location.pathname,
+        cards: [
+          ...new Set(
+            [...document.querySelectorAll('ytd-video-renderer, yt-lockup-view-model')].map(
+              (e) => e.tagName,
+            ),
+          ),
+        ],
+      }));
+      console.log(`    debug rejeu : ${JSON.stringify(debug)}`);
+    }
     await page.screenshot({ path: `${out}/${s.name}-reload.png` });
     if (!previewOk || !replayOk) {
       failures++;

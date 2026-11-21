@@ -22,6 +22,11 @@ export const ruleSchema = z.object({
   prompt: z.string().max(2000),
   urlPattern: z.string().max(500),
   pagePath: z.string().max(2000).optional(),
+  section: z
+    .string()
+    .regex(/^[a-z0-9_-]{1,40}$/)
+    .nullable()
+    .optional(),
   enabled: z.boolean(),
   ops: z
     .array(

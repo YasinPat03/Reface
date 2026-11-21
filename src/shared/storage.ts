@@ -1,4 +1,5 @@
 // Disposition des clés dans chrome.storage.local. Voir PRD §4.
+import type { CompiledCss } from './section';
 import { DEFAULT_SETTINGS, type Settings, type SiteRules } from './types';
 
 export const keys = {
@@ -21,11 +22,6 @@ export async function getSiteRules(host: string): Promise<SiteRules> {
 
 export async function setSiteRules(site: SiteRules): Promise<void> {
   await local().set({ [keys.rules(site.host)]: site });
-}
-
-export async function setCompiledCss(host: string, css: string): Promise<void> {
-  if (css) await local().set({ [keys.css(host)]: css });
-  else await local().remove(keys.css(host));
 }
 
 export async function isPaused(host: string): Promise<boolean> {
@@ -52,9 +48,10 @@ export async function setSettings(settings: Settings): Promise<void> {
  * Écrit les règles ET le CSS précompilé en une seule opération,
  * pour que l'injecteur ne voie jamais un état incohérent.
  */
-export async function saveSiteRules(site: SiteRules, compiledCss: string): Promise<void> {
+export async function saveSiteRules(site: SiteRules, compiled: CompiledCss): Promise<void> {
+  const empty = Object.keys(compiled).length === 0;
   const update: Record<string, unknown> = { [keys.rules(site.host)]: site };
-  if (compiledCss) update[keys.css(site.host)] = compiledCss;
+  if (!empty) update[keys.css(site.host)] = compiled;
   await local().set(update);
-  if (!compiledCss) await local().remove(keys.css(site.host));
+  if (empty) await local().remove(keys.css(site.host));
 }

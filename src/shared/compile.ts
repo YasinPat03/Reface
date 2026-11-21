@@ -1,5 +1,6 @@
 // Compilateur recette → CSS (PRD §3, §4). Pur, sans DOM : tourne aussi dans le service worker.
 import { isSafeDeclaration, isSafeSelector, cssViolation } from './cssSafety';
+import { SITE_WIDE, type CompiledCss } from './section';
 import type { CssDeclarations, Op, Rule, Target } from './types';
 
 /** `!important` sur chaque déclaration pour battre la spécificité du site. */
@@ -47,10 +48,15 @@ export function compileRule(rule: Pick<Rule, 'ops' | 'targets' | 'css'>): string
   return parts.join('\n');
 }
 
-/** CSS précompilé du site : uniquement les règles activées. */
-export function compileSite(rules: Rule[]): string {
-  return rules
-    .filter((rule) => rule.enabled)
-    .map((rule) => `/* ${rule.id.replace(/[^\w-]/g, '')} */\n${compileRule(rule)}`)
-    .join('\n');
+/** CSS précompilé du site, par section : seules les règles activées. */
+export function compileSite(rules: Rule[]): CompiledCss {
+  const out: CompiledCss = {};
+  for (const rule of rules) {
+    if (!rule.enabled) continue;
+    const css = compileRule(rule);
+    if (!css) continue;
+    const key = rule.section || SITE_WIDE;
+    out[key] = `${out[key] ? `${out[key]}\n` : ''}/* ${rule.id.replace(/[^\w-]/g, '')} */\n${css}`;
+  }
+  return out;
 }

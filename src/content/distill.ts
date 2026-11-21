@@ -1,6 +1,7 @@
 // Distillation du DOM (PRD §5) : une ligne par grande région, ~2k tokens max.
 // Jamais de valeurs de formulaire ; emails et longues suites de chiffres expurgés.
 import type { DistillResult } from '../shared/types';
+import { mediaInventory, siteContext } from './context';
 import { isStableId, stableClasses } from './selectors';
 
 const MAX_REGIONS = 150;
@@ -24,6 +25,11 @@ const FORM_TEXT = new Set(['TEXTAREA', 'SELECT', 'INPUT', 'OPTION', 'SCRIPT', 'S
 const LANDMARKS = new Set(['HEADER', 'NAV', 'MAIN', 'ASIDE', 'FOOTER', 'DIALOG']);
 /** Conteneurs sémantiques fréquents (souvent très nombreux) : bonus plus faible. */
 const SECTIONING = new Set(['ARTICLE', 'SECTION', 'FORM', 'TABLE', 'FIGURE']);
+/** En dessous de cette fraction de l'écran, un élément non structurant est du bruit (pastilles, icônes). */
+const MIN_AREA = 0.004;
+/** Éléments frères identiques : on en montre 2, les suivants sont résumés par « similar=×N ». */
+const REPEAT_SHOWN = 2;
+const REPEAT_MIN = 4;
 
 /** Éléments de la dernière distillation : regionIndex → Element. */
 let regions: Element[] = [];
@@ -66,6 +72,25 @@ function quote(value: string, max = 40): string {
   return JSON.stringify(redact(value).slice(0, max));
 }
 
+/** Rang d'un élément parmi ses frères de même signature (balise + classes stables). */
+let repeatCache = new WeakMap<Element, { rank: number; total: number }>();
+function repeatInfo(element: Element): { rank: number; total: number } {
+  const cached = repeatCache.get(element);
+  if (cached) return cached;
+  const parent = element.parentElement;
+  if (!parent) return { rank: 0, total: 1 };
+  const groups = new Map<string, Element[]>();
+  for (const child of parent.children) {
+    // Un id distingue des frères structurels (#header, #contents…) : ce ne sont pas des répétitions.
+    const signature = `${child.tagName}#${child.id}.${stableClasses(child).sort().join('.')}`;
+    groups.set(signature, [...(groups.get(signature) ?? []), child]);
+  }
+  for (const members of groups.values()) {
+    members.forEach((member, rank) => repeatCache.set(member, { rank, total: members.length }));
+  }
+  return repeatCache.get(element) ?? { rank: 0, total: 1 };
+}
+
 function describe(element: Element, index: number, rect: DOMRect, depth: number): string {
   const vw = window.innerWidth || 1;
   const vh = window.innerHeight || 1;
@@ -85,6 +110,8 @@ function describe(element: Element, index: number, rect: DOMRect, depth: number)
     `rect=(${r(rect.left / vw)},${r((rect.top + window.scrollY) / vh)},${r(rect.width / vw)},${r(rect.height / vh)})`,
   );
   attrs.push(`kids=${element.childElementCount}`);
+  const repeat = repeatInfo(element);
+  if (repeat.total >= REPEAT_MIN && repeat.rank === 0) attrs.push(`similar=×${repeat.total}`);
   const text = textSample(element, 40);
   if (text) attrs.push(`text=${JSON.stringify(text)}`);
   return `${'  '.repeat(Math.min(depth, 6))}[#${index}] <${tag} ${attrs.join(' ')}>`;
@@ -102,6 +129,7 @@ interface Candidate {
  */
 export function distill(include: string[] = [], focus: string | null = null): DistillResult {
   const viewportArea = Math.max(window.innerWidth * window.innerHeight, 1);
+  repeatCache = new WeakMap(); // le DOM a pu changer depuis la dernière distillation
   const forced = new Set<Element>();
   const includedElements = new Map<string, Element>();
   for (const selector of include) {
@@ -148,9 +176,15 @@ export function distill(include: string[] = [], focus: string | null = null): Di
     NodeFilter.SHOW_ELEMENT,
     {
       acceptNode(node) {
-        return SKIP.has((node as Element).tagName)
-          ? NodeFilter.FILTER_REJECT
-          : NodeFilter.FILTER_ACCEPT;
+        const element = node as Element;
+        if (SKIP.has(element.tagName)) return NodeFilter.FILTER_REJECT;
+        // Listes répétitives (cartes vidéo, produits, lignes) : les premiers exemplaires suffisent,
+        // le reste (et tout son sous-arbre) est sauté pour garder le budget pour la structure.
+        const repeat = repeatInfo(element);
+        if (repeat.total >= REPEAT_MIN && repeat.rank >= REPEAT_SHOWN && !forced.has(element)) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
       },
     },
   );
@@ -162,6 +196,7 @@ export function distill(include: string[] = [], focus: string | null = null): Di
     if (!isForced && !isVisible(element, rect)) continue;
     const tag = element.tagName;
     const area = (rect.width * rect.height) / viewportArea;
+    if (!isForced && area < MIN_AREA && !LANDMARKS.has(tag) && !/^H[1-3]$/.test(tag)) continue;
     let score = 0;
     if (isForced) score += 100;
     if (LANDMARKS.has(tag)) score += 10;
@@ -213,6 +248,8 @@ export function distill(include: string[] = [], focus: string | null = null): Di
     regions: lines.join('\n'),
     regionCount: lines.length,
     typography: typography(),
+    site: siteContext(),
+    media: mediaInventory(),
     included,
   };
 }

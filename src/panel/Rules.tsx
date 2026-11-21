@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { callContent } from '../shared/messages';
 import { getAllSites, importSites, removeRule, updateRule } from '../shared/rules';
 import { makeExport, parseExport } from '../shared/ruleSchema';
+import { sectionOf } from '../shared/section';
 import type { SiteRules } from '../shared/types';
 import { errorMessage } from './tab';
 import { Switch } from './ui';
@@ -69,6 +70,27 @@ export function Rules({ site, tabId }: { site: SiteRules; tabId: number }) {
                   className={`min-w-0 flex-1 text-left text-sm ${rule.enabled ? '' : 'text-zinc-400'}`}
                 >
                   <span className="line-clamp-2">{rule.prompt}</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="rule-scope"
+                  title={
+                    rule.section
+                      ? 'Appliquée aux pages de ce type. Cliquer pour l’appliquer à tout le site.'
+                      : 'Appliquée à tout le site. Cliquer pour la limiter à ce type de page.'
+                  }
+                  onClick={() =>
+                    run(() =>
+                      updateRule(site.host, rule.id, {
+                        section: rule.section ? null : sectionOf(rule.pagePath ?? '/'),
+                      }),
+                    )
+                  }
+                  className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[10px] text-zinc-600 hover:bg-violet-100 hover:text-violet-700 dark:bg-zinc-800 dark:text-zinc-400"
+                >
+                  {rule.section
+                    ? `/${rule.section === 'home' ? '' : rule.section}`
+                    : 'tout le site'}
                 </button>
                 {rule.health.status === 'suspect' && (
                   <span
