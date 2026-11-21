@@ -83,3 +83,65 @@ export function compileAccessibility(raw: unknown): string {
     );
   return css.join('\n');
 }
+
+export const GLOBAL_ACCESSIBILITY_KEY = 'accessibility:global';
+export const GLOBAL_ACCESSIBILITY_CSS_KEY = 'accessibility-css:global';
+
+export type AccessibilitySuggestion = {
+  key: 'vision' | 'color' | 'motor';
+  title: string;
+  description: string;
+};
+/** Local matching only: the description is never sent to a model or persisted. */
+export function suggestAccessibility(description: string): {
+  settings: AccessibilitySettings;
+  suggestions: AccessibilitySuggestion[];
+  matched: boolean;
+} {
+  const text = description
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  const vision =
+    /low vision|basse vision|malvoy|small (text|print)|petit.*(texte|caractere)|seeing|voir|visual impair|blur|flou/.test(
+      text,
+    );
+  const color = /color|colour|couleur|dalton/.test(text);
+  const motor =
+    /motor|moteur|motric|mobil|trem|parkinson|click|cliqu|dexter|arthri|hand|main|mouse|souris/.test(
+      text,
+    );
+  const matched = vision || color || motor;
+  return {
+    matched,
+    settings: {
+      ...DEFAULT_ACCESSIBILITY,
+      vision,
+      color,
+      motor,
+      textSize: vision ? 20 : 18,
+      targetSize: motor ? 52 : 44,
+      spacing: motor ? 8 : 4,
+    },
+    suggestions: [
+      {
+        key: 'vision',
+        title: 'Texte plus lisible',
+        description:
+          'Une taille minimale de 20 px et un interligne confortable, sans réduire les grands titres.',
+      },
+      {
+        key: 'color',
+        title: 'Repères sans dépendre des couleurs',
+        description:
+          'Liens soulignés, sélections encadrées et bordures en pointillés pour les erreurs identifiées par le site.',
+      },
+      {
+        key: 'motor',
+        title: 'Cibles plus faciles à cliquer',
+        description:
+          'Boutons et liens de navigation agrandis, avec davantage d’espace entre les contrôles.',
+      },
+    ],
+  };
+}

@@ -6,6 +6,8 @@ import { cssForSection, readCompiled, sectionOf, type CompiledCss } from '../sha
   const cssKey = `css:${host}`;
   const pagesKey = `page-css:${host}`;
   const accessibilityKey = `accessibility-css:${host}`;
+  const globalAccessibilityKey = 'accessibility-css:global';
+  let globalAccessibilityCss: string | undefined;
   let accessibilityCss = '';
   const pausedKey = `paused:${host}`;
   const STYLE_ID = 'bp-styles';
@@ -22,7 +24,9 @@ import { cssForSection, readCompiled, sectionOf, type CompiledCss } from '../sha
       Object.hasOwn(pages, path) && typeof pages[path] === 'string' ? pages[path] : '';
     const text = paused
       ? ''
-      : [cssForSection(compiled, section), pageCss, accessibilityCss].filter(Boolean).join('\n');
+      : [cssForSection(compiled, section), pageCss, globalAccessibilityCss ?? accessibilityCss]
+          .filter(Boolean)
+          .join('\n');
     if (!text && !style) return; // rien à injecter : on ne touche pas au DOM
     if (!style) {
       style = document.createElement('style');
@@ -35,20 +39,29 @@ import { cssForSection, readCompiled, sectionOf, type CompiledCss } from '../sha
     if (!style.isConnected) document.documentElement.appendChild(style);
   }
 
-  chrome.storage.local.get([cssKey, pagesKey, pausedKey, accessibilityKey]).then((data) => {
-    accessibilityCss = typeof data[accessibilityKey] === 'string' ? data[accessibilityKey] : '';
-    compiled = readCompiled(data[cssKey]);
-    pages =
-      data[pagesKey] && typeof data[pagesKey] === 'object'
-        ? (data[pagesKey] as Record<string, string>)
-        : {};
-    paused = data[pausedKey] === true;
-    render();
-  });
+  chrome.storage.local
+    .get([cssKey, pagesKey, pausedKey, accessibilityKey, globalAccessibilityKey])
+    .then((data) => {
+      globalAccessibilityCss =
+        typeof data[globalAccessibilityKey] === 'string' ? data[globalAccessibilityKey] : undefined;
+      accessibilityCss = typeof data[accessibilityKey] === 'string' ? data[accessibilityKey] : '';
+      compiled = readCompiled(data[cssKey]);
+      pages =
+        data[pagesKey] && typeof data[pagesKey] === 'object'
+          ? (data[pagesKey] as Record<string, string>)
+          : {};
+      paused = data[pausedKey] === true;
+      render();
+    });
 
   // Mise à jour live (Keep, toggle, pause) sans recharger la page.
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
+    if (globalAccessibilityKey in changes)
+      globalAccessibilityCss =
+        typeof changes[globalAccessibilityKey]?.newValue === 'string'
+          ? changes[globalAccessibilityKey].newValue
+          : undefined;
     if (accessibilityKey in changes)
       accessibilityCss =
         typeof changes[accessibilityKey]?.newValue === 'string'
@@ -62,7 +75,8 @@ import { cssForSection, readCompiled, sectionOf, type CompiledCss } from '../sha
       cssKey in changes ||
       pagesKey in changes ||
       pausedKey in changes ||
-      accessibilityKey in changes
+      accessibilityKey in changes ||
+      globalAccessibilityKey in changes
     )
       render();
   });

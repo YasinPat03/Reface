@@ -121,3 +121,22 @@ describe('accessibility replay', () => {
     expect(page.css()).toBe('p{color:red}');
   });
 });
+
+describe('global accessibility profile', () => {
+  it('applies on unrelated pages and supersedes old per-site preferences, including disabling', async () => {
+    const profile = { 'accessibility-css:global': 'button{min-height:52px}' };
+    const first = await fixture({
+      ...profile,
+      'accessibility-css:example.com': 'p{font-size:18px}',
+    });
+    const second = await fixture(profile, '/another-page');
+    expect(first.css()).toBe('button{min-height:52px}');
+    expect(second.css()).toBe(first.css());
+    first.change({ 'accessibility-css:global': { newValue: '' } });
+    expect(first.css()).toBe('');
+    second.change({ 'paused:example.com': { newValue: true } });
+    expect(second.css()).toBe('');
+    second.change({ 'paused:example.com': { newValue: false } });
+    expect(second.css()).toBe('button{min-height:52px}');
+  });
+});
