@@ -34,6 +34,39 @@ export const shortcutKeys = {
 
 export const MAX_LABEL = 80;
 
+/** Commande du manifest : ⌘⇧E (Ctrl+Shift+E), démarre puis enregistre, sans ouvrir le panel. */
+export const RECORD_COMMAND = 'record-shortcut';
+
+/**
+ * Canal de messages propre au raccourci clavier (préfixe `shortcut:`), séparé de BgApi/ContentApi.
+ * content → SW : hello (suis-je l'onglet enregistré ?), save, cancel. SW → content : toast.
+ */
+export type ShortcutRequest =
+  { type: 'shortcut:hello' } | { type: 'shortcut:save' } | { type: 'shortcut:cancel' };
+export interface ShortcutHello {
+  /** Site de l'enregistrement si CET onglet est en cours d'enregistrement, sinon null. */
+  recordingHost: string | null;
+  /** Touche attribuée (ex. « ⇧⌘E »), vide si aucune. */
+  hotkey: string;
+}
+export interface ShortcutToast {
+  type: 'shortcut:toast';
+  text: string;
+  tone: 'ok' | 'warn';
+}
+
+export type HotkeyAction = 'start' | 'save' | 'refuse';
+
+/** Que faire quand la touche est pressée sur cet onglet ? */
+export function hotkeyAction(
+  recording: Pick<ShortcutRecording, 'tabId'> | null,
+  tabId: number,
+  url: string,
+): HotkeyAction {
+  if (recording?.tabId === tabId) return 'save';
+  return shortcutUrl(url) ? 'start' : 'refuse';
+}
+
 // ---------- Logique pure (testée sans chrome) ----------
 
 /** URL normalisée si elle peut servir de raccourci (http ou https), sinon null. */

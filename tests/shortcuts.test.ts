@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   MAX_LABEL,
+  hotkeyAction,
   newShortcutId,
   renamed,
   shortcutLabel,
@@ -95,5 +96,26 @@ describe('renamed / without', () => {
 
   it('génère des ids préfixés', () => {
     expect(newShortcutId()).toMatch(/^s_[\w-]{8}$/);
+  });
+});
+
+describe('hotkeyAction (⌘⇧E)', () => {
+  const web = 'https://example.com/a';
+
+  it('démarre sur une page web sans enregistrement', () => {
+    expect(hotkeyAction(null, 1, web)).toBe('start');
+  });
+
+  it('enregistre si l’onglet est celui de l’enregistrement', () => {
+    expect(hotkeyAction({ tabId: 1 }, 1, web)).toBe('save');
+  });
+
+  it('redémarre sur cet onglet si l’enregistrement est ailleurs', () => {
+    expect(hotkeyAction({ tabId: 2 }, 1, web)).toBe('start');
+  });
+
+  it.each(['chrome://extensions', 'about:blank', ''])('refuse une page non web (%s)', (url) => {
+    expect(hotkeyAction(null, 1, url)).toBe('refuse');
+    expect(hotkeyAction({ tabId: 2 }, 1, url)).toBe('refuse');
   });
 });
