@@ -39,7 +39,10 @@ export interface Rule {
   id: string;
   kind: 'restyle';
   createdAt: string;
+  /** Prompt d'origine (itérations jointes par « → »), partagé par les changements d'un même prompt. */
   prompt: string;
+  /** Libellé court de CE changement (un long prompt en produit plusieurs). Absent : afficher `prompt`. */
+  title?: string;
   urlPattern: string;
   /** Chemin de la page où la règle a été créée : le health check ne vérifie que les pages du même gabarit. */
   pagePath?: string;
@@ -69,11 +72,18 @@ export interface RecipeTarget {
   scope?: 'one' | 'all_similar';
 }
 
-/** Réponse brute du LLM (validée par Zod en phase 2). */
-export interface Recipe {
+/** Un changement distinct demandé par l'utilisateur (un prompt « X, Y et Z » en donne trois). */
+export interface RecipeChange {
+  title: string;
   ops: Op[];
+  /** Clés propres à ce changement. */
   targets: Record<string, RecipeTarget>;
   css: string;
+}
+
+/** Réponse brute du LLM (validée par Zod en phase 2). */
+export interface Recipe {
+  changes: RecipeChange[];
   explanation: string;
 }
 
@@ -114,16 +124,26 @@ export interface Draft {
   prompts: string[];
   /** Recette telle que renvoyée par le LLM (indices de région). */
   recipe: Recipe;
-  /** Règle résolue par l'extension : sélecteurs robustes, CSS normalisé. */
-  ops: Op[];
-  targets: Record<string, Target>;
-  css: string;
+  /** Changements résolus par l'extension : chacun deviendra une règle distincte au Keep. */
+  changes: DraftChange[];
   explanation: string;
-  /** CSS compilé, actuellement appliqué en preview. */
+  /** CSS compilé des changements cochés, actuellement appliqué en preview. */
   previewCss: string;
   warnings: string[];
   /** Régressions de mise en page détectées après la preview (en anglais, pour le LLM). */
   layoutIssues?: string[];
+}
+
+/** Changement résolu : sélecteurs robustes, CSS normalisé. */
+export interface DraftChange {
+  title: string;
+  ops: Op[];
+  targets: Record<string, Target>;
+  css: string;
+  /** Coché dans la preview : seuls les changements cochés sont prévisualisés et enregistrés. */
+  enabled: boolean;
+  /** Prompt(s) qui ont produit CE changement (pas ceux des autres changements du brouillon). */
+  prompt?: string;
 }
 
 /** Élément choisi avec le picker. */

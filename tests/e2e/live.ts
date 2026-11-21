@@ -38,6 +38,10 @@ interface Scenario {
   grow?: number;
   /** Contrôle de mise en page supplémentaire (true = OK), évalué après l'effet. */
   layout?: string;
+  /** Nombre de changements séparés attendus (une règle chacun, activables un par un). */
+  changes?: number;
+  /** Chaque règle créée ne porte que le prompt qui l'a produite (pas « x → y »). */
+  soloPrompts?: boolean;
 }
 
 /** Cartes vidéo YouTube : la miniature ne chevauche pas le titre, et le titre reste lisible. */
@@ -101,6 +105,27 @@ const SCENARIOS: Scenario[] = [
     verify: `(() => { const [r, g, b] = getComputedStyle(document.querySelector('#firstHeading')).color.match(/\\d+/g).map(Number); return r > 150 && g < 100 && b < 100; })()`,
   },
   {
+    name: 'wiki-multi',
+    url: 'https://en.wikipedia.org/wiki/Golden_ratio',
+    prompts: [
+      "Cache la table des matières, mets le titre principal en rouge et agrandis le texte de l'article",
+    ],
+    changes: 3,
+    verify: `(() => {
+      const [r, g, b] = getComputedStyle(document.querySelector('#firstHeading')).color.match(/\\d+/g).map(Number);
+      const p = document.querySelector('.mw-parser-output p:not(.mw-empty-elt)');
+      return !document.querySelector('#mw-panel-toc')?.checkVisibility() && r > 150 && g < 100 && b < 100 && parseFloat(getComputedStyle(p).fontSize) >= 17;
+    })()`,
+  },
+  {
+    name: 'wiki-two-commands',
+    url: 'https://en.wikipedia.org/wiki/Golden_ratio',
+    prompts: ['Mets le titre principal en rouge', 'Cache la table des matières'],
+    changes: 2,
+    soloPrompts: true,
+    verify: `!document.querySelector('#mw-panel-toc')?.checkVisibility()`,
+  },
+  {
     name: 'hn-dark',
     url: 'https://news.ycombinator.com/',
     prompts: ['Mode sombre', 'un peu moins contrasté'],
@@ -135,6 +160,7 @@ for (const s of SCENARIOS.filter((x) => !filter || x.name.includes(filter))) {
       s.url,
     );
     const before = s.measure ? Number(await page.evaluate(s.measure)) : 0;
+    const startedAt = new Date().toISOString();
     await panel.goto(`chrome-extension://${extensionId}/src/panel/index.html?tabId=${tabId}`);
     for (const [i, prompt] of s.prompts.entries()) {
       await panel
@@ -163,6 +189,19 @@ for (const s of SCENARIOS.filter((x) => !filter || x.name.includes(filter))) {
         `  « ${prompt} » → ${ms} ms · ${explanation}${warnings.length ? ` · ${warnings.join(' ')}` : ''}`,
       );
     }
+    {
+      const titles = await panel
+        .getByTestId('draft-changes')
+        .locator('label')
+        .allTextContents()
+        .catch(() => []);
+      console.log(
+        `    changements : ${titles.map((t) => `« ${t} »`).join(', ') || 'aucune liste'}`,
+      );
+      if (s.changes && titles.length !== s.changes) {
+        throw new Error(`${titles.length} changement(s) au lieu de ${s.changes}`);
+      }
+    }
     await page.screenshot({ path: `${out}/${s.name}-preview.png` });
     const css = await page.evaluate(() => document.getElementById('bp-preview')?.textContent ?? '');
     const check = async (): Promise<boolean> => {
@@ -183,7 +222,30 @@ for (const s of SCENARIOS.filter((x) => !filter || x.name.includes(filter))) {
     await panel.getByTestId('rules').waitFor({ timeout: 5000 });
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(800);
-    const replayOk = await check();
+    let replayOk = await check();
+    if (s.changes) {
+      const host = new URL(s.url).hostname;
+      const created = await worker.evaluate(
+        async ([h, since]) =>
+          (
+            (await chrome.storage.local.get(`rules:${h}`))[`rules:${h}`] as {
+              rules: { prompt: string; title?: string; createdAt: string }[];
+            }
+          ).rules
+            .filter((r) => r.createdAt >= since)
+            .map((r) => ({ label: r.title ?? r.prompt, prompt: r.prompt })),
+        [host, startedAt] as const,
+      );
+      console.log(
+        `    règles enregistrées : ${created.map((r) => `« ${r.label} » (prompt : ${r.prompt})`).join(', ')}`,
+      );
+      const rows = created.length;
+      if (s.soloPrompts && !created.every((r) => s.prompts.includes(r.prompt))) {
+        console.log('    une règle porte le prompt d’un autre changement');
+        replayOk = false;
+      }
+      if (rows !== s.changes) replayOk = false;
+    }
     if (!replayOk) {
       const debug = await page.evaluate(() => ({
         styles: document.getElementById('bp-styles')?.textContent?.length ?? -1,

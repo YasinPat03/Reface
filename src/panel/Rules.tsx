@@ -69,7 +69,7 @@ export function Rules({ site, tabId }: { site: SiteRules; tabId: number }) {
                   onClick={() => setOpen(open === rule.id ? null : rule.id)}
                   className={`min-w-0 flex-1 text-left text-sm ${rule.enabled ? '' : 'text-zinc-400'}`}
                 >
-                  <span className="line-clamp-2">{rule.prompt}</span>
+                  <span className="line-clamp-2">{rule.title ?? rule.prompt}</span>
                 </button>
                 <button
                   type="button"
@@ -112,7 +112,11 @@ export function Rules({ site, tabId }: { site: SiteRules; tabId: number }) {
               </div>
               {open === rule.id && (
                 <div className="mt-2 space-y-1 border-t border-zinc-100 pt-2 text-xs text-zinc-500 dark:border-zinc-800">
-                  {rule.explanation && <p>{rule.explanation}</p>}
+                  {rule.title ? (
+                    <p>Prompt d’origine : « {rule.prompt} »</p>
+                  ) : (
+                    rule.explanation && <p>{rule.explanation}</p>
+                  )}
                   <p>Créée le {new Date(rule.createdAt).toLocaleString('fr-CA')}</p>
                   <p className="break-all font-mono">
                     {Object.values(rule.targets)

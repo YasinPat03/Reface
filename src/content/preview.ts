@@ -1,7 +1,7 @@
 // Résolution de la recette (regionIndex → sélecteurs), normalisation du CSS libre et preview.
 import { compileRule } from '../shared/compile';
 import { cssViolation, isAllowedProperty } from '../shared/cssSafety';
-import type { Draft, Recipe, Target } from '../shared/types';
+import type { Draft, DraftChange, Recipe, RecipeChange, Target } from '../shared/types';
 import { regionAt } from './distill';
 import { detectLayoutRegressions } from './layoutCheck';
 import { buildSelectors, fingerprint, groupSelector } from './selectors';
@@ -63,9 +63,12 @@ export function normalizeFreeCss(css: string, warnings: string[]): string {
 }
 
 /** Transforme chaque cible de la recette en sélecteurs robustes + empreinte. */
-export function resolveTargets(recipe: Recipe, warnings: string[]): Record<string, Target> {
+export function resolveTargets(
+  change: Pick<RecipeChange, 'targets'>,
+  warnings: string[],
+): Record<string, Target> {
   const targets: Record<string, Target> = {};
-  for (const [key, ref] of Object.entries(recipe.targets)) {
+  for (const [key, ref] of Object.entries(change.targets)) {
     const element = regionAt(ref.regionIndex);
     if (element) {
       // Toute une liste répétée : un sélecteur de groupe d'abord, puis l'exemplaire en repli.
@@ -124,20 +127,48 @@ export function clearPreview(): void {
   document.getElementById(PREVIEW_ID)?.remove();
 }
 
+/** CSS de preview : seulement les changements cochés (recompilé, donc refiltré). */
+export function compileChanges(
+  changes: Pick<DraftChange, 'ops' | 'targets' | 'css' | 'enabled'>[],
+) {
+  return changes
+    .filter((c) => c.enabled)
+    .map((c) => compileRule(c))
+    .filter((css) => css.trim())
+    .join('\n');
+}
+
+/** Résout un changement de la recette ; null s'il ne produit rien sur cette page. */
+function resolveChange(change: RecipeChange, warnings: string[]): DraftChange | null {
+  const local: string[] = [];
+  const targets = resolveTargets(change, local);
+  const ops = change.ops.filter((op) => !op.target || op.target in targets);
+  const css = normalizeFreeCss(change.css, local);
+  warnings.push(...local.map((w) => `${change.title} : ${w}`));
+  const resolved: DraftChange = { title: change.title, ops, targets, css, enabled: true };
+  if (!compileRule(resolved).trim()) {
+    warnings.push(`« ${change.title} » ne produit aucun changement visible : ignoré.`);
+    return null;
+  }
+  return resolved;
+}
+
 /** Construit le brouillon complet et l'applique en preview. */
 export function prepareDraft(recipe: Recipe, prompts: string[]): Draft {
   const warnings: string[] = [];
-  const targets = resolveTargets(recipe, warnings);
-  const ops = recipe.ops.filter((op) => !op.target || op.target in targets);
-  const css = normalizeFreeCss(recipe.css, warnings);
-  const previewCss = compileRule({ ops, targets, css });
-  if (!previewCss.trim()) {
+  const changes = recipe.changes
+    .map((change) => resolveChange(change, warnings))
+    .filter((c): c is DraftChange => !!c);
+  const previewCss = compileChanges(changes);
+  if (!previewCss.trim() && !warnings.length) {
     warnings.push('Cette modification ne produit aucun changement visible.');
   }
   // Mesure avant/après la nouvelle preview (synchrone : rien n'est peint entre les deux).
-  const hidden = Object.entries(targets)
-    .filter(([key]) => ops.some((op) => op.op === 'hide' && op.target === key))
-    .flatMap(([, t]) => t.selectors);
+  const hidden = changes.flatMap((change) =>
+    Object.entries(change.targets)
+      .filter(([key]) => change.ops.some((op) => op.op === 'hide' && op.target === key))
+      .flatMap(([, t]) => t.selectors),
+  );
   const layoutIssues = detectLayoutRegressions(
     () => setPreview(previewCss),
     () => setPreview(''),
@@ -154,9 +185,7 @@ export function prepareDraft(recipe: Recipe, prompts: string[]): Draft {
     host: location.hostname,
     prompts,
     recipe,
-    ops,
-    targets,
-    css,
+    changes,
     explanation: recipe.explanation,
     previewCss,
     warnings,
