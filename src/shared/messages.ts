@@ -68,7 +68,7 @@ export function callBg<K extends keyof BgApi>(
 function friendlyChromeError(error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error);
   if (/Receiving end does not exist|Could not establish connection/i.test(message)) {
-    return new Error('Browser Paint n’est pas encore chargé dans cette page : rechargez l’onglet.');
+    return new Error('ReFace n’est pas encore chargé dans cette page : rechargez l’onglet.');
   }
   if (/message port closed|message channel closed/i.test(message)) {
     return new Error('La page a été rechargée ou fermée pendant l’opération. Réessayez.');

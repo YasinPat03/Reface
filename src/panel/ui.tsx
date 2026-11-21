@@ -1,5 +1,6 @@
-// Petits composants d'interface partagés par le panel.
-import type { ReactNode } from 'react';
+import { Switch as BaseSwitch } from '@base-ui/react/switch';
+import { motion, useReducedMotion } from 'motion/react';
+import { useId, type ReactNode } from 'react';
 
 export function Switch({
   checked,
@@ -13,24 +14,18 @@ export function Switch({
   disabled?: boolean;
 }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
+    <BaseSwitch.Root
+      render={<button type="button" />}
+      nativeButton
+      checked={checked}
+      onCheckedChange={onChange}
       aria-label={label}
       title={label}
       disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:opacity-40 ${
-        checked ? 'bg-violet-600' : 'bg-zinc-300 dark:bg-zinc-700'
-      }`}
+      className="switch-control"
     >
-      <span
-        className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
-          checked ? 'translate-x-4' : 'translate-x-0.5'
-        }`}
-      />
-    </button>
+      <BaseSwitch.Thumb className="switch-thumb" />
+    </BaseSwitch.Root>
   );
 }
 
@@ -45,28 +40,63 @@ export function Segmented<T extends string>({
   onChange: (value: T) => void;
   label: string;
 }) {
+  const id = useId();
   return (
-    <div
-      role="radiogroup"
-      aria-label={label}
-      className="inline-flex rounded-md bg-zinc-100 p-0.5 dark:bg-zinc-800"
-    >
+    <div className="segmented" role="radiogroup" aria-label={label}>
       {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          role="radio"
-          aria-checked={value === option.value}
-          onClick={() => onChange(option.value)}
-          className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-            value === option.value
-              ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-950 dark:text-zinc-100'
-              : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
-          }`}
-        >
-          {option.label}
-        </button>
+        <label key={option.value} className="segment">
+          <input
+            type="radio"
+            name={id}
+            value={option.value}
+            checked={value === option.value}
+            onChange={() => onChange(option.value)}
+          />
+          <span>{option.label}</span>
+        </label>
       ))}
     </div>
+  );
+}
+
+export type AssemblyPhase = 'idle' | 'picking' | 'working' | 'preview' | 'saved';
+
+/** Le mouvement de ces trois plans suit les états réels de l'éditeur. */
+export function AssemblyDiagram({ phase = 'idle' }: { phase?: AssemblyPhase }) {
+  const reduce = useReducedMotion();
+  const positions: Record<AssemblyPhase, number[]> = {
+    idle: [18, 3, -12],
+    picking: [22, 3, -18],
+    working: [12, 4, -4],
+    preview: [18, 1, -18],
+    saved: [2, 1, 0],
+  };
+  return (
+    <svg
+      className={`assembly-diagram phase-${phase}`}
+      viewBox="0 0 150 112"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path className="diagram-guide" d="M14 71v22m122-22v22M14 89h122M75 7v91" />
+      {[0, 1, 2].map((layer) => (
+        <motion.g
+          key={layer}
+          initial={false}
+          animate={{ y: reduce ? positions.idle[layer] : positions[phase][layer] }}
+          transition={{ duration: reduce ? 0 : 0.28, ease: [0.22, 1, 0.36, 1] }}
+          className={`diagram-layer layer-${layer}`}
+        >
+          <path className="diagram-plane" d="m16 51 59-34 59 34-59 34-59-34Z" />
+          {layer === 2 && (
+            <>
+              <path d="m28 51 47-27 47 27-47 27-47-27Zm11-6 47 27M62 31l47 27M50 58l35-20M68 68l35-20" />
+              <path className="diagram-selection" d="m62 51 18-10 18 10-18 10-18-10Z" />
+            </>
+          )}
+        </motion.g>
+      ))}
+      <path className="diagram-tick" d="M13 86v6m124-6v6" />
+    </svg>
   );
 }

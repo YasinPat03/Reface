@@ -1,0 +1,32 @@
+{
+  "format": "reface/catalogue/v1",
+  "id": "c_70cbcfbe-7b42-4d07-ba9a-9f202098e97e",
+  "title": "testest",
+  "description": "awdwqd",
+  "host": "www.youtube.com",
+  "pagePath": "/",
+  "pageUrl": "https://www.youtube.com/",
+  "createdAt": "2026-11-21T22:47:50.362Z",
+  "rules": [
+    {
+      "id": "r_a826911d",
+      "kind": "restyle",
+      "createdAt": "2026-11-21T22:47:27.822Z",
+      "prompt": "testest",
+      "urlPattern": "https://www.youtube.com/",
+      "pagePath": "/",
+      "scope": "page",
+      "enabled": true,
+      "ops": [],
+      "targets": {},
+      "css": "ytd-rich-grid-renderer :is(h1, h2, h3, #video-title, #metadata, #channel-name, yt-content-metadata-view-model, .yt-lockup-metadata-view-model__title, .ytShortsLockupViewModelHostMetadataTitle, .ytShortsLockupViewModelHostMetadataSubhead) { color: transparent !important; text-shadow: none !important; }\nytd-rich-grid-renderer :is(h1, h2, h3, #video-title, #metadata, #channel-name, yt-content-metadata-view-model) :is(a, span, yt-formatted-string) { color: transparent !important; text-shadow: none !important; }\nytd-rich-grid-renderer badge-shape.ytBadgeShapeThumbnailDefault { visibility: hidden !important; }",
+      "explanation": "awdwqd",
+      "intent": null,
+      "health": {
+        "lastOk": "2026-11-21T22:47:27.822Z",
+        "failures": 0,
+        "status": "ok"
+      }
+    }
+  ]
+}

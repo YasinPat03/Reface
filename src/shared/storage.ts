@@ -1,4 +1,5 @@
 // Disposition des clés dans chrome.storage.local. Voir PRD §4.
+import { compilePages } from './compile';
 import { DEFAULT_SETTINGS, type Settings, type SiteRules } from './types';
 
 export const keys = {
@@ -6,6 +7,7 @@ export const keys = {
   rules: (host: string) => `rules:${host}` as const,
   /** CSS précompilé, lu tel quel par l'injecteur au document_start. */
   css: (host: string) => `css:${host}` as const,
+  pages: (host: string) => `page-css:${host}` as const,
   /** Présent et vrai : toutes les modifs sont suspendues sur ce site. */
   paused: (host: string) => `paused:${host}` as const,
   settings: 'settings',
@@ -53,8 +55,9 @@ export async function setSettings(settings: Settings): Promise<void> {
  * pour que l'injecteur ne voie jamais un état incohérent.
  */
 export async function saveSiteRules(site: SiteRules, compiledCss: string): Promise<void> {
-  const update: Record<string, unknown> = { [keys.rules(site.host)]: site };
-  if (compiledCss) update[keys.css(site.host)] = compiledCss;
-  await local().set(update);
-  if (!compiledCss) await local().remove(keys.css(site.host));
+  await local().set({
+    [keys.rules(site.host)]: site,
+    [keys.css(site.host)]: compiledCss,
+    [keys.pages(site.host)]: compilePages(site.rules),
+  });
 }

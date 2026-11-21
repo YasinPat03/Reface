@@ -8,7 +8,7 @@ import type { DistillResult, Draft, PickResult, Recipe, Rule } from '../shared/t
 import { completeJson, type ChatMessage } from './llm';
 
 const SYSTEM_PROMPT = [
-  'You are Browser Paint, an agent that restyles the web page the user is looking at.',
+  'You are ReFace, an agent that restyles the web page the user is looking at.',
   'You never write JavaScript. You answer ONLY with a JSON recipe matching the schema.',
   'Operations: "hide" (hide a target), "style" (CSS declarations on a target), "theme" (page-wide declarations, target "").',
   'Targets point to page regions by their index [#n] from the page outline (regionIndex). Add 0-2 selectorHints you are confident about.',

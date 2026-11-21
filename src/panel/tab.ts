@@ -28,7 +28,18 @@ export async function getActiveTab(): Promise<ActiveTab | null> {
 export function useActiveTab(): ActiveTab | null {
   const [tab, setTab] = useState<ActiveTab | null>(null);
   useEffect(() => {
-    const refresh = () => void getActiveTab().then(setTab);
+    let alive = true;
+    let revision = 0;
+    const refresh = () => {
+      const current = ++revision;
+      void getActiveTab()
+        .then((next) => {
+          if (alive && current === revision) setTab(next);
+        })
+        .catch(() => {
+          if (alive && current === revision) setTab(null);
+        });
+    };
     refresh();
     const onUpdated = (_id: number, info: chrome.tabs.OnUpdatedInfo) => {
       if (info.url || info.status === 'complete') refresh();
@@ -37,6 +48,7 @@ export function useActiveTab(): ActiveTab | null {
     chrome.tabs.onUpdated.addListener(onUpdated);
     chrome.windows.onFocusChanged.addListener(refresh);
     return () => {
+      alive = false;
       chrome.tabs.onActivated.removeListener(refresh);
       chrome.tabs.onUpdated.removeListener(onUpdated);
       chrome.windows.onFocusChanged.removeListener(refresh);

@@ -3,7 +3,7 @@ import pkg from './package.json' with { type: 'json' };
 
 export default defineManifest({
   manifest_version: 3,
-  name: 'Browser Paint',
+  name: 'ReFace',
   version: pkg.version,
   description:
     'Modifie n’importe quel site avec un prompt. Les modifs sont rejouées instantanément.',
@@ -15,7 +15,7 @@ export default defineManifest({
     128: 'icons/icon128.png',
   },
   action: {
-    default_title: 'Ouvrir Browser Paint',
+    default_title: 'Ouvrir ReFace',
     default_icon: { 16: 'icons/icon16.png', 32: 'icons/icon32.png' },
   },
   permissions: ['storage', 'unlimitedStorage', 'sidePanel', 'scripting', 'activeTab'],

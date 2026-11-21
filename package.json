@@ -10,9 +10,15 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",
-    "test:e2e": "npm run build && for f in tests/e2e/phase*.e2e.ts; do node \"$f\" || exit 1; done"
+    "test:e2e": "npm run build && for f in tests/e2e/phase*.e2e.ts; do node \"$f\" || exit 1; done",
+    "catalogue": "node --experimental-strip-types scripts/catalogue-server.ts"
   },
   "dependencies": {
+    "@base-ui/react": "^1.9.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/ibm-plex-sans": "^5.3.0",
+    "@phosphor-icons/react": "^2.1.10",
+    "motion": "^14.14.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "zod": "^4.6.7"

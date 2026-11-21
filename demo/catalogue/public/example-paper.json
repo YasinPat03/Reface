@@ -1,0 +1,42 @@
+{
+  "format": "reface/catalogue/v1",
+  "id": "c_demo_example-paper",
+  "title": "Une page de lecture",
+  "description": "Un fond papier et des lignes confortables pour lire.",
+  "host": "example.com",
+  "pagePath": "/",
+  "pageUrl": "https://example.com/",
+  "createdAt": "2026-11-21T00:00:00.000Z",
+  "rules": [
+    {
+      "id": "r_demo_example-paper",
+      "kind": "restyle",
+      "createdAt": "2026-11-21T00:00:00.000Z",
+      "prompt": "Une page de lecture",
+      "urlPattern": "https://example.com/",
+      "pagePath": "/",
+      "scope": "page",
+      "enabled": true,
+      "ops": [
+        {
+          "op": "theme",
+          "css": {
+            "background-color": "#f3f0e7",
+            "color": "#282b27",
+            "font-size": "18px",
+            "line-height": "1.7"
+          }
+        }
+      ],
+      "targets": {},
+      "css": "",
+      "explanation": "Un fond papier et des lignes confortables pour lire.",
+      "intent": null,
+      "health": {
+        "lastOk": null,
+        "failures": 0,
+        "status": "ok"
+      }
+    }
+  ]
+}

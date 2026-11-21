@@ -1,16 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
+import { ArrowRightIcon } from '@phosphor-icons/react/dist/csr/ArrowRight';
+import { ArrowElbowDownLeftIcon } from '@phosphor-icons/react/dist/csr/ArrowElbowDownLeft';
+import { CrosshairSimpleIcon } from '@phosphor-icons/react/dist/csr/CrosshairSimple';
+import { CheckIcon } from '@phosphor-icons/react/dist/csr/Check';
+import { EyeSlashIcon } from '@phosphor-icons/react/dist/csr/EyeSlash';
+import { XIcon } from '@phosphor-icons/react/dist/csr/X';
+import { LockSimpleIcon } from '@phosphor-icons/react/dist/csr/LockSimple';
+import { WarningCircleIcon } from '@phosphor-icons/react/dist/csr/WarningCircle';
 import { callBg, callContent } from '../shared/messages';
 import type { Draft, PickResult } from '../shared/types';
 import { errorMessage, type ActiveTab } from './tab';
+import { AssemblyDiagram } from './ui';
 
 type Status = 'idle' | 'generating' | 'saving' | 'picking';
 
-const EXAMPLES = [
-  'Cache les commentaires',
-  'Texte plus grand et plus aéré',
-  'Mode sombre',
-  'Cache la barre latérale',
-];
+const EXAMPLES = ['Cache les commentaires', 'Texte plus grand et plus aéré'];
 
 export function Chat({
   tab,
@@ -131,148 +136,224 @@ export function Chat({
   const busy = status !== 'idle';
 
   return (
-    <section className="flex flex-col gap-3">
+    <section className="editor" aria-label="Éditeur de page">
+      <div className="workspace-heading">
+        <div>
+          <p className="eyebrow">{draft ? 'Aperçu' : 'Ajustement'}</p>
+          <h2>{draft ? 'Affiner la modification' : 'Que voulez-vous changer ?'}</h2>
+        </div>
+        <AssemblyDiagram
+          phase={
+            status === 'generating'
+              ? 'working'
+              : status === 'picking'
+                ? 'picking'
+                : draft
+                  ? 'preview'
+                  : notice
+                    ? 'saved'
+                    : 'idle'
+          }
+        />
+      </div>
+      {!draft && <p className="workspace-description">Essayez sur la page avant de garder.</p>}
       {aiBlocked && (
-        <p
-          data-testid="ai-blocked"
-          className="rounded-md bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300"
-        >
-          🔒 {aiBlocked} L’IA est désactivée ici : aucun contenu n’est envoyé. Vous pouvez quand
-          même pointer un élément pour le cacher.
+        <p data-testid="ai-blocked" className="message message-caution">
+          <LockSimpleIcon size={18} aria-hidden="true" />
+          <span>
+            {aiBlocked} L’IA est désactivée ici : aucun contenu n’est envoyé. Vous pouvez quand même
+            pointer un élément pour le cacher.
+          </span>
         </p>
       )}
-      <form onSubmit={submit} className="flex flex-col gap-2">
-        <label htmlFor="bp-prompt" className="text-sm font-medium">
-          {draft ? 'Affiner la modification' : 'Que voulez-vous changer ?'}
-        </label>
-        <textarea
-          id="bp-prompt"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              e.currentTarget.form?.requestSubmit();
-            }
-          }}
-          rows={3}
-          placeholder={draft ? 'Ex. : un peu plus grand' : 'Ex. : cache les commentaires'}
-          className="resize-none rounded-md border border-zinc-300 bg-transparent p-2 text-sm outline-none focus:border-violet-500 dark:border-zinc-700"
-          disabled={busy || !!aiBlocked}
-        />
-        {picked && (
-          <div
-            data-testid="picked"
-            className="flex items-center gap-2 rounded-md bg-violet-50 px-2 py-1.5 text-xs dark:bg-violet-950"
+
+      <AnimatePresence initial={false}>
+        {draft && (
+          <motion.div
+            key="draft"
+            data-testid="draft"
+            className="draft-sheet"
+            role="region"
+            aria-label="Aperçu de la modification"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.22 }}
           >
-            <span className="shrink-0">🎯</span>
-            <span className="min-w-0 flex-1 truncate font-mono" title={picked.selector}>
-              {picked.label}
-            </span>
-            <button
-              type="button"
-              onClick={hidePicked}
-              disabled={busy}
-              className="shrink-0 rounded bg-white px-2 py-0.5 font-medium text-violet-700 shadow-sm hover:bg-violet-100 disabled:opacity-50 dark:bg-zinc-900 dark:text-violet-300"
-            >
-              Cacher cet élément
-            </button>
-            <button
-              type="button"
-              aria-label="Oublier l’élément pointé"
-              onClick={() => setPicked(null)}
-              className="shrink-0 px-1 text-zinc-400 hover:text-zinc-700"
-            >
-              ✕
-            </button>
-          </div>
+            <div className="draft-caption">
+              <span className="draft-light" />
+              <span>Aperçu sur la page</span>
+              <span className="draft-unsaved">Non enregistré</span>
+            </div>
+            <p className="draft-explanation">{draft.explanation || 'Modification prête.'}</p>
+            {draft.warnings.map((w) => (
+              <p key={w} className="draft-warning">
+                <WarningCircleIcon size={16} aria-hidden="true" />
+                <span>{w}</span>
+              </p>
+            ))}
+            <div className="draft-actions">
+              <button
+                type="button"
+                onClick={discardDraft}
+                disabled={busy}
+                className="button button-ghost"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={keepDraft}
+                disabled={busy || !draft.previewCss.trim()}
+                className="button button-primary"
+              >
+                <CheckIcon size={16} aria-hidden="true" />
+                {status === 'saving' ? 'Enregistrement…' : 'Garder'}
+              </button>
+            </div>
+          </motion.div>
         )}
-        <div className="flex items-center justify-between gap-2">
-          <button
-            type="button"
-            onClick={startPick}
-            disabled={status === 'generating' || status === 'saving'}
-            aria-pressed={status === 'picking'}
-            className={`rounded-md border px-2.5 py-1.5 text-sm disabled:opacity-50 ${
-              status === 'picking'
-                ? 'border-violet-500 bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-300'
-                : 'border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900'
-            }`}
-          >
-            {status === 'picking' ? 'Annuler le pointage' : '🎯 Pointer un élément'}
-          </button>
-          <button
-            type="submit"
-            disabled={busy || !prompt.trim() || !!aiBlocked}
-            className="rounded-md bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
-          >
-            {status === 'generating' ? 'Génération…' : draft ? 'Réviser' : 'Prévisualiser'}
-          </button>
-        </div>
+      </AnimatePresence>
+
+      <form onSubmit={submit} className="adjustment-form">
+        <button
+          type="button"
+          onClick={startPick}
+          disabled={status === 'generating' || status === 'saving'}
+          aria-pressed={status === 'picking'}
+          className="pick-button"
+        >
+          <span className="pick-crosshair">
+            <CrosshairSimpleIcon size={21} weight="light" aria-hidden="true" />
+          </span>
+          <span>{status === 'picking' ? 'Annuler le pointage' : 'Pointer un élément'}</span>
+          <span className="pick-indicator" aria-hidden="true">
+            {status === 'picking' ? '−' : '+'}
+          </span>
+        </button>
         {status === 'picking' && (
-          <p role="status" className="text-xs text-zinc-500">
+          <p role="status" className="picking-instructions">
             Cliquez sur un élément de la page. ↑ pour sélectionner son parent, Échap pour annuler.
           </p>
         )}
+        <AnimatePresence initial={false}>
+          {picked && (
+            <motion.div
+              key="picked"
+              data-testid="picked"
+              className="target-field"
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+            >
+              <div className="target-heading">
+                <span className="eyebrow">Élément sélectionné</span>
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label="Oublier l’élément pointé"
+                  onClick={() => setPicked(null)}
+                  disabled={busy}
+                >
+                  <XIcon size={16} aria-hidden="true" />
+                </button>
+              </div>
+              <p className="target-label" title={picked.selector}>
+                {picked.label}
+              </p>
+              <button type="button" onClick={hidePicked} disabled={busy} className="text-button">
+                <EyeSlashIcon size={16} aria-hidden="true" />
+                Cacher cet élément
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <div className="prompt-field">
+          <label htmlFor="bp-prompt" className="sr-only">
+            {draft ? 'Affiner la modification' : 'Que voulez-vous changer ?'}
+          </label>
+          <textarea
+            id="bp-prompt"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                e.currentTarget.form?.requestSubmit();
+              }
+            }}
+            rows={4}
+            placeholder={
+              draft
+                ? 'Ex. : un peu plus grand'
+                : 'Ex. : agrandir les vignettes, masquer les commentaires…'
+            }
+            className="prompt-input"
+            disabled={busy || !!aiBlocked}
+          />
+          <div className="input-hint">
+            <ArrowElbowDownLeftIcon size={13} aria-hidden="true" />
+            <span>Entrée pour prévisualiser</span>
+          </div>
+        </div>
+        <button
+          type="submit"
+          disabled={busy || !prompt.trim() || !!aiBlocked}
+          className="button button-primary preview-button"
+        >
+          <span>
+            {status === 'generating'
+              ? 'Préparation de l’aperçu…'
+              : draft
+                ? 'Réviser'
+                : 'Prévisualiser'}
+          </span>
+          <ArrowRightIcon size={18} weight="regular" aria-hidden="true" />
+        </button>
+        {status === 'generating' && (
+          <p role="status" className="working-note">
+            Préparation de votre modification. Vous pourrez la vérifier avant de la garder.
+          </p>
+        )}
       </form>
-
       {!draft && !prompt && !aiBlocked && (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="suggestions" aria-label="Idées de modifications">
+          <p className="eyebrow">Quelques idées</p>
           {EXAMPLES.map((example) => (
             <button
               key={example}
               type="button"
               onClick={() => setPrompt(example)}
-              className="rounded-full border border-zinc-200 px-2.5 py-1 text-xs text-zinc-600 hover:border-violet-400 hover:text-violet-700 dark:border-zinc-800 dark:text-zinc-400"
+              disabled={busy}
+              className="suggestion"
             >
-              {example}
+              <span>{example}</span>
+              <ArrowRightIcon size={14} aria-hidden="true" />
             </button>
           ))}
         </div>
       )}
-
       {error && (
-        <p
-          role="alert"
-          className="rounded-md bg-red-50 p-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300"
-        >
-          {error}
+        <p role="alert" className="message message-error">
+          <WarningCircleIcon size={18} aria-hidden="true" />
+          <span>{error}</span>
         </p>
       )}
-      {notice && <p className="text-sm text-emerald-700 dark:text-emerald-400">{notice}</p>}
-
-      {draft && (
-        <div
-          data-testid="draft"
-          className="flex flex-col gap-2 rounded-lg border border-violet-300 p-3 dark:border-violet-800"
-        >
-          <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">Preview</p>
-          <p className="text-sm">{draft.explanation || 'Modification prête.'}</p>
-          {draft.warnings.map((w) => (
-            <p key={w} className="text-xs text-amber-700 dark:text-amber-400">
-              ⚠️ {w}
-            </p>
-          ))}
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={discardDraft}
-              disabled={busy}
-              className="rounded-md px-3 py-1.5 text-sm hover:bg-zinc-100 disabled:opacity-50 dark:hover:bg-zinc-800"
-            >
-              Annuler
-            </button>
-            <button
-              type="button"
-              onClick={keepDraft}
-              disabled={busy || !draft.previewCss.trim()}
-              className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
-            >
-              {status === 'saving' ? 'Enregistrement…' : 'Garder'}
-            </button>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {notice && (
+          <motion.p
+            role="status"
+            className="message message-success"
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+          >
+            <CheckIcon size={18} aria-hidden="true" />
+            <span>{notice}</span>
+          </motion.p>
+        )}
+      </AnimatePresence>
     </section>
   );
 }

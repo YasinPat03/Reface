@@ -28,8 +28,18 @@ function describeHttpError(status: number, body: string): LlmError {
       : new LlmError('Limite de requêtes atteinte. Réessayez dans un instant.', true);
   }
   if (status === 400) {
+    let parameter = '';
+    try {
+      const data = JSON.parse(body) as { error?: { param?: unknown } };
+      const param = data.error?.param;
+      if (typeof param === 'string' && /^[\w.[\]-]{1,100}$/.test(param)) parameter = param;
+    } catch {
+      // Certains fournisseurs ne renvoient pas de JSON pour les erreurs HTTP.
+    }
     return new LlmError(
-      'Le fournisseur a refusé la requête (le modèle supporte-t-il les structured outputs ?).',
+      parameter
+        ? `Requête refusée : le paramètre « ${parameter} » est incompatible avec ce modèle.`
+        : 'Requête refusée (HTTP 400). Vérifiez le modèle et les paramètres de l’API.',
       false,
     );
   }
@@ -42,6 +52,7 @@ export interface ChatMessage {
 }
 
 async function once(settings: Settings, messages: ChatMessage[]): Promise<unknown> {
+  const isGpt6 = /^(?:openai\/)?gpt-6(?:[.-]|$)/i.test(settings.model);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   let response: Response;
@@ -56,7 +67,8 @@ async function once(settings: Settings, messages: ChatMessage[]): Promise<unknow
       body: JSON.stringify({
         model: settings.model,
         messages,
-        temperature: 0.2,
+        // GPT-6 refuse temperature ; un effort faible convient aux recettes CSS interactives.
+        ...(isGpt6 ? { reasoning_effort: 'low' } : { temperature: 0.2 }),
         response_format: {
           type: 'json_schema',
           json_schema: { name: 'recipe', strict: true, schema: recipeJsonSchema },

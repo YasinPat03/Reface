@@ -41,6 +41,8 @@ export interface Rule {
   urlPattern: string;
   /** Chemin de la page où la règle a été créée : le health check ne vérifie que les pages du même gabarit. */
   pagePath?: string;
+  /** Catalogue themes apply only to their saved page. Legacy rules remain site-wide. */
+  scope?: 'page' | 'site';
   enabled: boolean;
   ops: Op[];
   targets: Record<string, Target>;

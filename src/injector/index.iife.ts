@@ -3,15 +3,20 @@
 (() => {
   const host = location.hostname;
   const cssKey = `css:${host}`;
+  const pagesKey = `page-css:${host}`;
   const pausedKey = `paused:${host}`;
   const STYLE_ID = 'bp-styles';
 
   let css = '';
+  let pages: Record<string, string> = {};
+  let path = location.origin + location.pathname;
   let paused = false;
   let style: HTMLStyleElement | null = null;
 
   function render(): void {
-    const text = paused ? '' : css;
+    const pageCss =
+      Object.hasOwn(pages, path) && typeof pages[path] === 'string' ? pages[path] : '';
+    const text = paused ? '' : [css, pageCss].filter(Boolean).join('\n');
     if (!text && !style) return; // rien à injecter : on ne touche pas au DOM
     if (!style) {
       style = document.createElement('style');
@@ -24,8 +29,12 @@
     if (!style.isConnected) document.documentElement.appendChild(style);
   }
 
-  chrome.storage.local.get([cssKey, pausedKey]).then((data) => {
+  chrome.storage.local.get([cssKey, pagesKey, pausedKey]).then((data) => {
     css = typeof data[cssKey] === 'string' ? data[cssKey] : '';
+    pages =
+      data[pagesKey] && typeof data[pagesKey] === 'object'
+        ? (data[pagesKey] as Record<string, string>)
+        : {};
     paused = data[pausedKey] === true;
     render();
   });
@@ -34,9 +43,19 @@
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
     if (cssKey in changes) css = (changes[cssKey]?.newValue as string | undefined) ?? '';
+    if (pagesKey in changes)
+      pages = (changes[pagesKey]?.newValue as Record<string, string> | undefined) ?? {};
     if (pausedKey in changes) paused = changes[pausedKey]?.newValue === true;
-    if (cssKey in changes || pausedKey in changes) render();
+    if (cssKey in changes || pagesKey in changes || pausedKey in changes) render();
   });
+
+  // SPA navigations change the URL without reloading this isolated script.
+  setInterval(() => {
+    if (path !== location.origin + location.pathname) {
+      path = location.origin + location.pathname;
+      render();
+    }
+  }, 250);
 
   // Une fois le DOM construit, on passe en dernier pour gagner à spécificité égale,
   // et on se réinsère si un framework réécrit le document.

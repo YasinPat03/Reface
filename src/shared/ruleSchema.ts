@@ -22,6 +22,7 @@ export const ruleSchema = z.object({
   prompt: z.string().max(2000),
   urlPattern: z.string().max(500),
   pagePath: z.string().max(2000).optional(),
+  scope: z.enum(['page', 'site']).optional(),
   enabled: z.boolean(),
   ops: z
     .array(
