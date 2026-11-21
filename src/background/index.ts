@@ -2,6 +2,7 @@
 import { callContent, listen, type BgApi } from '../shared/messages';
 import { generate, keep, quickHide } from './agent';
 import { listModels } from './llm';
+import './shortcutHotkey';
 
 const enablePanelOnClick = () =>
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.error);

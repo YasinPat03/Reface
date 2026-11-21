@@ -74,7 +74,7 @@ src/injector/   src/content/   src/background/   src/shared/   src/panel/   src/
 
 ## 4. Modèles de données (MVP)
 
-Clés de stockage : `rules:<host>`, `css:<host>` (CSS précompilé), `paused:<host>`, `settings`.
+Clés de stockage : `rules:<host>`, `css:<host>` (CSS précompilé), `paused:<host>`, `settings`. Backlog A : `shortcuts:<host>` (raccourcis du site) et, dans `chrome.storage.session`, `shortcutRecording` (enregistrement en cours).
 
 ```jsonc
 // rules:<host>
