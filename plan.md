@@ -98,12 +98,16 @@ On choisit au fur et à mesure. Chacune s'appuie sur le MVP sans le casser.
   - [ ] Record mode via `webNavigation`, avec les boutons « Démarrer » et « C'est cette page »
   - [ ] Style `match_siblings`, et un MutationObserver qui réinsère le bouton (au plus quelques fois)
 - [ ] **B. Classification de site** (F4) : table de domaines → `og:type`/JSON-LD → petit appel LLM, avec un cache de 30 jours
+  - [x] Table de domaines + `og:type`/JSON-LD + vocabulaire par catégorie envoyé au LLM (`src/shared/siteContext.ts`)
+  - [ ] Appel LLM de repli et cache de 30 jours
 - [ ] **C. Préférences par catégorie** (F5/F6)
   - [ ] Vocabulaire d'intents fixe et champ `intent` dans la recette
   - [ ] Fusion ADD/UPDATE/NOOP et calcul de la confiance
   - [ ] Carte de suggestion à la première visite, avec Preview/Apply/Pas ici/Jamais
 - [ ] **D. Self-heal** (F11) : re-match local par fingerprint, et réparation par le LLM seulement en dernier recours
 - [ ] **E. Navigation SPA** : `onHistoryStateUpdated` relance les ops DOM et le health check
+  - [x] L'injecteur suit les changements de section (règles limitées au type de page)
+  - [ ] Relancer le health check (et les futures ops DOM) à chaque navigation
 - [ ] **F. Ops DOM `move`/`resize`** (ce que le CSS ne sait pas faire)
 - [ ] **G. Gemini Nano** pour la classification sur l'appareil
 - [ ] **H. Crawl agent / macro click-path** (F9/F10)
