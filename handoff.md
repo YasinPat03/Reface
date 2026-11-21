@@ -1,6 +1,6 @@
 # Handoff : état du projet Browser Paint
 
-Dernière mise à jour : 21 novembre 2026, sur la branche `shortcut` (partie de `main` à `f611ea8`). Ce document complète [`PRD.md`](PRD.md) (la spec) et [`plan.md`](plan.md) (l'arbre de tâches). En cas de doute, le code et les tests font foi.
+Dernière mise à jour : 21 novembre 2026, sur `main`, après la fusion de la branche `shortcut` dans la refonte ReFace + Catalogue. Ce document complète [`PRD.md`](PRD.md) (la spec) et [`plan.md`](plan.md) (l'arbre de tâches). En cas de doute, le code et les tests font foi.
 
 ## 1. Où on en est
 
@@ -17,6 +17,7 @@ Dernière mise à jour : 21 novembre 2026, sur la branche `shortcut` (partie de 
   4. Branche `shortcut`, raccourcis vers des pages enfouies (backlog A, volet « record mode »). Dans l'onglet « Raccourcis » du panel, « Créer un raccourci » lance un enregistrement ; l'utilisateur navigue, puis clique sur « C'est cette page ». Le raccourci est rangé sous le site de départ et ramène à la page en un clic (Cmd/Ctrl-clic : nouvel onglet). Ni IA, ni injecteur.
   5. Même branche, raccourci clavier **⌘⇧E** (Ctrl+Shift+E ailleurs), pour enregistrer sans ouvrir le panel. 1re pression : l'enregistrement démarre, avec une pastille dans la page et un badge « REC » sur l'icône. 2e pression (ou « Enregistrer cette page » dans la pastille) : la page atteinte est enregistrée. L'état est partagé avec le panel (sa barre d'enregistrement s'affiche aussi).
   6. Même branche, palette **⌘⇧X** (Ctrl+Shift+X ailleurs) : une fenêtre au centre de la page liste les raccourcis du site. ↑/↓ (en boucle) puis Entrée, ou un clic, ouvre le raccourci ; ⌘/Ctrl : nouvel onglet. Échap, un clic à côté ou ⌘⇧X à nouveau la ferme.
+  7. **Fusion dans `main`** de `shortcut` après la refonte ReFace + Catalogue d'un coéquipier (`c6fd860`). Seul conflit : `src/panel/App.tsx` (onglets Base UI + onglet « Raccourcis »). L'onglet Raccourcis et la barre d'enregistrement suivent le design ReFace (classes de `ui.css`, variables CSS, bascule clair/sombre) ; sous 400 px de large, l'onglet se réduit à une icône + le nombre. La pastille ⌘⇧E et la palette ⌘⇧X, dans les pages, gardent leur style.
 - **Ce qui reste ouvert dans `plan.md` :**
   - 5.4 : refaire la répétition sur le réseau de la salle.
   - 5.6 : enregistrer la vidéo de secours.
@@ -73,8 +74,8 @@ Dernière mise à jour : 21 novembre 2026, sur la branche `shortcut` (partie de 
 
 ```bash
 npm run build                 # typecheck + build → dist/ (à charger dans chrome://extensions)
-npm run lint && npm test      # ESLint + 121 tests unitaires (Vitest)
-npm run test:e2e              # build + Playwright/Chromium + faux LLM, phases 0 à 9 (6 = changements séparés, 7 = raccourcis, 8 = touche ⌘⇧E, 9 = palette ⌘⇧X)
+npm run lint && npm test      # ESLint + 144 tests unitaires (Vitest)
+npm run test:e2e              # build + Playwright/Chromium + faux LLM, phases 0 à 9, dont 8 échecs hérités de la refonte (voir §5) (6 = changements séparés, 7 = raccourcis, 8 = touche ⌘⇧E, 9 = palette ⌘⇧X)
 node tests/e2e/live.ts [filtre]   # VRAI LLM, pilote l'UI réelle, captures dans .live-shots/
 node tests/e2e/demo-sites.ts      # sites de démo réels, sans LLM
 node tests/e2e/distill-real.ts    # taille et durée de la distillation
@@ -94,6 +95,7 @@ node tests/e2e/distill-real.ts    # taille et durée de la distillation
 6. **Contrôle du navigateur :** le computer-use n'a pas les permissions macOS, et Claude in Chrome refuse les URLs `chrome-extension://`. Pour tester, il faut passer par Playwright (`live.ts`). L'utilisateur a dit d'oublier le contrôle de son navigateur.
 7. **Touche ⌘⇧E :** dans certains éditeurs web (Google Docs, Word Online), ⌘⇧E centre le texte, et la commande de l'extension passe avant. La touche se change dans `chrome://extensions/shortcuts`. Chrome attribue la touche à l'installation : si elle ne répond pas après un simple ↻, retirer puis recharger l'extension non empaquetée (l'onglet « Raccourcis » affiche alors « Aucune touche attribuée » avec un bouton « Configurer »).
 8. **Touche ⌘⇧X :** c'est le barré dans Google Docs et dans la rédaction Gmail ; la commande de l'extension passe avant. Dans la palette, un site qui écoute les touches en phase de capture sur `window` les reçoit quand même (rare).
+9. **Tests E2E hérités de la refonte ReFace (à corriger côté UI) :** 8 échecs, identiques sur `main` avant la fusion (`fb84d30`, vérifié dans un worktree) : phase 3 (3.5, 3.6 ×2, 3.7 : « Enregistrer cette page » existe dans Modifications et dans Catalogue, sélecteur ambigu), phase 5 (5.2 : le bouton « Vérifier » a disparu de l'onglet Modifications) et phase 6 (trois tests encore écrits pour l'ancienne interface). Les phases 7 à 9 (raccourcis) sont vertes.
 
 ## 6. Conventions de travail (demandées par l'utilisateur)
 
