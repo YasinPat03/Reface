@@ -14,7 +14,7 @@ import { Chat } from './Chat';
 import { useSite } from './hooks';
 import { Rules } from './Rules';
 import { Catalogue } from './Catalogue';
-import { RecordingBar, ShortcutsTab, useShortcutCount } from './shortcuts';
+import { RecordingBar, ShortcutsTab, ShortcutsTabLabel, useShortcutCount } from './shortcuts';
 import { useActiveTab, type ActiveTab } from './tab';
 import { AssemblyDiagram, Segmented, Switch } from './ui';
 
@@ -132,7 +132,7 @@ function Site({ tab }: { tab: ActiveTab }) {
             className="workspace-tab"
             aria-label={`Raccourcis (${shortcutCount})`}
           >
-            Raccourcis <span className="tab-count">{shortcutCount}</span>
+            <ShortcutsTabLabel count={shortcutCount} />
           </Tabs.Tab>
           <Tabs.Indicator className="workspace-indicator" />
         </Tabs.List>

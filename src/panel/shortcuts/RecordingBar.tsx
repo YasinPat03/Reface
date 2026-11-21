@@ -1,3 +1,4 @@
+import { WarningCircleIcon } from '@phosphor-icons/react/dist/csr/WarningCircle';
 import { useState } from 'react';
 import {
   addShortcut,
@@ -8,29 +9,43 @@ import {
 import { errorMessage, type ActiveTab } from '../tab';
 import { useRecording, useShortcuts, useTabPage } from './hooks';
 
-const secondary =
-  'rounded-md px-3 py-1.5 text-sm hover:bg-violet-100 disabled:opacity-50 dark:hover:bg-violet-900';
-
-/** Barre affichée pendant l'enregistrement d'un raccourci. Rien si aucun enregistrement. */
+/** Barre affichée (design ReFace) pendant l'enregistrement d'un raccourci. Rien sinon. */
 export function RecordingBar({ tab, onSaved }: { tab: ActiveTab; onSaved?: () => void }) {
   const recording = useRecording();
   if (!recording) return null;
   return (
-    <div
+    <section
       data-testid="recording-bar"
-      className="flex flex-col gap-2 rounded-lg border border-violet-300 bg-violet-50 p-2.5 text-sm dark:border-violet-900 dark:bg-violet-950/40"
+      className="shortcut-recording"
+      aria-label="Enregistrement d’un raccourci"
     >
       {recording.tabId === tab.id ? (
         <Recording key={recording.startedAt} recording={recording} onSaved={onSaved} />
       ) : (
-        <div className="flex items-center justify-between gap-2">
+        <div className="shortcut-recording-other">
           <p>Enregistrement d’un raccourci en cours dans un autre onglet.</p>
-          <button type="button" className={secondary} onClick={() => void stopRecording()}>
+          <button
+            type="button"
+            className="button button-ghost"
+            onClick={() => void stopRecording()}
+          >
             Annuler
           </button>
         </div>
       )}
-    </div>
+    </section>
+  );
+}
+
+function Notice({ tone, children }: { tone: 'caution' | 'error'; children: string }) {
+  return (
+    <p
+      role={tone === 'error' ? 'alert' : undefined}
+      className={`message ${tone === 'error' ? 'message-error' : 'message-caution'}`}
+    >
+      <WarningCircleIcon size={15} aria-hidden="true" />
+      <span>{children}</span>
+    </p>
   );
 }
 
@@ -65,41 +80,33 @@ function Recording({ recording, onSaved }: { recording: ShortcutRecording; onSav
 
   return (
     <>
+      <p className="eyebrow shortcut-recording-title">
+        <span className="shortcut-dot" aria-hidden="true" />
+        Enregistrement
+      </p>
       <p>
-        <span className="mr-1.5 inline-block h-2 w-2 animate-pulse rounded-full bg-red-500" />
         <strong>Raccourci pour {recording.host}</strong> : naviguez jusqu’à la page voulue, puis
         cliquez sur « C’est cette page ».
       </p>
-      <div
-        data-testid="recording-page"
-        className="rounded-md bg-white/70 px-2 py-1.5 dark:bg-zinc-900/70"
-      >
-        <p className="truncate font-medium">{page.title || 'Page sans titre'}</p>
-        <p className="truncate font-mono text-[10px] text-zinc-500">{page.url}</p>
+      <div data-testid="recording-page" className="shortcut-page">
+        <p className="shortcut-page-title">{page.title || 'Page sans titre'}</p>
+        <p className="rule-selector shortcut-page-url">{page.url}</p>
       </div>
       {page.url && !url && (
-        <p className="text-xs text-amber-700 dark:text-amber-400">
-          Cette page ne peut pas servir de raccourci.
-        </p>
+        <Notice tone="caution">Cette page ne peut pas servir de raccourci.</Notice>
       )}
-      {duplicate && (
-        <p className="text-xs text-amber-700 dark:text-amber-400">Ce raccourci existe déjà.</p>
-      )}
-      {error && (
-        <p role="alert" className="text-xs text-red-600">
-          {error}
-        </p>
-      )}
-      <div className="flex gap-2">
+      {duplicate && <Notice tone="caution">Ce raccourci existe déjà.</Notice>}
+      {error && <Notice tone="error">{error}</Notice>}
+      <div className="shortcut-recording-actions">
         <button
           type="button"
+          className="button button-primary"
           disabled={busy || !url || duplicate}
           onClick={() => void save()}
-          className="rounded-md bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
         >
           C’est cette page
         </button>
-        <button type="button" className={secondary} onClick={() => void stopRecording()}>
+        <button type="button" className="button button-ghost" onClick={() => void stopRecording()}>
           Annuler
         </button>
       </div>
