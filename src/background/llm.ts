@@ -8,8 +8,26 @@ export class LlmError extends Error {
   constructor(
     message: string,
     readonly retryable: boolean,
+    /** Paramètre de requête refusé par le modèle (ex. « temperature »), s'il est connu. */
+    readonly rejectedParam: string | null = null,
   ) {
     super(message);
+  }
+}
+
+/** Paramètres optionnels qu'on retire automatiquement si un modèle les refuse. */
+const OPTIONAL_PARAMS = new Set(['temperature']);
+/** Mémoire (par modèle) des paramètres refusés, pour ne pas reperdre une requête à chaque fois. */
+const rejected = new Map<string, Set<string>>();
+
+/** Extrait { message, param } d'un corps d'erreur au format OpenAI. */
+function providerError(body: string): { message: string; param: string | null } {
+  try {
+    const error = (JSON.parse(body) as { error?: { message?: string; param?: string | null } })
+      .error;
+    return { message: String(error?.message ?? '').slice(0, 200), param: error?.param ?? null };
+  } catch {
+    return { message: '', param: null };
   }
 }
 
@@ -28,9 +46,13 @@ function describeHttpError(status: number, body: string): LlmError {
       : new LlmError('Limite de requêtes atteinte. Réessayez dans un instant.', true);
   }
   if (status === 400) {
+    const { message, param } = providerError(body);
     return new LlmError(
-      'Le fournisseur a refusé la requête (le modèle supporte-t-il les structured outputs ?).',
+      message
+        ? `Le fournisseur a refusé la requête : ${message}`
+        : 'Le fournisseur a refusé la requête (le modèle supporte-t-il les structured outputs ?).',
       false,
+      param,
     );
   }
   return new LlmError(`Le fournisseur LLM a répondu ${status}.`, status >= 500);
@@ -56,7 +78,8 @@ async function once(settings: Settings, messages: ChatMessage[]): Promise<unknow
       body: JSON.stringify({
         model: settings.model,
         messages,
-        temperature: 0.2,
+        // Les modèles « raisonnement » n'acceptent que la température par défaut.
+        ...(rejected.get(settings.model)?.has('temperature') ? {} : { temperature: 0.2 }),
         response_format: {
           type: 'json_schema',
           json_schema: { name: 'recipe', strict: true, schema: recipeJsonSchema },
@@ -97,12 +120,27 @@ export async function completeJson(settings: Settings, messages: ChatMessage[]):
   if (!settings.apiKey.trim()) {
     throw new LlmError('Aucune clé API configurée. Ouvrez les Options pour en ajouter une.', false);
   }
-  try {
-    return await once(settings, messages);
-  } catch (error) {
-    if (error instanceof LlmError && error.retryable) return once(settings, messages);
-    throw error;
+  let transientRetryUsed = false;
+  // Au plus : un retry transitoire + un retry par paramètre optionnel refusé.
+  for (let attempt = 0; attempt < 2 + OPTIONAL_PARAMS.size; attempt++) {
+    try {
+      return await once(settings, messages);
+    } catch (error) {
+      if (!(error instanceof LlmError)) throw error;
+      const param = error.rejectedParam;
+      const known = rejected.get(settings.model) ?? new Set<string>();
+      if (param && OPTIONAL_PARAMS.has(param) && !known.has(param)) {
+        rejected.set(settings.model, known.add(param));
+        continue;
+      }
+      if (error.retryable && !transientRetryUsed) {
+        transientRetryUsed = true;
+        continue;
+      }
+      throw error;
+    }
   }
+  throw new LlmError('Le LLM n’a pas pu répondre.', false);
 }
 
 /** Test de connexion : GET /models (supporté par OpenAI, Groq, Gemini en mode compatible). */

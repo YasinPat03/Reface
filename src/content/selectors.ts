@@ -11,6 +11,9 @@ function isStableToken(token: string): boolean {
   // Hash après un double séparateur : « Root--KH-d », « box__a1B2 ».
   if (/(?:--|__)[A-Za-z0-9-]*[A-Z]/.test(token)) return false;
   if (/\d{3,}/.test(token)) return false;
+  // Classes utilitaires (Tailwind, Bootstrap, Primer) : pr-2, mt-4, col-6, d-flex… partagées par
+  // des centaines d'éléments, elles ne désignent rien de précis.
+  if (/^-?[a-z]{1,4}-(?:\d{1,2}|auto|flex|none|block|inline|grid)$/.test(token)) return false;
   if (/[A-Za-z0-9]*[A-Z][A-Za-z0-9]*\d|[a-z]\d[a-z]\d/.test(token) && token.length >= 6)
     return false;
   if (/(?:^|[_-])[a-zA-Z0-9]{5,}$/.test(token) && /[0-9]/.test(token)) return false;

@@ -79,7 +79,8 @@
 - [x] **5.3 Gestion des erreurs** : clé invalide, quota, timeout et JSON invalide donnent chacun un message clair
 - [ ] **5.4 Choix de 2 ou 3 sites de démo** et test des prompts répétés
   - [x] Sites choisis et vérifiés sans LLM (Wikipedia, Hacker News, GitHub) : `node tests/e2e/demo-sites.ts`
-  - [ ] Répéter les prompts avec la vraie clé API, sur le réseau de la salle (voir `DEMO.md`)
+  - [x] Prompts répétés avec un vrai modèle (gpt-6-luna, 1,8 à 8,4 s par modif) : `node tests/e2e/live.ts`
+  - [ ] Refaire la répétition sur le réseau de la salle (voir `DEMO.md`)
 - [x] **5.5 Script de démo** : prompt → preview → Keep → panel fermé → reload, la modif revient, puis Original/Modifié
 - [ ] **5.6 Vidéo de secours** de la démo (à enregistrer après la répétition avec la vraie clé)
 

@@ -29,6 +29,11 @@ describe('completeJson : gestion des erreurs (5.3)', () => {
     [404, '{}', /introuvable/],
     [429, '{"error":{"code":"insufficient_quota"}}', /Quota/],
     [400, '{}', /structured outputs/],
+    [
+      400,
+      '{"error":{"message":"Invalid schema for response_format","param":"response_format"}}',
+      /Invalid schema/,
+    ],
   ])('HTTP %i → message clair, sans retry', async (status, body, pattern) => {
     const fetch = vi.fn().mockResolvedValue(reply(status, body));
     vi.stubGlobal('fetch', fetch);
@@ -93,6 +98,34 @@ describe('completeJson : gestion des erreurs (5.3)', () => {
       /Aucune clé/,
     );
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('paramètres refusés par le modèle', () => {
+  it('temperature refusée : on la retire, on réessaie, et on s’en souvient pour ce modèle', async () => {
+    const refused = reply(400, {
+      error: {
+        code: 'unsupported_value',
+        param: 'temperature',
+        message: 'Only the default (1) value is supported.',
+      },
+    });
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(refused)
+      .mockImplementation(async () => ok({ c: 3 }));
+    vi.stubGlobal('fetch', fetch);
+    const reasoning = { ...settings, model: 'reasoning-model' };
+    await expect(completeJson(reasoning, messages)).resolves.toEqual({ c: 3 });
+    expect(JSON.parse(fetch.mock.calls[0]![1].body).temperature).toBe(0.2);
+    expect('temperature' in JSON.parse(fetch.mock.calls[1]![1].body)).toBe(false);
+    // Appel suivant : directement sans temperature.
+    await completeJson(reasoning, messages);
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect('temperature' in JSON.parse(fetch.mock.calls[2]![1].body)).toBe(false);
+    // Un autre modèle garde sa temperature.
+    await completeJson(settings, messages);
+    expect(JSON.parse(fetch.mock.calls[3]![1].body).temperature).toBe(0.2);
   });
 });
 
