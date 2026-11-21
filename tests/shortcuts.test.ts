@@ -5,7 +5,9 @@ import {
   newShortcutId,
   renamed,
   shortcutLabel,
+  shortcutPath,
   shortcutUrl,
+  stepIndex,
   withShortcut,
   without,
   type SiteShortcuts,
@@ -117,5 +119,42 @@ describe('hotkeyAction (⌘⇧E)', () => {
   it.each(['chrome://extensions', 'about:blank', ''])('refuse une page non web (%s)', (url) => {
     expect(hotkeyAction(null, 1, url)).toBe('refuse');
     expect(hotkeyAction({ tabId: 2 }, 1, url)).toBe('refuse');
+  });
+});
+
+describe('stepIndex (palette ⌘⇧X)', () => {
+  it('↓ et ↑ bouclent aux deux bouts', () => {
+    expect(stepIndex(0, 'ArrowDown', 3)).toBe(1);
+    expect(stepIndex(2, 'ArrowDown', 3)).toBe(0);
+    expect(stepIndex(0, 'ArrowUp', 3)).toBe(2);
+    expect(stepIndex(1, 'ArrowUp', 3)).toBe(0);
+  });
+
+  it('Début et Fin', () => {
+    expect(stepIndex(1, 'Home', 3)).toBe(0);
+    expect(stepIndex(1, 'End', 3)).toBe(2);
+  });
+
+  it('liste vide : -1 ; autre touche : sélection inchangée', () => {
+    expect(stepIndex(-1, 'ArrowDown', 0)).toBe(-1);
+    expect(stepIndex(1, 'a', 3)).toBe(1);
+  });
+
+  it('sans sélection : ↓ part du haut, ↑ du bas', () => {
+    expect(stepIndex(-1, 'ArrowDown', 3)).toBe(0);
+    expect(stepIndex(-1, 'ArrowUp', 3)).toBe(2);
+  });
+});
+
+describe('shortcutPath', () => {
+  it('chemin décodé, avec requête et ancre', () => {
+    expect(shortcutPath('https://a.com/compte/r%C3%A9glages?onglet=2#ssh')).toBe(
+      '/compte/réglages?onglet=2#ssh',
+    );
+  });
+
+  it('séquence % invalide ou URL invalide : texte brut', () => {
+    expect(shortcutPath('https://a.com/100%')).toBe('/100%');
+    expect(shortcutPath('pas une url')).toBe('pas une url');
   });
 });

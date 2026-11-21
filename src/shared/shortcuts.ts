@@ -55,6 +55,56 @@ export interface ShortcutToast {
   tone: 'ok' | 'warn';
 }
 
+/** Commande du manifest : ⌘⇧X (Ctrl+Shift+X), affiche ou ferme la palette des raccourcis du site. */
+export const PALETTE_COMMAND = 'open-shortcuts';
+
+/** SW → content : ouvre la palette si elle est fermée, la ferme sinon. */
+export interface ShortcutPaletteToggle {
+  type: 'shortcut:palette';
+  /** Touches attribuées (ex. « ⇧⌘E », « ⇧⌘X »), vides si aucune. */
+  hotkeys: { record: string; palette: string };
+}
+
+/**
+ * Nouvelle sélection dans la palette après une touche (↑ ↓ avec bouclage, Début, Fin).
+ * -1 si la liste est vide ; sélection inchangée pour une autre touche.
+ */
+export function stepIndex(index: number, key: string, count: number): number {
+  if (count <= 0) return -1;
+  if (index < 0 || index >= count) {
+    // Aucune sélection : ↓/Début partent du haut, ↑/Fin du bas.
+    return key === 'ArrowUp' || key === 'End' ? count - 1 : 0;
+  }
+  const current = index;
+  switch (key) {
+    case 'ArrowDown':
+      return (current + 1) % count;
+    case 'ArrowUp':
+      return (current - 1 + count) % count;
+    case 'Home':
+      return 0;
+    case 'End':
+      return count - 1;
+    default:
+      return current;
+  }
+}
+
+/** Chemin lisible d'une URL (décodé, avec la requête et l'ancre), pour l'afficher sous le nom. */
+export function shortcutPath(url: string): string {
+  try {
+    const u = new URL(url);
+    const raw = u.pathname + u.search + u.hash;
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return raw; // séquence % invalide
+    }
+  } catch {
+    return url;
+  }
+}
+
 export type HotkeyAction = 'start' | 'save' | 'refuse';
 
 /** Que faire quand la touche est pressée sur cet onglet ? */

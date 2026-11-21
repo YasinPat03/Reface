@@ -30,6 +30,11 @@ export default defineManifest({
       suggested_key: { default: 'Ctrl+Shift+E', mac: 'Command+Shift+E' },
       description: 'Raccourci : démarrer l’enregistrement, puis enregistrer la page atteinte',
     },
+    // ⌘⇧X : l'autre lettre libre à la fois dans Chrome et macOS.
+    'open-shortcuts': {
+      suggested_key: { default: 'Ctrl+Shift+X', mac: 'Command+Shift+X' },
+      description: 'Raccourcis : afficher ou fermer la liste des raccourcis du site',
+    },
   },
   content_scripts: [
     {

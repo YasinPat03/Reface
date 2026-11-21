@@ -1,8 +1,10 @@
-// Raccourci clavier ⌘⇧E (commande « record-shortcut ») : enregistrer un raccourci sans ouvrir le panel.
-// 1re pression : démarre l'enregistrement sur l'onglet. 2e pression : enregistre la page atteinte.
+// Touches des raccourcis, sans ouvrir le panel :
+// - ⌘⇧E (« record-shortcut ») : 1re pression, démarre l'enregistrement ; 2e, enregistre la page atteinte ;
+// - ⌘⇧X (« open-shortcuts ») : affiche ou ferme la palette des raccourcis du site (content script).
 // Module isolé, branché par un simple import dans index.ts. Il a son propre canal de messages
 // (`shortcut:*`) et partage l'enregistrement en cours avec le panel (chrome.storage.session).
 import {
+  PALETTE_COMMAND,
   RECORD_COMMAND,
   addShortcut,
   getRecording,
@@ -12,6 +14,7 @@ import {
   startRecording,
   stopRecording,
   type ShortcutHello,
+  type ShortcutPaletteToggle,
   type ShortcutRecording,
   type ShortcutRequest,
   type ShortcutToast,
@@ -45,9 +48,25 @@ function toast(tabId: number, text: string, tone: ShortcutToast['tone']): Promis
   return chrome.tabs.sendMessage(tabId, message).catch(() => null);
 }
 
-async function hotkeyLabel(): Promise<string> {
+async function hotkeyLabel(command: string): Promise<string> {
   const commands = await chrome.commands.getAll();
-  return commands.find((c) => c.name === RECORD_COMMAND)?.shortcut ?? '';
+  return commands.find((c) => c.name === command)?.shortcut ?? '';
+}
+
+/** ⌘⇧X : le content script ouvre ou ferme la palette. Pas de content script : badge « ✕ ». */
+async function togglePalette(tabId: number): Promise<void> {
+  const message: ShortcutPaletteToggle = {
+    type: 'shortcut:palette',
+    hotkeys: {
+      record: await hotkeyLabel(RECORD_COMMAND),
+      palette: await hotkeyLabel(PALETTE_COMMAND),
+    },
+  };
+  try {
+    await chrome.tabs.sendMessage(tabId, message);
+  } catch {
+    flashRefused(tabId); // chrome://, Web Store, ou onglet ouvert avant le chargement de l'extension
+  }
 }
 
 async function saveCurrentPage(recording: ShortcutRecording, tab: chrome.tabs.Tab): Promise<void> {
@@ -85,9 +104,9 @@ async function onHotkey(tabId: number): Promise<void> {
 }
 
 chrome.commands.onCommand.addListener((command, tab) => {
-  if (command === RECORD_COMMAND && tab?.id !== undefined) {
-    void onHotkey(tab.id).catch(console.error);
-  }
+  if (tab?.id === undefined) return;
+  if (command === RECORD_COMMAND) void onHotkey(tab.id).catch(console.error);
+  else if (command === PALETTE_COMMAND) void togglePalette(tab.id).catch(console.error);
 });
 
 async function handle(request: ShortcutRequest, tabId: number): Promise<ShortcutHello | null> {
@@ -96,7 +115,7 @@ async function handle(request: ShortcutRequest, tabId: number): Promise<Shortcut
   if (request.type === 'shortcut:hello') {
     // Réappliqué à chaque page chargée : le badge survit ainsi à la navigation.
     if (mine) await setBadge(tabId, 'REC');
-    return { recordingHost: mine?.host ?? null, hotkey: await hotkeyLabel() };
+    return { recordingHost: mine?.host ?? null, hotkey: await hotkeyLabel(RECORD_COMMAND) };
   }
   if (!mine) return null;
   if (request.type === 'shortcut:save') await saveCurrentPage(mine, await chrome.tabs.get(tabId));
@@ -124,6 +143,6 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (after) void setBadge(after.tabId, 'REC');
 });
 
-// Pour les tests E2E : déclenche la touche sur un onglet (le SW n'est pas accessible aux pages).
-(globalThis as { __bpShortcutHotkey?: (tabId: number) => Promise<void> }).__bpShortcutHotkey =
-  onHotkey;
+// Pour les tests E2E : déclenche les touches sur un onglet (le SW n'est pas accessible aux pages ;
+// les touches simulées par Playwright n'atteignent pas les commandes d'extension).
+Object.assign(globalThis, { __bpShortcutHotkey: onHotkey, __bpShortcutPalette: togglePalette });
