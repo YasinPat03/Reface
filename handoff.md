@@ -1,6 +1,6 @@
 # Handoff : état du projet Browser Paint
 
-Dernière mise à jour : 21 novembre 2026, sur `main` au commit de fusion `a492b56`. Ce document complète [`PRD.md`](PRD.md) (la spec) et [`plan.md`](plan.md) (l'arbre de tâches). En cas de doute, le code et les tests font foi.
+Dernière mise à jour : 21 novembre 2026, sur la branche `shortcut` (partie de `main` à `f611ea8`). Ce document complète [`PRD.md`](PRD.md) (la spec) et [`plan.md`](plan.md) (l'arbre de tâches). En cas de doute, le code et les tests font foi.
 
 ## 1. Où on en est
 
@@ -14,6 +14,7 @@ Dernière mise à jour : 21 novembre 2026, sur `main` au commit de fusion `a492b
   1. `9798133`, compatibilité avec les modèles « raisonnement ». Un paramètre refusé par le modèle, comme `temperature`, est retiré, la requête est relancée, et le refus est mémorisé pour ce modèle. Les erreurs 400 affichent la raison donnée par le fournisseur.
   2. `0f34acf`, contexte du site. L'IA comprend désormais les références indirectes : « les images » sur YouTube, ce sont les miniatures. Le détail est en section 3.
   3. Branche `feat/split-changes`, changements séparés. Un long prompt « X, Y et Z » donne 3 changements, chacun avec une case à cocher dans la preview. Garder enregistre une règle par changement coché, et chaque règle s'active, se désactive ou se supprime seule (liste plate, le prompt d'origine reste dans le détail). Chaque changement garde **son** prompt (`attributePrompts` dans `agent.ts`) : « ajuste x » puis « ajuste y » donne les règles « ajuste x » et « ajuste y », pas « x → y ».
+  4. Branche `shortcut`, raccourcis vers des pages enfouies (backlog A, volet « record mode »). Dans l'onglet « Raccourcis » du panel, « Créer un raccourci » lance un enregistrement ; l'utilisateur navigue, puis clique sur « C'est cette page ». Le raccourci est rangé sous le site de départ et ramène à la page en un clic (Cmd/Ctrl-clic : nouvel onglet). Ni IA, ni service worker, ni injecteur.
 - **Ce qui reste ouvert dans `plan.md` :**
   - 5.4 : refaire la répétition sur le réseau de la salle.
   - 5.6 : enregistrer la vidéo de secours.
@@ -42,6 +43,7 @@ Dernière mise à jour : 21 novembre 2026, sur `main` au commit de fusion `a492b
 | Garde-fou de mise en page | `src/content/layoutCheck.ts` compare les textes avant et après la preview (écrasés, disparus, recouverts). En cas de régression, **une seule** auto-correction par le LLM, puis un avertissement                                                                                                                                                            | Les agrandissements cassaient les colonnes (titres YouTube réduits à 0 px).                                                                                 |
 | Sécurité CSS              | Regex interdites et allow-list de propriétés (`src/shared/cssSafety.ts`), puis parse CSSOM et `!important` forcé (`normalizeFreeCss`). Le compilateur refiltre à chaque compilation                                                                                                                                                                         | PRD §6. Il ne faut jamais assouplir ces règles.                                                                                                             |
 | Sites sensibles           | `src/shared/sensitive.ts` : aucun DOM n'est envoyé au LLM. Le rejeu et « Cacher cet élément » restent possibles. `127.0.0.1` est autorisé (tests et démo)                                                                                                                                                                                                   | PRD §6.4.                                                                                                                                                   |
+| Raccourcis                | Module isolé : `src/shared/shortcuts.ts` (types, clés, logique, stockage) et `src/panel/shortcuts/` (surface publique `index.ts`). Seul point de contact : quelques lignes dans `Site` (`App.tsx`). Clés `shortcuts:<host>` (local) et `shortcutRecording` (`chrome.storage.session`, survit à la fermeture du panel). Aucune nouvelle permission           | Une autre personne travaille en parallèle sur l'UI du panel : on évite les conflits. Hors export/import pour l'instant.                                     |
 | Messagerie                | Contrat typé `BgApi`/`ContentApi` dans `src/shared/messages.ts`. Les erreurs remontent en texte. Les erreurs Chrome bas niveau sont traduites (« rechargez l'onglet »)                                                                                                                                                                                      | Pour ajouter un message : une entrée dans le contrat, puis un handler.                                                                                      |
 
 ## 3. Carte du code
@@ -58,14 +60,14 @@ Dernière mise à jour : 21 novembre 2026, sur `main` au commit de fusion `a492b
   - `agent.ts` : prompt système, `generate` (avec auto-correction), `keep`, `quickHide` ;
   - `llm.ts` : fetch, timeout de 15 s, retries, paramètres refusés.
 - `src/shared/` est utilisé partout : types, schéma, compilateur, sécurité, stockage, règles, sections, contexte de site, sites sensibles.
-- `src/panel/` (React) contient `App` (contrôles et onglets), `Chat`, `Rules` et `tab.ts`. Le paramètre `?tabId=N` ouvre le panel dans un onglet, pour le debug et l'E2E.
+- `src/panel/` (React) contient `App` (contrôles et onglets), `Chat`, `Rules`, `tab.ts` et le module `shortcuts/` (onglet « Raccourcis » et barre d'enregistrement). Le paramètre `?tabId=N` ouvre le panel dans un onglet, pour le debug et l'E2E.
 
 ## 4. Commandes et tests
 
 ```bash
 npm run build                 # typecheck + build → dist/ (à charger dans chrome://extensions)
-npm run lint && npm test      # ESLint + 86 tests unitaires (Vitest)
-npm run test:e2e              # build + Playwright/Chromium + faux LLM, phases 0 à 6 (6 = changements séparés)
+npm run lint && npm test      # ESLint + 109 tests unitaires (Vitest)
+npm run test:e2e              # build + Playwright/Chromium + faux LLM, phases 0 à 7 (6 = changements séparés, 7 = raccourcis)
 node tests/e2e/live.ts [filtre]   # VRAI LLM, pilote l'UI réelle, captures dans .live-shots/
 node tests/e2e/demo-sites.ts      # sites de démo réels, sans LLM
 node tests/e2e/distill-real.ts    # taille et durée de la distillation
