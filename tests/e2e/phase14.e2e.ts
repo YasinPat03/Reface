@@ -4,9 +4,36 @@
 // - Styler le seul bouton du menu n'est plus pris pour un succès : le LLM est relancé.
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { COLLAPSED_MENU_PAGE, MENU_LINK_COUNT } from './fixtures/collapsedMenu.ts';
+import { VIDEO_RESULTS_PAGE } from './fixtures/videoResults.ts';
 import { assert, check, done, launch, startServer } from './harness.ts';
 
 const requests: string[] = [];
+
+/** Cartes en grille de 3 (thème par jetons), comme « 3 cards per row » sur YouTube. */
+const GRID_THEME = {
+  inspiredBy: 'Linear',
+  palette: {
+    background: '#0f1115',
+    surface: '#171a21',
+    text: '#e6e8ee',
+    muted: '#9aa3b2',
+    accent: '#7c9cff',
+    header: '#12151b',
+    onHeader: '#e6e8ee',
+    border: '#262b36',
+  },
+  typography: { fontFamily: 'system-ui, sans-serif', baseSize: 15, scale: 1.3, titleWeight: 600 },
+  shape: { radius: 10, shadow: 'none' },
+  layout: {
+    cards: true,
+    density: 'comfortable',
+    maxWidth: 0,
+    dividers: false,
+    columns: 3,
+    cardShape: 'auto',
+  },
+  roleStyles: [],
+};
 
 const recipe = (change: Record<string, unknown>) => ({
   changes: [{ title: 'Navbar', ops: [], targets: [], css: '', theme: null, menuBar: 0, ...change }],
@@ -17,6 +44,7 @@ function recipeFor(user: string, last: string) {
   const request = user.match(/^User request: (.*)$/m)?.[1] ?? '';
   // Auto-correction : le LLM se reprend et passe par la barre calculée.
   if (last.startsWith('Your recipe was applied')) return recipe({ menuBar: 1 });
+  if (request.includes('3 cards per row')) return recipe({ title: 'Cards', theme: GRID_THEME });
   if (request.includes('bouton seul')) {
     // Ce qu'un LLM peut faire sans voir le menu : styler la région du hamburger.
     const region = Number(user.match(/\[#(\d+)\] <nav [^\n]*main-menu-landmark/)?.[1] ?? -1);
@@ -53,6 +81,7 @@ async function llm(req: IncomingMessage, res: ServerResponse) {
 
 const { server, origin } = await startServer({
   '/wiki': COLLAPSED_MENU_PAGE,
+  '/results': VIDEO_RESULTS_PAGE,
   '/v1/chat/completions': (res) => void llm(res.req, res),
 });
 const { context, worker, extensionId } = await launch();
@@ -175,6 +204,79 @@ await check('styler le seul bouton n’est plus un succès : le LLM est relancé
   assert(/NO visible effect/.test(requests[1]!), 'le « sans effet » n’est pas expliqué au LLM');
   const m = await layout();
   assert(m.visible === MENU_LINK_COUNT && m.rows === 1, 'la correction n’a pas donné la barre');
+});
+
+console.log('Phase 14 : pages à composants (YouTube)');
+const results = await context.newPage();
+await results.setViewportSize({ width: 1280, height: 800 });
+await results.goto(`${origin}/results`);
+const resultsTab = await worker.evaluate(
+  async (url) => (await chrome.tabs.query({ url }))[0]!.id!,
+  `${origin}/results`,
+);
+
+await check(
+  '3 cartes par rangée : cartes empilées, rien d’écrasé, pas d’auto-correction',
+  async () => {
+    requests.length = 0;
+    const reply = await send<{ warnings: string[]; layoutIssues: string[] }>('generate', {
+      tabId: resultsTab,
+      prompt: '3 cards per row',
+      previous: null,
+      pick: null,
+    });
+    assert(reply.ok, `generate : ${reply.error}`);
+    // Titres coupés à 2 lignes : leurs lignes masquées ne comptent plus comme des chevauchements.
+    assert(
+      requests.length === 1,
+      `${requests.length} appels LLM : ${reply.data?.layoutIssues.join(' | ')}`,
+    );
+    const m = await results.evaluate(() => {
+      const box = (e: Element | null) => e!.getBoundingClientRect();
+      const cards = [...document.querySelectorAll('ytd-video-renderer')].slice(0, 6);
+      const container = box(document.querySelector('#contents'));
+      return {
+        lefts: new Set(cards.slice(0, 3).map((c) => Math.round(box(c).left))).size,
+        stacked: cards.every(
+          (c) => box(c.querySelector('ytd-thumbnail')).bottom <= box(c.querySelector('h3')).top + 1,
+        ),
+        contained: cards.every(
+          (c) => box(c.querySelector('ytd-thumbnail')).right <= box(c).right + 1,
+        ),
+        playlist: box(document.querySelector('yt-lockup-view-model')).width / container.width,
+        shelf: box(document.querySelector('grid-shelf-view-model')).width / container.width,
+      };
+    });
+    assert(m.lefts === 3, `${m.lefts} colonne(s) au lieu de 3`);
+    assert(m.stacked, 'une miniature n’est pas au-dessus de son titre');
+    assert(m.contained, 'une miniature déborde de sa carte');
+    assert(
+      m.playlist > 0.9 && m.shelf > 0.9,
+      `playlist ou étagère écrasée (${m.playlist}, ${m.shelf})`,
+    );
+  },
+);
+
+await check('ce que voit le LLM : classes entières, pas de chemin positionnel', async () => {
+  const user = requests[0]!;
+  const outline = user.split('<untrusted_page_outline')[1] ?? '';
+  assert(!/class="[^"]*…"/.test(outline), 'une classe est tronquée dans le plan');
+  // Chaque classe citée existe telle quelle sur la page (une classe coupée ne viserait rien).
+  const tokens = [...outline.matchAll(/class="([^"]+)"/g)].flatMap((m) => m[1]!.split(' '));
+  const missing = await results.evaluate(
+    (names) => names.filter((n) => !document.getElementsByClassName(n).length),
+    [...new Set(tokens)],
+  );
+  assert(tokens.length > 5 && !missing.length, `classes inexistantes : ${missing.join(', ')}`);
+  const lists = user.split('\n').filter((l) => /^- \d+× "/.test(l));
+  assert(
+    lists.some((l) => l.startsWith('- 12× "ytd-video-renderer"')),
+    lists.join('\n'),
+  );
+  assert(
+    lists.every((l) => (l.match(/:nth-/g)?.length ?? 0) <= 1),
+    `chemin positionnel profond : ${lists.join('\n')}`,
+  );
 });
 
 await context.close();

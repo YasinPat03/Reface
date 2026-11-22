@@ -77,8 +77,23 @@ function isVisible(element: Element, rect: DOMRect): boolean {
   return true;
 }
 
+/** Valeur citée ; « … » signale une troncature (le LLM ne doit pas en faire un sélecteur exact). */
 function quote(value: string, max = 40): string {
-  return JSON.stringify(redact(value).slice(0, max));
+  const clean = redact(value);
+  return JSON.stringify(clean.length > max ? `${clean.slice(0, max)}…` : clean);
+}
+
+/**
+ * Classes stables affichées : entières (une classe coupée, « ytSpecTouchFeedb », donnait des
+ * sélecteurs morts), au plus 2 et environ 60 caractères. La 1re passe toujours (≤ 40 caractères).
+ */
+function shownClasses(element: Element): string {
+  const shown: string[] = [];
+  for (const name of stableClasses(element).slice(0, 2)) {
+    if (shown.length && [...shown, name].join(' ').length > 60) break;
+    shown.push(name);
+  }
+  return shown.join(' ');
 }
 
 /** Rang d'un élément parmi ses frères de même signature (balise + classes stables). */
@@ -115,8 +130,8 @@ function describe(element: Element, index: number, rect: DOMRect, depth: number)
   if (aria) attrs.push(`aria-label=${quote(aria, 30)}`);
   const testId = element.getAttribute('data-testid');
   if (testId) attrs.push(`data-testid=${quote(testId)}`);
-  const classes = stableClasses(element).slice(0, 2);
-  if (classes.length) attrs.push(`class=${quote(classes.join(' '), 45)}`);
+  const classes = shownClasses(element);
+  if (classes) attrs.push(`class=${JSON.stringify(classes)}`);
   const r = (n: number) => Math.round(n * 100) / 100;
   attrs.push(
     `rect=(${r(rect.left / vw)},${r((rect.top + window.scrollY) / vh)},${r(rect.width / vw)},${r(rect.height / vh)})`,
@@ -127,6 +142,17 @@ function describe(element: Element, index: number, rect: DOMRect, depth: number)
   const text = textSample(element, 40);
   if (text) attrs.push(`text=${JSON.stringify(text)}`);
   return `${'  '.repeat(Math.min(depth, 6))}[#${index}] <${tag} ${attrs.join(' ')}>`;
+}
+
+/** Même boîte à 2 px près. */
+function sameBox(a: DOMRect, b: DOMRect | undefined): boolean {
+  return (
+    !!b &&
+    Math.abs(a.left - b.left) <= 2 &&
+    Math.abs(a.top - b.top) <= 2 &&
+    Math.abs(a.width - b.width) <= 2 &&
+    Math.abs(a.height - b.height) <= 2
+  );
 }
 
 interface Candidate {
@@ -179,6 +205,8 @@ export function distill(
   }
 
   const candidates: Candidate[] = [];
+  // Boîtes déjà vues (un parent est toujours visité avant ses enfants).
+  const boxes = new Map<Element, DOMRect>();
   const walker = document.createTreeWalker(
     document.body ?? document.documentElement,
     NodeFilter.SHOW_ELEMENT,
@@ -200,6 +228,7 @@ export function distill(
     const element = node as Element;
     if (element.id === 'bp-styles' || element.id === 'bp-preview') continue;
     const rect = element.getBoundingClientRect();
+    boxes.set(element, rect);
     const isForced = forced.has(element);
     if (!isForced && !isVisible(element, rect)) continue;
     const tag = element.tagName;
@@ -213,6 +242,17 @@ export function distill(
     if (element.hasAttribute('role')) score += 6;
     if (tag.includes('-')) score += 5;
     if (element.id && isStableId(element.id)) score += 3;
+    // Enveloppe qui double son parent (même boîte) sans rien qui la désigne : sur YouTube,
+    // yt-touch-feedback-shape, yt-light-shape… Elle consommait le budget du plan pour rien.
+    else if (
+      sameBox(rect, element.parentElement ? boxes.get(element.parentElement) : undefined) &&
+      !element.hasAttribute('role') &&
+      !element.hasAttribute('aria-label') &&
+      !element.hasAttribute('data-testid') &&
+      !LANDMARKS.has(tag) &&
+      !/^H[1-6]$/.test(tag)
+    )
+      score -= 4;
     if (element.childElementCount >= 3) score += 2;
     if (area > 0.1) score += 4;
     else if (area > 0.03) score += 2;

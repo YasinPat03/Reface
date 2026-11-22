@@ -1,6 +1,7 @@
 // Garde-fou de mise en page : compare les textes lisibles AVANT et APRÈS la preview.
 // Détecte les régressions qu'une modif peut causer par effet de bord : texte écrasé,
 // texte disparu sans qu'on l'ait demandé, texte recouvert par une image agrandie.
+import { paintedBox } from './qualityCheck';
 
 const MAX_TEXTS = 250;
 
@@ -45,10 +46,26 @@ function overlapRatio(a: DOMRect, b: DOMRect): number {
 const short = (element: Element) =>
   (element.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 30);
 
-/** Médias visibles (pour détecter un texte recouvert par une image). */
+/**
+ * Médias visibles (pour détecter un texte recouvert par une image), découpés à leur zone peinte :
+ * les miniatures d'une liste repliée (chapitres YouTube) sont masquées par un overflow:hidden.
+ */
 function mediaRects(): DOMRect[] {
   return [...document.querySelectorAll('img, video, picture, canvas')]
-    .map((m) => m.getBoundingClientRect())
+    .filter((m) => m.checkVisibility?.({ visibilityProperty: true, opacityProperty: true }) ?? true)
+    .map((m) => {
+      const r = m.getBoundingClientRect();
+      const clip = r.width > 40 && r.height > 30 ? paintedBox(m) : null;
+      if (!clip) return r;
+      const left = Math.max(r.left, clip.left);
+      const top = Math.max(r.top, clip.top);
+      return new DOMRect(
+        left,
+        top,
+        Math.min(r.right, clip.right) - left,
+        Math.min(r.bottom, clip.bottom) - top,
+      );
+    })
     .filter((r) => r.width > 40 && r.height > 30 && r.top < innerHeight * 2);
 }
 

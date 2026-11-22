@@ -91,6 +91,11 @@ export interface RoleMap {
     /** Lien du titre de chaque élément. */
     title: string | null;
     meta: string[];
+    /**
+     * Élément en rangée horizontale, média à côté du texte (cartes vidéo YouTube) : la rangée et la
+     * boîte du média. En grille, la carte s'empile, sinon la miniature déborde sur la voisine.
+     */
+    horizontal?: { row: string; media: string } | null;
   } | null;
 }
 
@@ -362,6 +367,8 @@ function gridBlocks(tokens: ThemeTokens, t: ResolvedTheme, list: List, columns: 
       {
         display: 'grid',
         'grid-template-columns': `repeat(${columns}, minmax(0, 1fr))`,
+        // Un enfant en pleine largeur (playlist, étagère) ne laisse pas de trou avant lui.
+        'grid-auto-flow': 'row dense',
         gap,
         'align-items': 'stretch',
       },
@@ -379,6 +386,18 @@ function gridBlocks(tokens: ThemeTokens, t: ResolvedTheme, list: List, columns: 
         'aspect-ratio': shape === 'square' ? '1 / 1' : shape === 'landscape' ? '4 / 3' : null,
       },
     ]);
+    // Les autres enfants du conteneur (étagères, sections, « voir plus ») : toute la largeur,
+    // sinon chacun est écrasé dans une case.
+    blocks.push([`${container} > :not(${list.item})`, { 'grid-column': '1 / -1' }]);
+    if (list.horizontal) {
+      // Média à côté du texte : la carte s'empile (média au-dessus), rien n'est plus large qu'elle.
+      blocks.push([list.horizontal.row, { 'flex-direction': 'column', 'align-items': 'stretch' }]);
+      blocks.push([`${list.horizontal.row} > *`, { 'min-width': '0', 'max-width': '100%' }]);
+      blocks.push([
+        list.horizontal.media,
+        { width: '100%', 'max-width': '100%', 'min-width': '0', flex: 'none', margin: '0' },
+      ]);
+    }
     return blocks;
   }
 

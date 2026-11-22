@@ -56,7 +56,20 @@ interface List {
   container: Element;
   items: Element[];
   itemSelector: string;
+  /** Même liste répartie dans plusieurs conteneurs (étagères YouTube) : leur nombre. */
+  groups: number;
+  /** Sélecteur de tous les conteneurs (null : pas de sélecteur commun vérifié). */
+  containerSelector: string | null;
 }
+
+/**
+ * En dessous, ce ne sont pas des éléments de liste (chiffres animés d'un compteur de vues YouTube,
+ * 8 px de large). Une ligne de texte compte (HN : environ 15 px de haut).
+ */
+const MIN_ITEM_WIDTH = 40;
+const MIN_ITEM_HEIGHT = 10;
+/** Un chemin positionnel profond casse dès que le site réordonne ses blocs (étagères, pubs). */
+const positional = (selector: string) => (selector.match(/:nth-/g)?.length ?? 0) > 1;
 
 /** Listes répétées : au moins 4 frères de même signature, visibles. Les plus grandes d'abord. */
 function findLists(): List[] {
@@ -71,29 +84,65 @@ function findLists(): List[] {
       groups.set(key, [...(groups.get(key) ?? []), child]);
     }
     for (const items of groups.values()) {
-      if (items.length < 4 || seen.has(items[0]!) || !visible(items[0]!)) continue;
+      const first = items[0]!;
+      if (items.length < 4 || seen.has(first) || !visible(first)) continue;
+      const box = first.getBoundingClientRect();
+      if (box.width < MIN_ITEM_WIDTH || box.height < MIN_ITEM_HEIGHT) continue;
       // Espaceurs et lignes vides : pas des éléments de liste.
-      if (!textSample(items[0]!, 10) && !items[0]!.querySelector('img, video')) continue;
-      const own = signatureSelector(items[0]!);
+      if (!textSample(first, 10) && !first.querySelector('img, video')) continue;
+      const own = signatureSelector(first);
+      // La même liste dans plusieurs conteneurs (2 étagères de Shorts) : un seul sélecteur commun,
+      // plutôt qu'un chemin positionnel par conteneur.
+      if (own && isSafeSelector(own) && count(own) > items.length) {
+        const all = [...document.querySelectorAll(own)];
+        const containers = [...new Set(all.map((e) => e.parentElement))];
+        if (
+          all.length <= 200 &&
+          containers.length <= 6 &&
+          all.every((e) => signature(e) === signature(first)) &&
+          containers.every((c) => c && [...c.children].filter((e) => all.includes(e)).length >= 2)
+        ) {
+          all.forEach((item) => seen.add(item));
+          const shared = signatureSelector(container);
+          lists.push({
+            container,
+            items: all,
+            itemSelector: own,
+            groups: containers.length,
+            containerSelector:
+              shared && count(shared) === containers.length
+                ? shared
+                : containers.length === 1
+                  ? uniqueSelector(container)
+                  : null,
+          });
+          continue;
+        }
+      }
       const parent = uniqueSelector(container);
       const candidates = [
         own,
         own && parent ? `${parent} > ${own}` : null,
-        parent ? `${parent} > ${items[0]!.tagName.toLowerCase()}` : null,
-      ].filter((s): s is string => !!s && isSafeSelector(s));
+        parent ? `${parent} > ${first.tagName.toLowerCase()}` : null,
+      ].filter((s): s is string => !!s && isSafeSelector(s) && !positional(s));
       // Le sélecteur doit viser exactement ces éléments (pas d'autres listes ailleurs).
       const itemSelector = candidates.find((s) => count(s) === items.length);
       if (!itemSelector) continue;
       items.forEach((item) => seen.add(item));
-      lists.push({ container, items, itemSelector });
+      lists.push({ container, items, itemSelector, groups: 1, containerSelector: parent });
     }
   }
-  const area = (list: List) =>
-    list.items.reduce((sum, e) => {
-      const r = e.getBoundingClientRect();
-      return sum + r.width * r.height;
-    }, 0);
-  return lists.sort((a, b) => area(b) - area(a)).slice(0, MAX_LISTS);
+  // Aire mesurée une fois par liste (le tri la redemandait à chaque comparaison).
+  const areas = new Map(
+    lists.map((list) => [
+      list,
+      list.items.reduce((sum, e) => {
+        const r = e.getBoundingClientRect();
+        return sum + r.width * r.height;
+      }, 0),
+    ]),
+  );
+  return lists.sort((a, b) => areas.get(b)! - areas.get(a)!).slice(0, MAX_LISTS);
 }
 
 /**
@@ -184,7 +233,7 @@ function describeLists(lists: List[]): string {
       const rect = first.getBoundingClientRect();
       const rows = companions(list);
       const lines = [
-        `- ${list.items.length}× "${list.itemSelector}" (${first.tagName.toLowerCase()}, ~${Math.round(rect.width)}×${Math.round(rect.height)}px) "${textSample(first, 40)}"`,
+        `- ${list.items.length}× "${list.itemSelector}" (${first.tagName.toLowerCase()}, ~${Math.round(rect.width)}×${Math.round(rect.height)}px${list.groups > 1 ? `, in ${list.groups} separate lists` : ''}) "${textSample(first, 40)}"`,
       ];
       if (rows.length) {
         lines.push(
@@ -388,6 +437,69 @@ function titleOf(list: List, found: Part[]): { part: Part; selector: string } | 
   return null;
 }
 
+/** Sélecteur d'une partie de l'élément, vérifié sur (presque) tous les éléments de la liste. */
+function partSelector(list: List, element: Element): string | null {
+  const item = list.items[0]!;
+  if (element === item) return list.itemSelector;
+  const tag = element.tagName.toLowerCase();
+  const classes = stableClasses(element).slice(0, 2);
+  // Chemin d'enfants directs depuis l'élément : YouTube réutilise des ids (#dismissible) dans
+  // des éléments imbriqués, un sélecteur descendant en vise alors trop.
+  const steps: string[] = [];
+  for (let e: Element | null = element; e && e !== item && steps.length < 6; e = e.parentElement) {
+    const name = e.tagName.toLowerCase();
+    const own = stableClasses(e).slice(0, 2);
+    steps.unshift(
+      e.id && isStableId(e.id) ? `${name}#${e.id}` : own.length ? `${name}.${own.join('.')}` : name,
+    );
+  }
+  const candidates = [
+    `${list.itemSelector} > ${steps.join(' > ')}`,
+    element.id && isStableId(element.id) ? `${list.itemSelector} #${element.id}` : null,
+    classes.length ? `${list.itemSelector} ${tag}.${classes.join('.')}` : null,
+    tag.includes('-') ? `${list.itemSelector} ${tag}` : null,
+  ];
+  for (const candidate of candidates) {
+    if (!candidate || !isSafeSelector(candidate)) continue;
+    const n = count(candidate);
+    try {
+      if (
+        n >= list.items.length * 0.8 &&
+        n <= list.items.length * 1.2 &&
+        element.matches(candidate)
+      )
+        return candidate;
+    } catch {
+      /* sélecteur invalide */
+    }
+  }
+  return null;
+}
+
+/**
+ * Élément en rangée horizontale : un média (miniature) à côté du texte, dans un conteneur flex en
+ * ligne. Retourne la rangée et l'enfant qui porte le média, avec des sélecteurs vérifiés.
+ */
+function horizontalLayout(list: List): { row: string; media: string } | null {
+  const item = list.items[0]!;
+  const media = [...item.querySelectorAll('img, video')].find(
+    (m) => m.getBoundingClientRect().width >= 80,
+  );
+  if (!media) return null;
+  let child: Element = media;
+  for (let row = media.parentElement; row; child = row, row = row.parentElement) {
+    const s = getComputedStyle(row);
+    const inLine = /flex/.test(s.display) && !s.flexDirection.startsWith('column');
+    if (inLine && [...row.children].some((c) => c !== child && textSample(c, 10))) {
+      const rowSelector = partSelector(list, row);
+      const mediaSelector = partSelector(list, child);
+      return rowSelector && mediaSelector ? { row: rowSelector, media: mediaSelector } : null;
+    }
+    if (row === item) break;
+  }
+  return null;
+}
+
 /**
  * Carte des rôles pour le compilateur de thème (`shared/theme.ts`) : sélecteurs vérifiés de la
  * barre du haut, du pied, des surfaces, et de la liste principale (élément, lignes compagnes,
@@ -422,7 +534,7 @@ export function roleMap(): RoleMap {
       })
       .map((p) => p.selector);
     list = {
-      container: uniqueSelector(main.container),
+      container: main.containerSelector,
       containerTable:
         main.container.tagName === 'TBODY' && main.container.parentElement
           ? uniqueSelector(main.container.parentElement)
@@ -433,6 +545,7 @@ export function roleMap(): RoleMap {
       spacer: spacerAfter(main, rows.at(-1) ?? main.itemSelector),
       title: title?.selector ?? null,
       meta,
+      horizontal: horizontalLayout(main),
     };
   }
 

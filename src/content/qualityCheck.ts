@@ -437,6 +437,52 @@ const overlapArea = (a: DOMRect, b: DOMRect) =>
   Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) *
   Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
 
+type Box = { left: number; top: number; right: number; bottom: number };
+
+/**
+ * Zone où le texte est réellement peint : l'intersection de l'élément et de ses ancêtres proches
+ * en overflow non visible. Un titre coupé à 2 lignes (line-clamp, YouTube) garde le rectangle de
+ * ses lignes masquées : sans cette découpe, il « chevauchait » la ligne d'infos en dessous.
+ */
+export function paintedBox(element: Element): Box | null {
+  let box: Box | null = null;
+  for (
+    let e: Element | null = element, hops = 0;
+    e && e !== document.body && hops < 8;
+    e = e.parentElement, hops++
+  ) {
+    const s = getComputedStyle(e);
+    if (s.overflowX === 'visible' && s.overflowY === 'visible') continue;
+    const r = e.getBoundingClientRect();
+    box = box
+      ? {
+          left: Math.max(box.left, r.left),
+          top: Math.max(box.top, r.top),
+          right: Math.min(box.right, r.right),
+          bottom: Math.min(box.bottom, r.bottom),
+        }
+      : { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+  }
+  return box;
+}
+
+/** Lignes d'un texte, découpées à la zone peinte (les lignes entièrement masquées disparaissent). */
+function paintedLines(element: Element): DOMRect[] {
+  const clip = paintedBox(element);
+  return [...element.getClientRects()]
+    .map((r) =>
+      clip
+        ? new DOMRect(
+            Math.max(r.left, clip.left),
+            Math.max(r.top, clip.top),
+            Math.min(r.right, clip.right) - Math.max(r.left, clip.left),
+            Math.min(r.bottom, clip.bottom) - Math.max(r.top, clip.top),
+          )
+        : r,
+    )
+    .filter((r) => r.width > 1 && r.height > 1);
+}
+
 /**
  * Paires de textes qui se chevauchent (sans que l'un contienne l'autre), 2 premiers écrans.
  * On compare les boîtes LIGNE PAR LIGNE : la boîte englobante d'un lien sur 2 lignes couvre
@@ -445,10 +491,7 @@ const overlapArea = (a: DOMRect, b: DOMRect) =>
 function textOverlaps(): { count: number; sample: string[] } {
   const items = textElements()
     .filter((element) => !!visibleBox(element))
-    .map((element) => ({
-      element,
-      lines: [...element.getClientRects()].filter((r) => r.width > 1 && r.height > 1),
-    }));
+    .map((element) => ({ element, lines: paintedLines(element) }));
   let count = 0;
   const sample: string[] = [];
   for (let i = 0; i < items.length; i++) {
