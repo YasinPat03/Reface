@@ -192,65 +192,67 @@ export function cancelPick(): void {
 }
 
 // Le port rattache les repères à la durée de vie du panneau.
-chrome.runtime.onConnect.addListener((port) => {
-  if (port.name !== PICKER_PORT) return;
-  let frame = 0;
-  let stopPicking: (() => void) | null = null;
-  let connected = true;
-  let selected = new Set<string>();
-  let marks: { element: Element; overlay: ReturnType<typeof createOverlay> }[] = [];
+export function registerPicker(): void {
+  chrome.runtime.onConnect.addListener((port) => {
+    if (port.name !== PICKER_PORT) return;
+    let frame = 0;
+    let stopPicking: (() => void) | null = null;
+    let connected = true;
+    let selected = new Set<string>();
+    let marks: { element: Element; overlay: ReturnType<typeof createOverlay> }[] = [];
 
-  function clear() {
-    cancelAnimationFrame(frame);
-    marks.forEach(({ overlay }) => overlay.host.remove());
-    marks = [];
-  }
-
-  function draw() {
-    marks.forEach(({ element, overlay }) => overlay.show(element));
-    frame = requestAnimationFrame(draw);
-  }
-
-  port.onMessage.addListener((message: PickerCommand) => {
-    if (message.type === 'start') {
-      if (stopPicking || selected.size >= MAX_PICKED_ELEMENTS) return;
-      stopPicking = startPicker(
-        (result) => {
-          if (selected.has(result.selector)) return true;
-          selected.add(result.selector);
-          port.postMessage({ type: 'picked', result } satisfies PickerEvent);
-          return selected.size < MAX_PICKED_ELEMENTS;
-        },
-        () => {
-          stopPicking = null;
-          if (connected) port.postMessage({ type: 'stopped' } satisfies PickerEvent);
-        },
-        true,
-      );
-      return;
+    function clear() {
+      cancelAnimationFrame(frame);
+      marks.forEach(({ overlay }) => overlay.host.remove());
+      marks = [];
     }
-    if (message.type === 'stop') {
-      stopPicking?.();
-      return;
+
+    function draw() {
+      marks.forEach(({ element, overlay }) => overlay.show(element));
+      frame = requestAnimationFrame(draw);
     }
-    if (message.type !== 'highlight') return;
-    clear();
-    const selectors = message.selectors.slice(0, MAX_PICKED_ELEMENTS);
-    // An outline update may follow a second click in the same picking session.
-    selected = stopPicking ? new Set([...selected, ...selectors]) : new Set(selectors);
-    marks = selectors.flatMap((selector, index) => {
-      try {
-        const element = document.querySelector(selector);
-        return element ? [{ element, overlay: createOverlay(index + 1) }] : [];
-      } catch {
-        return [];
+
+    port.onMessage.addListener((message: PickerCommand) => {
+      if (message.type === 'start') {
+        if (stopPicking || selected.size >= MAX_PICKED_ELEMENTS) return;
+        stopPicking = startPicker(
+          (result) => {
+            if (selected.has(result.selector)) return true;
+            selected.add(result.selector);
+            port.postMessage({ type: 'picked', result } satisfies PickerEvent);
+            return selected.size < MAX_PICKED_ELEMENTS;
+          },
+          () => {
+            stopPicking = null;
+            if (connected) port.postMessage({ type: 'stopped' } satisfies PickerEvent);
+          },
+          true,
+        );
+        return;
       }
+      if (message.type === 'stop') {
+        stopPicking?.();
+        return;
+      }
+      if (message.type !== 'highlight') return;
+      clear();
+      const selectors = message.selectors.slice(0, MAX_PICKED_ELEMENTS);
+      // An outline update may follow a second click in the same picking session.
+      selected = stopPicking ? new Set([...selected, ...selectors]) : new Set(selectors);
+      marks = selectors.flatMap((selector, index) => {
+        try {
+          const element = document.querySelector(selector);
+          return element ? [{ element, overlay: createOverlay(index + 1) }] : [];
+        } catch {
+          return [];
+        }
+      });
+      if (marks.length) draw();
     });
-    if (marks.length) draw();
+    port.onDisconnect.addListener(() => {
+      connected = false;
+      clear();
+      stopPicking?.();
+    });
   });
-  port.onDisconnect.addListener(() => {
-    connected = false;
-    clear();
-    stopPicking?.();
-  });
-});
+}

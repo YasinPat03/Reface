@@ -95,15 +95,37 @@ function friendlyChromeError(error: unknown): Error {
   return error instanceof Error ? error : new Error(message);
 }
 
+const loadingContent = new Map<number, Promise<void>>();
+
+function loadContent(tabId: number): Promise<void> {
+  const pending = loadingContent.get(tabId);
+  if (pending) return pending;
+  const files = chrome.runtime.getManifest().content_scripts?.flatMap(({ js }) => js ?? []);
+  if (!files?.length) return Promise.reject(new Error('ReFace has no page scripts to load.'));
+  const loading = chrome.scripting
+    .executeScript({ target: { tabId, frameIds: [0] }, files })
+    .then(() => undefined)
+    .finally(() => loadingContent.delete(tabId));
+  loadingContent.set(tabId, loading);
+  return loading;
+}
+
 export function callContent<K extends keyof ContentApi>(
   tabId: number,
   type: K,
   payload: ContentApi[K]['req'],
 ): Promise<ContentApi[K]['res']> {
+  const send = () => chrome.tabs.sendMessage(tabId, { type, payload }, { frameId: 0 });
   return unwrap(
-    chrome.tabs.sendMessage(tabId, { type, payload }).catch((error: unknown) => {
-      throw friendlyChromeError(error);
-    }),
+    send()
+      .catch(async (error: unknown) => {
+        if (!/Receiving end does not exist/i.test(String(error))) throw error;
+        await loadContent(tabId);
+        return send();
+      })
+      .catch((error: unknown) => {
+        throw friendlyChromeError(error);
+      }),
   );
 }
 

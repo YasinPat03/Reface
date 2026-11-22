@@ -216,17 +216,19 @@ function open(host: string, shortcuts: Shortcut[], hotkeys: Hotkeys): { close: (
   return handle;
 }
 
-chrome.runtime.onMessage.addListener((message: Partial<ShortcutPaletteToggle> | undefined) => {
-  if (message?.type !== 'shortcut:palette') return false;
-  if (current) {
-    current.close();
-  } else if (!opening) {
-    opening = true;
-    const host = location.hostname;
-    void readShortcuts(host).then((shortcuts) => {
-      opening = false;
-      current = open(host, shortcuts, message.hotkeys ?? { record: '', palette: '' });
-    });
-  }
-  return false;
-});
+export function registerShortcutPalette(): void {
+  chrome.runtime.onMessage.addListener((message: Partial<ShortcutPaletteToggle> | undefined) => {
+    if (message?.type !== 'shortcut:palette') return false;
+    if (current) {
+      current.close();
+    } else if (!opening) {
+      opening = true;
+      const host = location.hostname;
+      void readShortcuts(host).then((shortcuts) => {
+        opening = false;
+        current = open(host, shortcuts, message.hotkeys ?? { record: '', palette: '' });
+      });
+    }
+    return false;
+  });
+}

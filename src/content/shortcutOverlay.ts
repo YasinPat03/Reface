@@ -128,25 +128,27 @@ async function refresh(): Promise<void> {
   render();
 }
 
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'session' && shortcutKeys.recording in changes) void refresh();
-});
+export function registerShortcutOverlay(): void {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'session' && shortcutKeys.recording in changes) void refresh();
+  });
 
-chrome.runtime.onMessage.addListener((message: Partial<ShortcutToast> | undefined) => {
-  if (message?.type !== 'shortcut:toast') return false;
-  toast = { text: String(message.text ?? ''), tone: message.tone === 'warn' ? 'warn' : 'ok' };
-  clearTimeout(toastTimer);
-  toastTimer = window.setTimeout(() => {
-    toast = null;
+  chrome.runtime.onMessage.addListener((message: Partial<ShortcutToast> | undefined) => {
+    if (message?.type !== 'shortcut:toast') return false;
+    toast = { text: String(message.text ?? ''), tone: message.tone === 'warn' ? 'warn' : 'ok' };
+    clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => {
+      toast = null;
+      render();
+    }, TOAST_MS);
     render();
-  }, TOAST_MS);
-  render();
-  return false;
-});
+    return false;
+  });
 
-// Page restaurée depuis le cache avant/arrière : l'état a pu changer entre-temps.
-window.addEventListener('pageshow', (event) => {
-  if (event.persisted) void refresh();
-});
+  // Page restaurée depuis le cache avant/arrière : l'état a pu changer entre-temps.
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) void refresh();
+  });
 
-void refresh();
+  void refresh();
+}

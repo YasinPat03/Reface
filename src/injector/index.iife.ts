@@ -3,6 +3,9 @@ import { cssForSection, readCompiled, sectionOf, type CompiledCss } from '../sha
 // Injecteur document_start (PRD §3). Chemin critique du rejeu : AUCUN appel au service worker,
 // lecture directe de chrome.storage.local, zéro dépendance. Doit rester minuscule.
 (() => {
+  const world = globalThis as typeof globalThis & { refaceInjectorChrome?: typeof chrome };
+  if (world.refaceInjectorChrome === chrome) return;
+  world.refaceInjectorChrome = chrome;
   const host = location.hostname;
   const cssKey = `css:${host}`;
   const pagesKey = `page-css:${host}`;
@@ -16,7 +19,7 @@ import { cssForSection, readCompiled, sectionOf, type CompiledCss } from '../sha
   let pages: Record<string, string> = {};
   let path = location.origin + location.pathname;
   let paused = false;
-  let style: HTMLStyleElement | null = null;
+  let style = document.querySelector<HTMLStyleElement>('style#bp-styles');
 
   function render(): void {
     const pageCss =
@@ -83,10 +86,15 @@ import { cssForSection, readCompiled, sectionOf, type CompiledCss } from '../sha
 
   // Une fois le DOM construit, on passe en dernier pour gagner à spécificité égale,
   // et on se réinsère si un framework réécrit le document.
-  document.addEventListener('DOMContentLoaded', () => {
+  const observeStyles = () => {
     if (style) document.documentElement.appendChild(style);
     new MutationObserver(() => {
       if (style && !style.isConnected) document.documentElement.appendChild(style);
     }).observe(document.documentElement, { childList: true });
-  });
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', observeStyles, { once: true });
+  } else {
+    observeStyles();
+  }
 })();

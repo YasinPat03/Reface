@@ -19,7 +19,7 @@ import type { Draft, PickResult } from '../shared/types';
 import { errorMessage, type ActiveTab } from './tab';
 import { AssemblyDiagram } from './ui';
 
-type Status = 'idle' | 'generating' | 'saving' | 'picking';
+type Status = 'idle' | 'connecting' | 'generating' | 'saving' | 'picking';
 
 const NO_PICKS: PickResult[] = [];
 
@@ -43,6 +43,7 @@ export function Chat({
   const [selection, setSelection] = useState<{ url: string; items: PickResult[] } | null>(null);
   const picked = selection?.url === tab.url ? selection.items : NO_PICKS;
   const selectionPort = useRef<chrome.runtime.Port | null>(null);
+  const connectPicker = useRef<(() => chrome.runtime.Port) | null>(null);
   const draftTab = useRef<number | null>(null);
   /** Affinage visuel en cours (le LLM regarde sa preview). Un nouveau numéro invalide l'ancien. */
   const [refining, setRefining] = useState(false);
@@ -64,30 +65,39 @@ export function Chat({
   );
   useEffect(() => {
     if (!active) return;
-    const port = chrome.tabs.connect(tab.id, { name: PICKER_PORT, frameId: 0 });
-    selectionPort.current = port;
-    port.onMessage.addListener((event: PickerEvent) => {
-      if (selectionPort.current !== port) return;
-      if (event.type === 'stopped') {
-        setStatus((current) => (current === 'picking' ? 'idle' : current));
-        return;
-      }
-      setSelection((current) => {
-        const items = current?.url === tab.url ? current.items : NO_PICKS;
-        if (items.some(({ selector }) => selector === event.result.selector)) return current;
-        return { url: tab.url, items: [...items, event.result].slice(0, MAX_PICKED_ELEMENTS) };
+    function connect() {
+      const port = chrome.tabs.connect(tab.id, { name: PICKER_PORT, frameId: 0 });
+      selectionPort.current = port;
+      port.onMessage.addListener((event: PickerEvent) => {
+        if (selectionPort.current !== port) return;
+        if (event.type === 'stopped') {
+          setStatus((current) => (current === 'picking' ? 'idle' : current));
+          return;
+        }
+        setSelection((current) => {
+          const items = current?.url === tab.url ? current.items : NO_PICKS;
+          if (items.some(({ selector }) => selector === event.result.selector)) return current;
+          return { url: tab.url, items: [...items, event.result].slice(0, MAX_PICKED_ELEMENTS) };
+        });
       });
-    });
-    port.onDisconnect.addListener(() => {
-      void chrome.runtime.lastError;
-      if (selectionPort.current !== port) return;
-      selectionPort.current = null;
-      setStatus((current) => (current === 'picking' ? 'idle' : current));
-    });
+      port.onDisconnect.addListener(() => {
+        void chrome.runtime.lastError;
+        if (selectionPort.current !== port) return;
+        selectionPort.current = null;
+        setStatus((current) => (current === 'picking' ? 'idle' : current));
+      });
+      return port;
+    }
+    connectPicker.current = connect;
+    connect();
     return () => {
-      if (selectionPort.current === port) selectionPort.current = null;
-      port.disconnect();
-      setStatus((current) => (current === 'picking' ? 'idle' : current));
+      connectPicker.current = null;
+      const port = selectionPort.current;
+      selectionPort.current = null;
+      port?.disconnect();
+      setStatus((current) =>
+        current === 'picking' || current === 'connecting' ? 'idle' : current,
+      );
     };
   }, [active, tab.id, tab.url]);
 
@@ -100,19 +110,30 @@ export function Chat({
     }
   }, [active, picked, tab.id, tab.url]);
 
-  function togglePicker() {
-    const port = selectionPort.current;
-    if (!port) {
-      setError('The picker is unavailable. Reload the page to try again.');
-      return;
-    }
+  async function togglePicker() {
+    const connect = connectPicker.current;
+    if (!connect || status === 'connecting') return;
     const stopping = status === 'picking';
     setError(null);
     setNotice(null);
     try {
+      if (!stopping) {
+        setStatus('connecting');
+        await callContent(tab.id, 'ping', {});
+        if (connectPicker.current !== connect) return;
+      }
+      let port = selectionPort.current;
+      if (!port) {
+        port = connect();
+        port.postMessage({
+          type: 'highlight',
+          selectors: picked.map(({ selector }) => selector),
+        } satisfies PickerCommand);
+      }
       port.postMessage({ type: stopping ? 'stop' : 'start' } satisfies PickerCommand);
       if (!stopping) setStatus('picking');
     } catch (error) {
+      if (connectPicker.current !== connect) return;
       setStatus('idle');
       setError(errorMessage(error));
     }
@@ -363,7 +384,10 @@ export function Chat({
           type="button"
           onClick={togglePicker}
           disabled={
-            status === 'generating' || status === 'saving' || picked.length >= MAX_PICKED_ELEMENTS
+            status === 'connecting' ||
+            status === 'generating' ||
+            status === 'saving' ||
+            (status !== 'picking' && picked.length >= MAX_PICKED_ELEMENTS)
           }
           aria-pressed={status === 'picking'}
           className="pick-button"
@@ -372,7 +396,13 @@ export function Chat({
           <span className="pick-crosshair">
             <CrosshairSimpleIcon size={21} weight="light" aria-hidden="true" />
           </span>
-          <span>{status === 'picking' ? 'Finish selection' : 'Pick an element'}</span>
+          <span>
+            {status === 'connecting'
+              ? 'Connecting…'
+              : status === 'picking'
+                ? 'Finish selection'
+                : 'Pick an element'}
+          </span>
           <span className="pick-indicator" aria-hidden="true">
             {status === 'picking' ? '−' : '+'}
           </span>

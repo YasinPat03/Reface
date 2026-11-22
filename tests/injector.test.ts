@@ -44,6 +44,8 @@ async function fixture(data: Record<string, unknown>, pathname = '/article') {
       },
     },
     document: {
+      readyState: 'loading',
+      querySelector: () => null,
       documentElement: {
         hasAttribute: () => false,
         appendChild: (value: NonNullable<typeof style>) => {
