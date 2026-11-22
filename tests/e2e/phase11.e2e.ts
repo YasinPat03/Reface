@@ -267,7 +267,7 @@ await check(
     assert(requests.length === 2, `${requests.length} appel(s) LLM au lieu de 2 (auto-correction)`);
     assert(/split apart/.test(requests[1]!), 'le problème n’est pas expliqué au LLM');
     assert(
-      !reply.ok && /Je n’affiche pas cette mise en page/.test(reply.error ?? ''),
+      !reply.ok && /I’m not showing this layout/.test(reply.error ?? ''),
       `pas de refus : ${reply.error}`,
     );
     const preview = await page.evaluate(

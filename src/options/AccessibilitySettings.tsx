@@ -11,39 +11,39 @@ import {
 
 const groups = [
   {
-    title: 'Lecture',
+    title: 'Reading',
     options: {
-      'reface-accessibility:v1:text-size': 'Taille minimale du texte',
-      'reface-accessibility:v1:line-spacing': 'Interligne plus large',
-      'reface-accessibility:v1:letter-spacing': 'Espacement des caractères',
-      'reface-accessibility:v1:word-spacing': 'Espacement des mots',
-      'reface-accessibility:v1:reading-font': 'Police plus lisible',
-      'reface-accessibility:v1:short-lines': 'Lignes plus courtes dans les articles',
+      'reface-accessibility:v1:text-size': 'Minimum text size',
+      'reface-accessibility:v1:line-spacing': 'Wider line spacing',
+      'reface-accessibility:v1:letter-spacing': 'Letter spacing',
+      'reface-accessibility:v1:word-spacing': 'Word spacing',
+      'reface-accessibility:v1:reading-font': 'More readable font',
+      'reface-accessibility:v1:short-lines': 'Shorter lines in articles',
     },
   },
   {
-    title: 'Repères visuels',
+    title: 'Visual cues',
     options: {
-      'reface-accessibility:v1:underline-links': 'Souligner les liens',
-      'reface-accessibility:v1:selection-cues': 'Sélections plus visibles',
-      'reface-accessibility:v1:form-errors': 'Erreurs de formulaire visibles',
-      [ACCESSIBILITY_CONTRAST]: 'Contraste renforcé',
+      'reface-accessibility:v1:underline-links': 'Underline links',
+      'reface-accessibility:v1:selection-cues': 'More visible selections',
+      'reface-accessibility:v1:form-errors': 'Visible form errors',
+      [ACCESSIBILITY_CONTRAST]: 'Higher contrast',
     },
   },
   {
     title: 'Interaction',
     options: {
-      'reface-accessibility:v1:visible-focus': 'Focus clavier visible',
-      'reface-accessibility:v1:larger-controls': 'Commandes plus grandes',
-      'reface-accessibility:v1:control-spacing': 'Espacer les commandes groupées',
-      'reface-accessibility:v1:field-outlines': 'Champs plus faciles à repérer',
+      'reface-accessibility:v1:visible-focus': 'Visible keyboard focus',
+      'reface-accessibility:v1:larger-controls': 'Larger controls',
+      'reface-accessibility:v1:control-spacing': 'Space out grouped controls',
+      'reface-accessibility:v1:field-outlines': 'Easier-to-spot fields',
     },
   },
   {
-    title: 'Mouvement',
+    title: 'Motion',
     options: {
-      'reface-accessibility:v1:reduced-motion': 'Réduire les animations décoratives',
-      'reface-accessibility:v1:instant-scroll': 'Défilement sans animation',
+      'reface-accessibility:v1:reduced-motion': 'Reduce decorative animations',
+      'reface-accessibility:v1:instant-scroll': 'Scrolling without animation',
     },
   },
 ] satisfies { title: string; options: Partial<Record<keyof typeof ACCESSIBILITY_RULES, string>> }[];
@@ -96,9 +96,7 @@ export function AccessibilitySettings() {
         description: description.trim(),
       });
       if (matches.length === 0) {
-        setSuggestionStatus(
-          'Aucun réglage adapté trouvé. Indiquez ce qui vous gêne sur les sites.',
-        );
+        setSuggestionStatus('No suitable setting found. Describe what bothers you on websites.');
         return;
       }
       await chrome.storage.local.set({
@@ -108,11 +106,9 @@ export function AccessibilitySettings() {
       const labels = groups.flatMap(({ options }) => Object.entries(options));
       const selected = new Set(matches);
       const names = labels.filter(([key]) => selected.has(key)).map(([, label]) => label);
-      setSuggestionStatus('Réglages activés : ' + names.join(', ') + '.');
+      setSuggestionStatus('Settings turned on: ' + names.join(', ') + '.');
     } catch (error) {
-      setSuggestionStatus(
-        error instanceof Error ? error.message : 'Impossible de proposer des réglages.',
-      );
+      setSuggestionStatus(error instanceof Error ? error.message : 'Couldn’t suggest settings.');
     } finally {
       setApplying(false);
     }
@@ -125,10 +121,10 @@ export function AccessibilitySettings() {
       className="settings-section accessibility-settings"
       aria-labelledby="accessibility-title"
     >
-      <h2 id="accessibility-title">Accessibilité</h2>
+      <h2 id="accessibility-title">Accessibility</h2>
       <form className="accessibility-description" onSubmit={applySuggestions}>
         <label className="field-label" htmlFor="accessibility-description">
-          Décrivez vos besoins d’accessibilité
+          Describe your accessibility needs
         </label>
         <textarea
           id="accessibility-description"
@@ -136,7 +132,7 @@ export function AccessibilitySettings() {
           rows={2}
           disabled={applying}
           maxLength={500}
-          placeholder="J’ai besoin de texte plus grand et de boutons plus faciles à cliquer."
+          placeholder="I need bigger text and buttons that are easier to click."
           value={description}
           onChange={(event) => {
             setDescription(event.target.value);
@@ -148,16 +144,16 @@ export function AccessibilitySettings() {
           type="submit"
           disabled={!settings || applying || !description.trim()}
         >
-          {applying ? 'Analyse en cours…' : 'Appliquer les suggestions'}
+          {applying ? 'Analyzing…' : 'Apply suggestions'}
         </button>
         <span className="field-help accessibility-description-status" role="status">
           {suggestionStatus}
         </span>
       </form>
       <div className="accessibility-setting">
-        <span>Appliquer les réglages</span>
+        <span>Apply settings</span>
         <Switch
-          label="Appliquer les réglages"
+          label="Apply settings"
           checked={enabled}
           disabled={!settings}
           onChange={(checked) => update(ACCESSIBILITY_MASTER, checked)}
@@ -179,7 +175,7 @@ export function AccessibilitySettings() {
               </div>
               {key === ACCESSIBILITY_CONTRAST && settings?.[key] === true && (
                 <label className="accessibility-setting">
-                  <span>Palette de contraste</span>
+                  <span>Contrast palette</span>
                   <select
                     className="accessibility-palette"
                     value={settings[ACCESSIBILITY_PALETTE] === 'dark' ? 'dark' : 'light'}
@@ -191,8 +187,8 @@ export function AccessibilitySettings() {
                       )
                     }
                   >
-                    <option value="light">Claire</option>
-                    <option value="dark">Sombre</option>
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
                   </select>
                 </label>
               )}
@@ -200,7 +196,7 @@ export function AccessibilitySettings() {
           ))}
         </section>
       ))}
-      {error && <p role="alert">Impossible d’accéder aux réglages d’accessibilité.</p>}
+      {error && <p role="alert">Can’t access the accessibility settings.</p>}
     </section>
   );
 }

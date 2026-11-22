@@ -97,9 +97,9 @@ console.log('Phase 6');
 await check('un long prompt donne 3 changements cochés en preview', async () => {
   await panel.getByTestId('host').filter({ hasText: '127.0.0.1' }).waitFor();
   await panel
-    .getByLabel('Que voulez-vous changer ?')
+    .getByLabel('What do you want to change?')
     .fill('Cache les commentaires, mets le titre en rouge et agrandis le texte');
-  await panel.getByRole('button', { name: 'Prévisualiser' }).click();
+  await panel.getByRole('button', { name: 'Preview' }).click();
   await panel.getByTestId('draft-changes').waitFor({ timeout: 5000 });
   const boxes = panel.getByTestId('draft-changes').getByRole('checkbox');
   assert((await boxes.count()) === 3, `cases : ${await boxes.count()}`);
@@ -125,8 +125,8 @@ await check('décocher un changement le retire de la preview en direct', async (
 
 await check('itération : seuls les changements cochés sont renvoyés au LLM', async () => {
   await panel.getByRole('checkbox', { name: 'Titre en rouge' }).uncheck();
-  await panel.getByLabel('Affiner la modification').fill('et un fond gris');
-  await panel.getByRole('button', { name: 'Réviser' }).click();
+  await panel.getByLabel('Refine the change').fill('et un fond gris');
+  await panel.getByRole('button', { name: 'Revise' }).click();
   await panel.getByRole('checkbox', { name: 'Fond gris' }).waitFor({ timeout: 5000 });
   const sent = requests.at(-1)!;
   assert(sent.includes('Cacher les commentaires'), 'changement coché non renvoyé');
@@ -142,10 +142,8 @@ await check('itération : seuls les changements cochés sont renvoyés au LLM', 
 
 await check('Garder : une règle par changement coché', async () => {
   await panel.getByRole('checkbox', { name: 'Fond gris' }).uncheck();
-  await panel.getByRole('button', { name: 'Garder' }).click();
-  await panel
-    .getByRole('tab', { name: 'Modifications (2/2)', exact: true })
-    .waitFor({ timeout: 5000 });
+  await panel.getByRole('button', { name: 'Keep' }).click();
+  await panel.getByRole('tab', { name: 'Changes (2/2)', exact: true }).waitFor({ timeout: 5000 });
   const stored = await worker.evaluate(() => chrome.storage.local.get('rules:127.0.0.1'));
   const rules = (stored['rules:127.0.0.1'] as { rules: { title: string; prompt: string }[] }).rules;
   assert(
@@ -170,21 +168,21 @@ await check('liste : chaque changement s’active / se désactive séparément',
   await hideRow.getByRole('switch').click();
   await page.waitForSelector('#comments', { state: 'visible', timeout: 2000 });
   assert(await textBig(), 'désactiver un changement a désactivé l’autre');
-  await panel.getByRole('tab', { name: 'Modifications (1/2)', exact: true }).waitFor();
+  await panel.getByRole('tab', { name: 'Changes (1/2)', exact: true }).waitFor();
   await page.reload({ waitUntil: 'load' });
   assert(!(await commentsHidden()) && (await textBig()), 'rejeu incorrect après reload');
 });
 
 await check('liste : le prompt d’origine est visible dans le détail', async () => {
   await panel.getByRole('button', { name: 'Texte plus grand' }).click();
-  await panel.getByText('Prompt d’origine').waitFor({ timeout: 2000 });
+  await panel.getByText('Original prompt').waitFor({ timeout: 2000 });
 });
 
 await check('supprimer un changement garde les autres', async () => {
   const rows = panel.getByTestId('rules').locator('li');
   await rows
     .filter({ hasText: 'Texte plus grand' })
-    .getByRole('button', { name: 'Supprimer cette modification' })
+    .getByRole('button', { name: 'Delete this change' })
     .click();
   await page.waitForFunction(
     () => getComputedStyle(document.querySelector('main p')!).fontSize !== '30px',

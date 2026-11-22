@@ -244,20 +244,20 @@ await check('2.6 Discard retire la preview', async () => {
 await check('2.3 CSS malveillant (url()) refusé', async () => {
   mode = 'evil-css';
   const reply = await bg('generate', { tabId, prompt: 'x', previous: null, pick: null });
-  assert(!reply.ok && /refusé/.test(reply.error), JSON.stringify(reply));
+  assert(!reply.ok && /rejected/.test(reply.error), JSON.stringify(reply));
 });
 
 await check('2.2 schéma invalide refusé', async () => {
   mode = 'bad-schema';
   const reply = await bg('generate', { tabId, prompt: 'x', previous: null, pick: null });
-  assert(!reply.ok && /format attendu/.test(reply.error), JSON.stringify(reply));
+  assert(!reply.ok && /expected format/.test(reply.error), JSON.stringify(reply));
 });
 
 await check('2.4 clé refusée : message clair, sans retry', async () => {
   mode = 'unauthorized';
   const before = requests.length;
   const reply = await bg('generate', { tabId, prompt: 'x', previous: null, pick: null });
-  assert(!reply.ok && /Clé API refusée/.test(reply.error), JSON.stringify(reply));
+  assert(!reply.ok && /API key rejected/.test(reply.error), JSON.stringify(reply));
   assert(requests.length - before === 1, 'ne doit pas réessayer sur 401');
 });
 
@@ -280,7 +280,7 @@ await check('clé absente : message clair', async () => {
     chrome.storage.local.set({ settings: { apiKey: '', baseUrl: 'x', model: 'm' } }),
   );
   const reply = await bg('generate', { tabId, prompt: 'x', previous: null, pick: null });
-  assert(!reply.ok && /Aucune clé API/.test(reply.error), JSON.stringify(reply));
+  assert(!reply.ok && /No API key/.test(reply.error), JSON.stringify(reply));
 });
 
 await context.close();

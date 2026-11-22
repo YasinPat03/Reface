@@ -63,7 +63,7 @@ export function Intro({
       className="onboarding-intro"
       role="dialog"
       aria-modal="true"
-      aria-label="Bienvenue dans ReFace"
+      aria-label="Welcome to ReFace"
       data-testid="onboarding"
       data-phase="intro"
       onClick={onDone}
@@ -83,7 +83,7 @@ export function Intro({
         </div>
         <div className="onboarding-intro-text">
           <TextAnimate as="p" by="word" animation="blurInUp" delay={0.9} className="eyebrow">
-            Bienvenue
+            Welcome
           </TextAnimate>
           <TextAnimate
             as="h1"
@@ -92,7 +92,7 @@ export function Intro({
             delay={1.15}
             className="onboarding-tagline"
           >
-            Une page à votre mesure.
+            A page made to measure.
           </TextAnimate>
         </div>
       </div>
@@ -105,7 +105,7 @@ export function Intro({
           onSkip();
         }}
       >
-        Passer la présentation
+        Skip the tour
       </button>
     </div>
   );

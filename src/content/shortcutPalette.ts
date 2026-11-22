@@ -97,9 +97,9 @@ function open(host: string, shortcuts: Shortcut[], hotkeys: Hotkeys): { close: (
   container.style.cssText = 'all:initial';
   const unbindAppearance = bindShortcutAppearance(container);
   const root = container.attachShadow({ mode: 'open' });
-  root.innerHTML = `<style>${STYLE}</style><dialog aria-label="Raccourcis du site">
-    <header><span class="title">Raccourcis</span><span class="site"></span></header>
-    <ul role="listbox" tabindex="0" aria-label="Raccourcis du site"></ul>
+  root.innerHTML = `<style>${STYLE}</style><dialog aria-label="Site shortcuts">
+    <header><span class="title">Shortcuts</span><span class="site"></span></header>
+    <ul role="listbox" tabindex="0" aria-label="Site shortcuts"></ul>
     <p class="empty"></p>
     <footer></footer>
   </dialog>`;
@@ -190,23 +190,21 @@ function open(host: string, shortcuts: Shortcut[], hotkeys: Hotkeys): { close: (
   if (shortcuts.length) {
     empty.hidden = true;
     footer.append(
-      hint(['↑↓'], ' choisir'),
-      hint(['↵'], ' ouvrir'),
-      hint([IS_MAC ? '⌘↵' : 'Ctrl+↵'], ' nouvel onglet'),
+      hint(['↑↓'], ' choose'),
+      hint(['↵'], ' open'),
+      hint([IS_MAC ? '⌘↵' : 'Ctrl+↵'], ' new tab'),
     );
   } else {
     list.hidden = true;
-    empty.append(`Aucun raccourci pour ${host}. `);
+    empty.append(`No shortcuts for ${host}. `);
     empty.append(
       hotkeys.record
-        ? hint('Appuyez sur ', [hotkeys.record], ' pour en enregistrer un.')
-        : 'Créez-en un depuis le panel ReFace.',
+        ? hint('Press ', [hotkeys.record], ' to record one.')
+        : 'Create one from the ReFace panel.',
     );
   }
   footer.append(
-    hotkeys.palette
-      ? hint(['Échap'], ' ou ', [hotkeys.palette], ' fermer')
-      : hint(['Échap'], ' fermer'),
+    hotkeys.palette ? hint(['Esc'], ' or ', [hotkeys.palette], ' close') : hint(['Esc'], ' close'),
   );
 
   document.documentElement.appendChild(container);

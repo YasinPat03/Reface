@@ -66,7 +66,7 @@ await check('8.1 la touche ⌘⇧E est attribuée par Chrome (aucun conflit)', a
 await check('8.2 1re pression : enregistrement, pastille et badge REC', async () => {
   await pressHotkey(tabId);
   await pill('recording').waitFor({ timeout: 3000 });
-  await pill().getByText(`Raccourci pour ${HOST}`).waitFor();
+  await pill().getByText(`Shortcut for ${HOST}`).waitFor();
   await pill().getByText(EXPECTED_KEY, { exact: false }).waitFor();
   const rec = await recording();
   assert(rec?.tabId === tabId && rec.host === HOST, `enregistrement : ${JSON.stringify(rec)}`);
@@ -84,7 +84,7 @@ await check('8.3 la pastille et le badge suivent la navigation', async () => {
 
 await check('8.4 2e pression : la page est enregistrée, toast puis disparition', async () => {
   await pressHotkey(tabId);
-  await pill('toast').getByText('Raccourci « Page enfouie » enregistré').waitFor({ timeout: 3000 });
+  await pill('toast').getByText('Shortcut "Page enfouie" saved').waitFor({ timeout: 3000 });
   const saved = await stored();
   assert(
     saved?.shortcuts.length === 1 &&
@@ -102,7 +102,7 @@ await panel.goto(ext(`src/panel/index.html?tabId=${tabId}`));
 await site.bringToFront();
 
 await check('8.5 le raccourci apparaît dans le panel, avec l’astuce de la touche', async () => {
-  await panel.getByRole('tab', { name: 'Raccourcis (1)' }).click();
+  await panel.getByRole('tab', { name: 'Shortcuts (1)' }).click();
   await panel.getByTestId('shortcut').filter({ hasText: 'Page enfouie' }).waitFor();
   await panel.getByTestId('hotkey-hint').filter({ hasText: EXPECTED_KEY }).waitFor();
 });
@@ -111,7 +111,7 @@ await check('8.6 boutons de la pastille : annuler, puis « Enregistrer cette pag
   await site.goto(origin);
   await pressHotkey(tabId);
   await pill('recording').waitFor({ timeout: 3000 });
-  await site.getByRole('button', { name: 'Annuler l’enregistrement' }).click();
+  await site.getByRole('button', { name: 'Cancel recording' }).click();
   await pill().waitFor({ state: 'detached', timeout: 3000 });
   assert(!(await recording()), 'annulation non prise en compte');
 
@@ -119,8 +119,8 @@ await check('8.6 boutons de la pastille : annuler, puis « Enregistrer cette pag
   await pill('recording').waitFor({ timeout: 3000 });
   await site.click('#next');
   await site.waitForURL(`${origin}/docs`);
-  await site.getByRole('button', { name: 'Enregistrer cette page' }).click();
-  await pill('toast').getByText('Raccourci « Documentation » enregistré').waitFor({
+  await site.getByRole('button', { name: 'Save this page' }).click();
+  await pill('toast').getByText('Shortcut "Documentation" saved').waitFor({
     timeout: 3000,
   });
   assert((await stored())?.shortcuts.length === 2, 'page non enregistrée');
@@ -131,7 +131,7 @@ await check('8.7 doublon : signalé, l’enregistrement continue', async () => {
   await pressHotkey(tabId); // démarre sur /docs
   await pill('recording').waitFor({ timeout: 3000 });
   await pressHotkey(tabId); // /docs est déjà un raccourci
-  await pill('toast').getByText('Ce raccourci existe déjà', { exact: false }).waitFor({
+  await pill('toast').getByText('This shortcut already exists', { exact: false }).waitFor({
     timeout: 3000,
   });
   assert((await stored())?.shortcuts.length === 2, 'doublon enregistré');
@@ -143,7 +143,7 @@ await check(
   '8.8 synchro avec le panel : « Annuler » dans le panel retire la pastille',
   async () => {
     await panel.getByTestId('recording-bar').waitFor({ timeout: 3000 });
-    await panel.getByTestId('recording-bar').getByRole('button', { name: 'Annuler' }).click();
+    await panel.getByTestId('recording-bar').getByRole('button', { name: 'Cancel' }).click();
     await pill().waitFor({ state: 'detached', timeout: 3000 });
     await until(async () => (await badge(tabId)) === '', 'badge vidé');
   },

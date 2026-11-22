@@ -184,7 +184,7 @@ describe('private and public catalogue', () => {
       'https://example.com:444/article',
     ]) {
       expect(matchesPage(theme, url)).toBe(false);
-      await expect(applyCatalogueEntry(theme, url)).rejects.toThrow(/page indiquée/);
+      await expect(applyCatalogueEntry(theme, url)).rejects.toThrow(/page shown/);
     }
     expect(chrome.storage.local.set).not.toHaveBeenCalled();
   });

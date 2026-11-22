@@ -52,20 +52,20 @@ console.log('Phase 3');
 await check('3.1 Options : enregistrer et tester la connexion', async () => {
   const options = await context.newPage();
   await options.goto(ext('src/options/index.html'));
-  await options.getByLabel('Clé API').fill('sk-test');
-  await options.getByLabel('URL de base (API compatible OpenAI)').fill(`${origin}/v1`);
-  await options.getByLabel('Modèle').fill('mock-fast');
-  await options.getByRole('button', { name: 'Enregistrer' }).click();
-  await options.getByText('Enregistré.').waitFor();
+  await options.getByLabel('API key').fill('sk-test');
+  await options.getByLabel('Base URL (OpenAI-compatible API)').fill(`${origin}/v1`);
+  await options.getByLabel('Model').fill('mock-fast');
+  await options.getByRole('button', { name: 'Save' }).click();
+  await options.getByText('Saved.').waitFor();
   const { settings } = await storage(['settings']);
   assert(
     JSON.stringify(settings) ===
       JSON.stringify({ apiKey: 'sk-test', baseUrl: `${origin}/v1`, model: 'mock-fast' }),
     JSON.stringify(settings),
   );
-  await options.getByRole('button', { name: 'Tester la connexion' }).click();
-  await options.getByText('Connexion réussie (2 modèles)').waitFor({ timeout: 5000 });
-  await options.getByText('« mock-fast » est disponible').waitFor();
+  await options.getByRole('button', { name: 'Test connection' }).click();
+  await options.getByText('Connection successful (2 models)').waitFor({ timeout: 5000 });
+  await options.getByText('“mock-fast” is available').waitFor();
   await options.close();
 });
 
@@ -99,22 +99,22 @@ await context.route(/(?:\/api\/catalogue|\/functions\/v1\/reface-catalogue)$/, a
 
 await check('3.2 chat : exemple → preview → Garder', async () => {
   await panel.getByTestId('host').filter({ hasText: '127.0.0.1' }).waitFor();
-  await panel.getByRole('button', { name: 'Cache les commentaires' }).click();
-  await panel.getByRole('button', { name: 'Prévisualiser' }).click();
+  await panel.getByRole('button', { name: 'Hide the comments' }).click();
+  await panel.getByRole('button', { name: 'Preview' }).click();
   await panel.getByTestId('draft').waitFor({ timeout: 5000 });
   assert(!(await commentsVisible()), 'preview non appliquée');
-  await panel.getByRole('button', { name: 'Garder' }).click();
+  await panel.getByRole('button', { name: 'Keep' }).click();
   await panel.getByTestId('rules').waitFor({ timeout: 5000 });
   assert(!(await commentsVisible()), 'règle non appliquée');
 });
 
 await check('3.3 liste : toggle off/on en direct', async () => {
-  const toggle = panel.getByRole('switch', { name: 'Désactiver cette modification' });
+  const toggle = panel.getByRole('switch', { name: 'Turn off this change' });
   await toggle.click();
   await page.waitForSelector('#comments', { state: 'visible', timeout: 2000 });
-  await panel.getByRole('switch', { name: 'Activer cette modification' }).click();
+  await panel.getByRole('switch', { name: 'Turn on this change' }).click();
   await page.waitForSelector('#comments', { state: 'hidden', timeout: 2000 });
-  await panel.getByRole('tab', { name: 'Modifications (1/1)', exact: true }).waitFor();
+  await panel.getByRole('tab', { name: 'Changes (1/1)', exact: true }).waitFor();
 });
 
 await check('3.4 Original / Modifié (temporaire, sans toucher au stockage)', async () => {
@@ -122,42 +122,45 @@ await check('3.4 Original / Modifié (temporaire, sans toucher au stockage)', as
   await page.waitForSelector('#comments', { state: 'visible', timeout: 2000 });
   const { 'css:127.0.0.1': css } = await storage(['css:127.0.0.1']);
   assert(JSON.stringify(css).includes('#comments'), 'le stockage ne doit pas changer');
-  await panel.getByRole('radio', { name: 'Modifié' }).click();
+  await panel.getByRole('radio', { name: 'Modified' }).click();
   await page.waitForSelector('#comments', { state: 'hidden', timeout: 2000 });
 });
 
 await check('3.4 Pause sur ce site', async () => {
-  await panel.getByRole('switch', { name: 'Pause sur ce site' }).click();
+  await panel.getByRole('switch', { name: 'Pause on this site' }).click();
   await page.waitForSelector('#comments', { state: 'visible', timeout: 2000 });
   assert((await storage(['paused:127.0.0.1']))['paused:127.0.0.1'] === true, 'pause non stockée');
   await page.reload();
   assert(await commentsVisible(), 'pause non respectée au reload');
-  await panel.getByRole('switch', { name: 'Pause sur ce site' }).click();
+  await panel.getByRole('switch', { name: 'Pause on this site' }).click();
   await page.waitForSelector('#comments', { state: 'hidden', timeout: 2000 });
 });
 
 await check('3.5 Catalogue : enregistrer les modifications de la page dans Privée', async () => {
   await panel.getByRole('tab', { name: 'Catalogue', exact: true }).click();
-  await panel.getByRole('button', { name: 'Enregistrer cette page' }).click();
-  await panel.getByLabel('Titre', { exact: true }).fill('Page sans commentaires');
-  await panel.getByLabel('Petite description').fill('Une page plus calme pour lire.');
-  await panel.getByRole('button', { name: 'Enregistrer', exact: true }).click();
-  await panel.getByRole('status').filter({ hasText: 'collection privée' }).waitFor();
+  await panel
+    .getByRole('tabpanel', { name: 'Private' })
+    .getByRole('button', { name: 'Save this page' })
+    .click();
+  await panel.getByLabel('Title', { exact: true }).fill('Page sans commentaires');
+  await panel.getByLabel('Short description').fill('Une page plus calme pour lire.');
+  await panel.getByRole('button', { name: 'Save', exact: true }).click();
+  await panel.getByRole('status').filter({ hasText: 'private collection' }).waitFor();
   await panel.getByRole('heading', { name: 'Page sans commentaires' }).waitFor();
 });
 
 await check('3.3 supprimer une règle conserve le thème privé', async () => {
-  await panel.getByRole('tab', { name: /Modifications \(/ }).click();
-  await panel.getByRole('button', { name: 'Supprimer cette modification' }).click();
-  await panel.getByText('Aucune modification enregistrée sur ce site.').waitFor();
+  await panel.getByRole('tab', { name: /Changes \(/ }).click();
+  await panel.getByRole('button', { name: 'Delete this change' }).click();
+  await panel.getByText('No saved changes on this site.').waitFor();
   await page.waitForSelector('#comments', { state: 'visible', timeout: 2000 });
 });
 
 await check('3.6 Catalogue : appliquer le thème privé sans ajouter de doublon', async () => {
   await panel.getByRole('tab', { name: 'Catalogue', exact: true }).click();
-  await panel.getByRole('button', { name: 'Appliquer', exact: true }).click();
+  await panel.getByRole('button', { name: 'Apply', exact: true }).click();
   await page.waitForSelector('#comments', { state: 'hidden', timeout: 2000 });
-  await panel.getByRole('button', { name: 'Appliqué', exact: true }).waitFor();
+  await panel.getByRole('button', { name: 'Applied', exact: true }).waitFor();
   const data = await storage(['rules:127.0.0.1']);
   assert((data['rules:127.0.0.1'] as { rules: unknown[] }).rules.length === 1, 'règles dupliquées');
 });
@@ -172,27 +175,27 @@ await check('3.6 Catalogue : le thème ne déborde pas sur une autre page', asyn
 await check(
   '3.7 Catalogue : publier avec titre et description puis importer depuis Publique',
   async () => {
-    await panel.getByRole('button', { name: 'Publier', exact: true }).click();
-    await panel.getByLabel('Titre', { exact: true }).fill('Lecture partagée');
+    await panel.getByRole('button', { name: 'Publish', exact: true }).click();
+    await panel.getByLabel('Title', { exact: true }).fill('Lecture partagée');
     await panel
-      .getByLabel('Petite description')
+      .getByLabel('Short description')
       .fill('Le thème de lecture publié pour la démonstration.');
-    const code = panel.getByLabel('Code de publication');
+    const code = panel.getByLabel('Publishing code');
     if (await code.isVisible()) await code.fill('rfc_' + 'a'.repeat(43));
     await panel
-      .getByRole('form', { name: 'Publier un thème' })
-      .getByRole('button', { name: 'Publier', exact: true })
+      .getByRole('form', { name: 'Publish a theme' })
+      .getByRole('button', { name: 'Publish', exact: true })
       .click();
-    await panel.getByRole('status').filter({ hasText: 'a été publié' }).waitFor();
-    await panel.getByRole('tab', { name: 'Publique', exact: true }).click();
+    await panel.getByRole('status').filter({ hasText: 'was published' }).waitFor();
+    await panel.getByRole('tab', { name: 'Public', exact: true }).click();
     await panel.getByRole('heading', { name: 'Lecture partagée' }).waitFor();
-    await panel.getByRole('button', { name: 'Dans votre collection' }).waitFor();
-    await panel.getByRole('tab', { name: /Privée/ }).click();
-    await panel.getByRole('button', { name: /Supprimer .* de la collection privée/ }).click();
-    await panel.getByRole('tab', { name: 'Publique', exact: true }).click();
-    await panel.getByRole('button', { name: 'Ajouter à ma collection' }).click();
-    await panel.getByRole('button', { name: 'Dans votre collection' }).waitFor();
-    await panel.getByRole('tab', { name: /Privée/ }).click();
+    await panel.getByRole('button', { name: 'In your collection' }).waitFor();
+    await panel.getByRole('tab', { name: /Private/ }).click();
+    await panel.getByRole('button', { name: /Delete .* from the private collection/ }).click();
+    await panel.getByRole('tab', { name: 'Public', exact: true }).click();
+    await panel.getByRole('button', { name: 'Add to my collection' }).click();
+    await panel.getByRole('button', { name: 'In your collection' }).waitFor();
+    await panel.getByRole('tab', { name: /Private/ }).click();
     await panel.getByRole('heading', { name: 'Lecture partagée' }).waitFor();
   },
 );

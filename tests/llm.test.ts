@@ -25,10 +25,10 @@ describe('completeJson : gestion des erreurs (5.3)', () => {
   });
 
   it.each([
-    [401, '{}', /Clé API refusée/],
-    [403, '{}', /Clé API refusée/],
-    [404, '{}', /introuvable/],
-    [429, '{"error":{"code":"insufficient_quota"}}', /Quota/],
+    [401, '{}', /API key rejected/],
+    [403, '{}', /API key rejected/],
+    [404, '{}', /not found/],
+    [429, '{"error":{"code":"insufficient_quota"}}', /quota/],
     [400, '{}', /HTTP 400/],
     [
       400,
@@ -136,7 +136,7 @@ describe('completeJson : gestion des erreurs (5.3)', () => {
         reply(200, { choices: [{ message: { content: 'pas du json' } }] }),
       );
     vi.stubGlobal('fetch', fetch);
-    await expect(completeJson(settings, messages)).rejects.toThrow(/JSON invalide/);
+    await expect(completeJson(settings, messages)).rejects.toThrow(/invalid JSON/);
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
@@ -157,7 +157,7 @@ describe('completeJson : gestion des erreurs (5.3)', () => {
     );
     const result = completeJson(settings, messages).catch((e: Error) => e);
     await vi.advanceTimersByTimeAsync(31_000);
-    expect(((await result) as Error).message).toMatch(/trop de temps/);
+    expect(((await result) as Error).message).toMatch(/too long/);
     vi.useRealTimers();
   });
 
@@ -166,14 +166,14 @@ describe('completeJson : gestion des erreurs (5.3)', () => {
       'fetch',
       vi.fn().mockResolvedValue(reply(200, { choices: [{ message: { refusal: 'non' } }] })),
     );
-    await expect(completeJson(settings, messages)).rejects.toThrow(/refusé : non/);
+    await expect(completeJson(settings, messages)).rejects.toThrow(/refused: non/);
   });
 
   it('clé vide : pas d’appel réseau', async () => {
     const fetch = vi.fn();
     vi.stubGlobal('fetch', fetch);
     await expect(completeJson({ ...settings, apiKey: ' ' }, messages)).rejects.toThrow(
-      /Aucune clé/,
+      /No API key/,
     );
     expect(fetch).not.toHaveBeenCalled();
   });

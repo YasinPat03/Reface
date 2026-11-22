@@ -61,16 +61,15 @@ function providerError(body: string): { message: string; param: string | null } 
 function describeHttpError(status: number, body: string): LlmError {
   if (status === 401 || status === 403) {
     return new LlmError(
-      'Clé API refusée. Vérifiez la clé et l’accès au modèle dans les Options.',
+      'API key rejected. Check the key and access to the model in Options.',
       false,
     );
   }
-  if (status === 404)
-    return new LlmError('Modèle ou URL d’API introuvable. Vérifiez les Options.', false);
+  if (status === 404) return new LlmError('Model or API URL not found. Check Options.', false);
   if (status === 429) {
     return /quota|credit|billing/i.test(body)
-      ? new LlmError('Quota ou crédits API épuisés chez le fournisseur.', false)
-      : new LlmError('Limite de requêtes atteinte. Réessayez dans un instant.', true);
+      ? new LlmError('API quota or credits exhausted at the provider.', false)
+      : new LlmError('Rate limit reached. Try again in a moment.', true);
   }
   if (status === 400) {
     const { message } = providerError(body);
@@ -80,16 +79,16 @@ function describeHttpError(status: number, body: string): LlmError {
     const parameter = typeof param === 'string' && /^[\w.[\]-]{1,100}$/.test(param) ? param : '';
     return new LlmError(
       parameter === 'response_format'
-        ? 'Requête refusée : Invalid schema for response_format. Vérifiez le modèle.'
+        ? 'Request rejected: Invalid schema for response_format. Check the model.'
         : parameter
-          ? `Requête refusée : le paramètre « ${parameter} » est incompatible avec ce modèle.`
-          : 'Requête refusée (HTTP 400). Vérifiez le modèle et les paramètres de l’API.',
+          ? `Request rejected: the "${parameter}" parameter isn’t compatible with this model.`
+          : 'Request rejected (HTTP 400). Check the model and the API parameters.',
       false,
       param,
       message,
     );
   }
-  return new LlmError(`Le fournisseur LLM a répondu ${status}.`, status >= 500);
+  return new LlmError(`The LLM provider responded ${status}.`, status >= 500);
 }
 
 /** Partie d'un message multimodal (texte, ou image en data URL pour l'affinage visuel). */
@@ -149,9 +148,7 @@ async function once(
   } catch (error) {
     const aborted = error instanceof DOMException && error.name === 'AbortError';
     throw new LlmError(
-      aborted
-        ? 'Le LLM a mis trop de temps à répondre.'
-        : 'Impossible de joindre l’API du LLM (réseau ?).',
+      aborted ? 'The LLM took too long to respond.' : 'Can’t reach the LLM API (network?).',
       true,
     );
   } finally {
@@ -166,11 +163,11 @@ async function once(
       choices?: { message?: { content?: string; refusal?: string } }[];
     };
     const message = data.choices?.[0]?.message;
-    if (message?.refusal) throw new LlmError(`Le modèle a refusé : ${message.refusal}`, false);
+    if (message?.refusal) throw new LlmError(`The model refused: ${message.refusal}`, false);
     content = JSON.parse(message?.content ?? '');
   } catch (error) {
     if (error instanceof LlmError) throw error;
-    throw new LlmError('Réponse illisible du LLM (JSON invalide).', true);
+    throw new LlmError('Unreadable LLM response (invalid JSON).', true);
   }
   return content;
 }
@@ -182,7 +179,7 @@ export async function completeJson(
   responseSchema: ResponseSchema = { name: 'recipe', schema: recipeJsonSchema },
 ): Promise<unknown> {
   if (!settings.apiKey.trim()) {
-    throw new LlmError('Aucune clé API configurée. Ouvrez les Options pour en ajouter une.', false);
+    throw new LlmError('No API key configured. Open Options to add one.', false);
   }
   let transientRetryUsed = false;
   // Au plus : un retry transitoire, un par paramètre optionnel refusé, 3 replis d'effort.
@@ -213,12 +210,12 @@ export async function completeJson(
       throw error;
     }
   }
-  throw new LlmError('Le LLM n’a pas pu répondre.', false);
+  throw new LlmError('The LLM couldn’t respond.', false);
 }
 
 /** Test de connexion : GET /models (supporté par OpenAI, Groq, Gemini en mode compatible). */
 export async function listModels(settings: Settings): Promise<string[]> {
-  if (!settings.apiKey.trim()) throw new LlmError('Renseignez une clé API.', false);
+  if (!settings.apiKey.trim()) throw new LlmError('Enter an API key.', false);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
@@ -235,7 +232,7 @@ export async function listModels(settings: Settings): Promise<string[]> {
       .sort();
   } catch (error) {
     if (error instanceof LlmError) throw error;
-    throw new LlmError('Impossible de joindre l’API. Vérifiez l’URL de base.', false);
+    throw new LlmError('Can’t reach the API. Check the base URL.', false);
   } finally {
     clearTimeout(timer);
   }

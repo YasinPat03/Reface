@@ -18,7 +18,7 @@ export const catalogueEntrySchema = z
     try {
       url = new URL(entry.pageUrl);
     } catch {
-      ctx.addIssue({ code: 'custom', path: ['pageUrl'], message: 'Adresse de page invalide.' });
+      ctx.addIssue({ code: 'custom', path: ['pageUrl'], message: 'Invalid page address.' });
       return;
     }
     if (
@@ -33,7 +33,7 @@ export const catalogueEntrySchema = z
       ctx.addIssue({
         code: 'custom',
         path: ['pageUrl'],
-        message: 'La page ne correspond pas au site et au chemin du thème.',
+        message: 'The page doesn’t match the theme’s site and path.',
       });
     }
   });

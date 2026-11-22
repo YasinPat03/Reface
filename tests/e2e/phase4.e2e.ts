@@ -69,17 +69,17 @@ const overlayPresent = () => page.evaluate(() => !!document.querySelector('[data
 console.log('Phase 4');
 
 await check('4.1 Échap termine le pointage sans sélection', async () => {
-  await panel.getByRole('button', { name: 'Pointer un élément' }).click();
+  await panel.getByRole('button', { name: 'Pick an element' }).click();
   await page.bringToFront();
   await page.waitForFunction(() => !!document.querySelector('[data-bp-picker]'));
   await page.keyboard.press('Escape');
-  await panel.getByRole('button', { name: 'Pointer un élément' }).waitFor({ timeout: 2000 });
+  await panel.getByRole('button', { name: 'Pick an element' }).waitFor({ timeout: 2000 });
   assert(!(await overlayPresent()), 'overlay non retiré');
   assert((await panel.getByTestId('picked').count()) === 0, 'aucun élément ne devait être retenu');
 });
 
 await check('4.1 le clic de sélection ne déclenche pas la page', async () => {
-  await panel.getByRole('button', { name: 'Pointer un élément' }).click();
+  await panel.getByRole('button', { name: 'Pick an element' }).click();
   await page.bringToFront();
   await page.waitForFunction(() => !!document.querySelector('[data-bp-picker]'));
   await hover('#buy');
@@ -110,9 +110,9 @@ await check('4.1 ↑ remonte au parent, puis 4.3 « Cacher cet élément » sans
     .getByTestId('picked')
     .filter({ hasText: 'aside#comments' })
     .waitFor({ timeout: 2000 });
-  await panel.getByRole('button', { name: 'Pointer un élément' }).waitFor({ timeout: 2000 });
-  await panel.getByRole('button', { name: /Cacher cet élément : aside#comments/ }).click();
-  await panel.getByTestId('rules').getByText('Cacher « aside#comments').waitFor({ timeout: 3000 });
+  await panel.getByRole('button', { name: 'Pick an element' }).waitFor({ timeout: 2000 });
+  await panel.getByRole('button', { name: /Hide this element: aside#comments/ }).click();
+  await panel.getByTestId('rules').getByText('Hide "aside#comments').waitFor({ timeout: 3000 });
   await page.waitForSelector('#comments', { state: 'hidden', timeout: 2000 });
   assert(lastUser === before, 'aucun appel LLM attendu');
   const stored = await worker.evaluate(() => chrome.storage.local.get('rules:127.0.0.1'));
@@ -123,12 +123,12 @@ await check('4.1 ↑ remonte au parent, puis 4.3 « Cacher cet élément » sans
 });
 
 await check('4.2 prompt ciblé : région pointée + sous-arbre envoyés au LLM', async () => {
-  await panel.getByRole('tab', { name: 'Modifier', exact: true }).click();
-  await panel.getByRole('button', { name: /Retirer de la sélection : button#buy/ }).click();
+  await panel.getByRole('tab', { name: 'Edit', exact: true }).click();
+  await panel.getByRole('button', { name: /Remove from selection: button#buy/ }).click();
   // Rétablir les commentaires pour pointer à l'intérieur.
   await worker.evaluate(() => chrome.storage.local.set({ 'paused:127.0.0.1': true }));
   await page.waitForSelector('#comments', { state: 'visible' });
-  await panel.getByRole('button', { name: 'Pointer un élément' }).click();
+  await panel.getByRole('button', { name: 'Pick an element' }).click();
   await page.bringToFront();
   await page.waitForFunction(() => !!document.querySelector('[data-bp-picker]'));
   await hover('#title');
@@ -145,14 +145,14 @@ await check('4.2 prompt ciblé : région pointée + sous-arbre envoyés au LLM',
   await panel.getByTestId('picked').getByText('button#buy', { exact: false }).waitFor();
   await page.waitForFunction(() => document.querySelectorAll('[data-bp-selection]').length === 2);
   await page.keyboard.press('Enter');
-  await panel.getByRole('button', { name: 'Pointer un élément' }).waitFor({ timeout: 2000 });
+  await panel.getByRole('button', { name: 'Pick an element' }).waitFor({ timeout: 2000 });
   assert(!(await overlayPresent()), 'overlay de survol non retiré');
   assert(
     (await page.locator('[data-bp-selection]').count()) === 2,
     'Entrée doit conserver les sélections',
   );
-  await panel.getByLabel('Que voulez-vous changer ?').fill('en rouge');
-  await panel.getByRole('button', { name: 'Prévisualiser' }).click();
+  await panel.getByLabel('What do you want to change?').fill('en rouge');
+  await panel.getByRole('button', { name: 'Preview' }).click();
   await panel.getByTestId('draft').waitFor({ timeout: 5000 });
   const index = lastUser.match(/Selected regions \(in selection order\): 1\. \[#(\d+)\]/)?.[1];
   assert(index !== undefined, 'région pointée absente du prompt');

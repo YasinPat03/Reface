@@ -55,12 +55,12 @@ function Site({ tab, active }: { tab: ActiveTab; active: boolean }) {
   const enabledCount = site.rules.filter((r) => r.enabled).length;
   return (
     <>
-      <section className="site-context" aria-label="Page actuelle">
+      <section className="site-context" aria-label="Current page">
         <div className="section-meta">
-          <span className="eyebrow">Page actuelle</span>
+          <span className="eyebrow">Current page</span>
           <span className={`site-state ${paused ? 'is-paused' : ''}`}>
             <span />
-            {paused ? 'En pause' : 'Actif'}
+            {paused ? 'Paused' : 'Active'}
           </span>
         </div>
         <p className="site-host" data-testid="host">
@@ -69,19 +69,19 @@ function Site({ tab, active }: { tab: ActiveTab; active: boolean }) {
         <div className="site-controls">
           <Segmented
             tour="compare"
-            label="Comparer avec la page d’origine"
+            label="Compare with the original page"
             value={original ? 'original' : 'modified'}
             onChange={(v) => void toggleOriginal(v === 'original')}
             options={[
               { value: 'original', label: 'Original' },
-              { value: 'modified', label: 'Modifié' },
+              { value: 'modified', label: 'Modified' },
             ]}
           />
           <div className="pause-control" data-tour="pause">
             <span>Pause</span>
             <Switch
               checked={paused}
-              label="Pause sur ce site"
+              label="Pause on this site"
               onChange={(p) => {
                 setControlError(null);
                 void setPaused(tab.host, p).catch((error) =>
@@ -91,11 +91,7 @@ function Site({ tab, active }: { tab: ActiveTab; active: boolean }) {
             />
           </div>
         </div>
-        {paused && (
-          <p className="context-note">
-            Les modifications enregistrées sont suspendues sur ce site.
-          </p>
-        )}
+        {paused && <p className="context-note">Saved changes are paused on this site.</p>}
         {controlError && (
           <p className="message message-error" role="alert">
             {controlError}
@@ -117,17 +113,17 @@ function Site({ tab, active }: { tab: ActiveTab; active: boolean }) {
         }}
         className="workspace-tabs"
       >
-        <Tabs.List className="workspace-nav" aria-label="Outils de la page">
+        <Tabs.List className="workspace-nav" aria-label="Page tools">
           <Tabs.Tab value="edit" className="workspace-tab" data-tour="tab-edit">
-            Modifier
+            Edit
           </Tabs.Tab>
           <Tabs.Tab
             value="rules"
             className="workspace-tab"
             data-tour="tab-rules"
-            aria-label={`Modifications (${enabledCount}/${site.rules.length})`}
+            aria-label={`Changes (${enabledCount}/${site.rules.length})`}
           >
-            Modifications <span className="tab-count">{site.rules.length}</span>
+            Changes <span className="tab-count">{site.rules.length}</span>
           </Tabs.Tab>
           <Tabs.Tab value="catalogue" className="workspace-tab" data-tour="tab-catalogue">
             Catalogue
@@ -136,7 +132,7 @@ function Site({ tab, active }: { tab: ActiveTab; active: boolean }) {
             value="shortcuts"
             className="workspace-tab"
             data-tour="tab-shortcuts"
-            aria-label={`Raccourcis (${shortcutCount})`}
+            aria-label={`Shortcuts (${shortcutCount})`}
           >
             <ShortcutsTabLabel count={shortcutCount} />
           </Tabs.Tab>
@@ -168,7 +164,7 @@ function Site({ tab, active }: { tab: ActiveTab; active: boolean }) {
       </Tabs.Root>
       <footer className="app-footer">
         <span className="footer-line" />
-        <span>Les changements gardés reviennent à chaque visite.</span>
+        <span>Kept changes come back on every visit.</span>
       </footer>
     </>
   );
@@ -192,10 +188,8 @@ export function App() {
               type="button"
               className="icon-button"
               data-tour="theme"
-              aria-label={
-                appearance === 'light' ? 'Activer le mode sombre' : 'Activer le mode clair'
-              }
-              title={appearance === 'light' ? 'Mode sombre' : 'Mode clair'}
+              aria-label={appearance === 'light' ? 'Turn on dark mode' : 'Turn on light mode'}
+              title={appearance === 'light' ? 'Dark mode' : 'Light mode'}
               onClick={toggleAppearance}
             >
               {appearance === 'light' ? <MoonIcon size={18} /> : <SunIcon size={18} />}
@@ -204,8 +198,8 @@ export function App() {
               type="button"
               className="icon-button"
               data-tour="options"
-              aria-label={optionsOpen ? 'Retour au site' : 'Options'}
-              title={optionsOpen ? 'Retour au site' : 'Options'}
+              aria-label={optionsOpen ? 'Back to the site' : 'Options'}
+              title={optionsOpen ? 'Back to the site' : 'Options'}
               aria-expanded={optionsOpen}
               aria-controls="panel-options"
               onClick={() => setOptionsOpen(!optionsOpen)}
@@ -227,9 +221,9 @@ export function App() {
           ) : (
             <section className="empty-page">
               <AssemblyDiagram />
-              <p className="eyebrow">Prêt à ajuster</p>
-              <h1>Une page à votre mesure.</h1>
-              <p data-testid="host">Ouvrez une page web (http ou https) pour la modifier.</p>
+              <p className="eyebrow">Ready to adjust</p>
+              <h1>A page made to measure.</h1>
+              <p data-testid="host">Open a web page (http or https) to modify it.</p>
             </section>
           )}
         </div>

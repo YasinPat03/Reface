@@ -11,6 +11,6 @@ export { useOnboarding } from './useOnboarding';
  */
 export const DEMO_TAB: ActiveTab = {
   id: 2_147_483_647,
-  url: 'https://exemple.com/',
-  host: 'exemple.com',
+  url: 'https://example.com/',
+  host: 'example.com',
 };

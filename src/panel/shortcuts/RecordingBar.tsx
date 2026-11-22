@@ -17,19 +17,19 @@ export function RecordingBar({ tab, onSaved }: { tab: ActiveTab; onSaved?: () =>
     <section
       data-testid="recording-bar"
       className="shortcut-recording"
-      aria-label="Enregistrement d’un raccourci"
+      aria-label="Recording a shortcut"
     >
       {recording.tabId === tab.id ? (
         <Recording key={recording.startedAt} recording={recording} onSaved={onSaved} />
       ) : (
         <div className="shortcut-recording-other">
-          <p>Enregistrement d’un raccourci en cours dans un autre onglet.</p>
+          <p>A shortcut is being recorded in another tab.</p>
           <button
             type="button"
             className="button button-ghost"
             onClick={() => void stopRecording()}
           >
-            Annuler
+            Cancel
           </button>
         </div>
       )}
@@ -66,7 +66,7 @@ function Recording({ recording, onSaved }: { recording: ShortcutRecording; onSav
       const tab = await chrome.tabs.get(recording.tabId);
       const { added } = await addShortcut(recording.host, tab.url ?? '', tab.title ?? '');
       if (!added) {
-        setError('Ce raccourci existe déjà.');
+        setError('This shortcut already exists.');
         return;
       }
       await stopRecording();
@@ -82,20 +82,18 @@ function Recording({ recording, onSaved }: { recording: ShortcutRecording; onSav
     <>
       <p className="eyebrow shortcut-recording-title">
         <span className="shortcut-dot" aria-hidden="true" />
-        Enregistrement
+        Recording
       </p>
       <p>
-        <strong>Raccourci pour {recording.host}</strong> : naviguez jusqu’à la page voulue, puis
-        cliquez sur « C’est cette page ».
+        <strong>Shortcut for {recording.host}</strong>: navigate to the page you want, then click
+        “This is the page”.
       </p>
       <div data-testid="recording-page" className="shortcut-page">
-        <p className="shortcut-page-title">{page.title || 'Page sans titre'}</p>
+        <p className="shortcut-page-title">{page.title || 'Untitled page'}</p>
         <p className="rule-selector shortcut-page-url">{page.url}</p>
       </div>
-      {page.url && !url && (
-        <Notice tone="caution">Cette page ne peut pas servir de raccourci.</Notice>
-      )}
-      {duplicate && <Notice tone="caution">Ce raccourci existe déjà.</Notice>}
+      {page.url && !url && <Notice tone="caution">This page can’t be used as a shortcut.</Notice>}
+      {duplicate && <Notice tone="caution">This shortcut already exists.</Notice>}
       {error && <Notice tone="error">{error}</Notice>}
       <div className="shortcut-recording-actions">
         <button
@@ -104,10 +102,10 @@ function Recording({ recording, onSaved }: { recording: ShortcutRecording; onSav
           disabled={busy || !url || duplicate}
           onClick={() => void save()}
         >
-          C’est cette page
+          This is the page
         </button>
         <button type="button" className="button button-ghost" onClick={() => void stopRecording()}>
-          Annuler
+          Cancel
         </button>
       </div>
     </>

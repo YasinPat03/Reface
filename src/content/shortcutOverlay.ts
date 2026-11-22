@@ -49,8 +49,8 @@ function createPill() {
   root.innerHTML = `<style>${STYLE}</style><div class="pill" role="status">
     <span class="dot"></span>
     <span class="text"><span class="title"></span><span class="hint"><span class="hint-text"></span><kbd></kbd></span></span>
-    <button type="button" class="save">Enregistrer cette page</button>
-    <button type="button" class="cancel" aria-label="Annuler l’enregistrement" title="Annuler">✕</button>
+    <button type="button" class="save">Save this page</button>
+    <button type="button" class="cancel" aria-label="Cancel recording" title="Cancel">✕</button>
   </div>`;
   const $ = (selector: string) => root.querySelector(selector) as HTMLElement;
   const onClick = (button: HTMLElement, request: ShortcutRequest) =>
@@ -93,10 +93,10 @@ function render(): void {
   pill.host.dataset.state = state;
   const recording = state === 'recording';
   // textContent uniquement : jamais de HTML.
-  pill.title.textContent = toast ? toast.text : `Raccourci pour ${recordingHost}`;
+  pill.title.textContent = toast ? toast.text : `Shortcut for ${recordingHost}`;
   pill.hintText.textContent = hotkey
-    ? 'Naviguez jusqu’à la page voulue, puis appuyez sur '
-    : 'Naviguez jusqu’à la page voulue, puis cliquez sur « Enregistrer cette page ».';
+    ? 'Navigate to the page you want, then press '
+    : 'Navigate to the page you want, then click “Save this page”.';
   pill.key.textContent = hotkey;
   pill.key.hidden = !hotkey;
   pill.hint.hidden = !recording;

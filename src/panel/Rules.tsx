@@ -16,14 +16,14 @@ export function Rules({ site, onCatalogue }: { site: SiteRules; onCatalogue: () 
     fn().catch((e) => setMessage({ kind: 'error', text: errorMessage(e) }));
 
   return (
-    <section className="rules-workspace" aria-label="Modifications enregistrées">
+    <section className="rules-workspace" aria-label="Saved changes">
       <header className="rules-heading">
-        <p className="eyebrow">Sur ce site</p>
-        <h2>Vos modifications.</h2>
-        <p className="rules-description">Activez, ajustez ou retirez ce que vous avez gardé.</p>
+        <p className="eyebrow">On this site</p>
+        <h2>Your changes.</h2>
+        <p className="rules-description">Turn on, adjust or remove what you’ve kept.</p>
       </header>
       {site.rules.length === 0 ? (
-        <p className="rules-empty">Aucune modification enregistrée sur ce site.</p>
+        <p className="rules-empty">No saved changes on this site.</p>
       ) : (
         <ul className="rule-list" data-testid="rules">
           {site.rules.map((rule) => (
@@ -38,9 +38,7 @@ export function Rules({ site, onCatalogue }: { site: SiteRules; onCatalogue: () 
               <div className="rule-main">
                 <Switch
                   checked={rule.enabled}
-                  label={
-                    rule.enabled ? 'Désactiver cette modification' : 'Activer cette modification'
-                  }
+                  label={rule.enabled ? 'Turn off this change' : 'Turn on this change'}
                   onChange={(enabled) => run(() => updateRule(site.host, rule.id, { enabled }))}
                 />
                 <button
@@ -53,10 +51,10 @@ export function Rules({ site, onCatalogue }: { site: SiteRules; onCatalogue: () 
                   {rule.health.status === 'suspect' && (
                     <span
                       className="health-label"
-                      title="Les éléments visés sont introuvables : le site a peut-être changé."
+                      title="The targeted elements can’t be found: the site may have changed."
                     >
                       <WarningCircleIcon size={13} aria-hidden="true" />
-                      cassée
+                      broken
                     </span>
                   )}
                 </button>
@@ -67,8 +65,8 @@ export function Rules({ site, onCatalogue }: { site: SiteRules; onCatalogue: () 
                   disabled={rule.scope === 'page'}
                   title={
                     rule.scope === 'page'
-                      ? 'Thème du Catalogue : cette page uniquement.'
-                      : 'Changer la portée : ce type de page ou tout le site.'
+                      ? 'Catalogue theme: this page only.'
+                      : 'Change the scope: this type of page or the whole site.'
                   }
                   onClick={() =>
                     run(() =>
@@ -79,15 +77,15 @@ export function Rules({ site, onCatalogue }: { site: SiteRules; onCatalogue: () 
                   }
                 >
                   {rule.scope === 'page'
-                    ? 'cette page'
+                    ? 'this page'
                     : rule.section
                       ? `/${rule.section === 'home' ? '' : rule.section}`
-                      : 'tout le site'}
+                      : 'whole site'}
                 </button>
                 <button
                   type="button"
-                  aria-label="Supprimer cette modification"
-                  title="Supprimer"
+                  aria-label="Delete this change"
+                  title="Delete"
                   onClick={() => run(() => removeRule(site.host, rule.id))}
                   className="icon-button"
                 >
@@ -105,16 +103,16 @@ export function Rules({ site, onCatalogue }: { site: SiteRules; onCatalogue: () 
                   >
                     <div className="rule-details">
                       {rule.title ? (
-                        <p>Prompt d’origine : « {rule.prompt} »</p>
+                        <p>Original prompt: “{rule.prompt}”</p>
                       ) : (
                         rule.explanation && <p>{rule.explanation}</p>
                       )}
-                      <p>Créée le {new Date(rule.createdAt).toLocaleString('fr-CA')}</p>
+                      <p>Created {new Date(rule.createdAt).toLocaleString('en-US')}</p>
                       <p className="rule-selector">
                         {Object.values(rule.targets)
                           .map((t) => t.selectors[0])
                           .filter(Boolean)
-                          .join(' · ') || 'Page entière'}
+                          .join(' · ') || 'Whole page'}
                       </p>
                     </div>
                   </motion.div>
@@ -144,7 +142,7 @@ export function Rules({ site, onCatalogue }: { site: SiteRules; onCatalogue: () 
           disabled={!site.rules.some((rule) => rule.enabled)}
           onClick={onCatalogue}
         >
-          Enregistrer cette page
+          Save this page
         </button>
       </div>
     </section>

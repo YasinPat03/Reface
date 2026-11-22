@@ -59,7 +59,7 @@ export function Catalogue({
         })
         .catch(() => {
           if (alive && current === revision)
-            setMessage({ error: true, text: 'Votre collection n’a pas pu être chargée.' });
+            setMessage({ error: true, text: 'Your collection couldn’t be loaded.' });
         });
     };
     refresh();
@@ -89,7 +89,7 @@ export function Catalogue({
       if (request === publicRequest.current.revision) setPublicEntries(entries);
     } catch {
       if (request === publicRequest.current.revision)
-        setMessage({ error: true, text: 'Le catalogue public est indisponible pour le moment.' });
+        setMessage({ error: true, text: 'The public catalogue is unavailable right now.' });
     } finally {
       if (request === publicRequest.current.revision) setLoading(false);
     }
@@ -104,7 +104,7 @@ export function Catalogue({
     } catch (error) {
       setMessage({
         error: true,
-        text: error instanceof Error ? error.message : 'Réessayez dans un instant.',
+        text: error instanceof Error ? error.message : 'Try again in a moment.',
       });
     } finally {
       setBusy(false);
@@ -122,7 +122,7 @@ export function Catalogue({
     event.preventDefault();
     if (!form) return;
     if (!title.trim() || !description.trim()) {
-      setMessage({ error: true, text: 'Ajoutez un titre et une petite description.' });
+      setMessage({ error: true, text: 'Add a title and a short description.' });
       return;
     }
     const code = new FormData(event.currentTarget as HTMLFormElement).get('publisherCode');
@@ -141,18 +141,18 @@ export function Catalogue({
         setForm(null);
       },
       form === 'save'
-        ? 'Thème enregistré dans votre collection privée.'
-        : 'Votre thème a été publié dans le catalogue public.',
+        ? 'Theme saved to your private collection.'
+        : 'Your theme was published to the public catalogue.',
     );
   }
 
   return (
     <section className="catalogue" aria-label="Catalogue">
       <header className="rules-heading">
-        <p className="eyebrow">Vos thèmes, à retrouver</p>
+        <p className="eyebrow">Your themes, ready to reuse</p>
         <h2>Catalogue</h2>
         <p className="rules-description">
-          Gardez une version de vos modifications ou découvrez celles à essayer.
+          Keep a version of your changes or discover new ones to try.
         </p>
       </header>
       <Tabs.Root
@@ -167,37 +167,35 @@ export function Catalogue({
           if (next === 'public') void loadPublic();
         }}
       >
-        <Tabs.List className="catalogue-nav" aria-label="Sections du catalogue">
+        <Tabs.List className="catalogue-nav" aria-label="Catalogue sections">
           <Tabs.Tab value="private" className="button">
-            Privée <span className="tab-count">{privateEntries.length}</span>
+            Private <span className="tab-count">{privateEntries.length}</span>
           </Tabs.Tab>
           <Tabs.Tab value="public" className="button">
-            Publique
+            Public
           </Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="private">
           <div className="catalogue-intro">
-            <p>Votre collection reste sur cet appareil.</p>
+            <p>Your collection stays on this device.</p>
             <button className="button" disabled={!canSave || busy} onClick={() => openForm('save')}>
-              Enregistrer cette page
+              Save this page
             </button>
-            {!canSave && <p>Gardez une modification sur cette page pour créer un thème.</p>}
+            {!canSave && <p>Keep a change on this page to create a theme.</p>}
           </div>
           {!privateEntries.length && !form && (
-            <p className="rules-empty">
-              Votre collection est prête à accueillir son premier thème.
-            </p>
+            <p className="rules-empty">Your collection is ready for its first theme.</p>
           )}
         </Tabs.Panel>
         <Tabs.Panel value="public">
           <div className="catalogue-intro">
-            <p>Thèmes partagés par la communauté ReFace.</p>
+            <p>Themes shared by the ReFace community.</p>
             <button
               className="text-button"
               disabled={loading || busy}
               onClick={() => void loadPublic()}
             >
-              Actualiser
+              Refresh
             </button>
           </div>
         </Tabs.Panel>
@@ -206,13 +204,13 @@ export function Catalogue({
         <form
           className="catalogue-form"
           onSubmit={submit}
-          aria-label={form === 'save' ? 'Enregistrer un thème privé' : 'Publier un thème'}
+          aria-label={form === 'save' ? 'Save a private theme' : 'Publish a theme'}
         >
-          <h3>{form === 'save' ? 'Un thème à garder' : 'Partager votre thème'}</h3>
+          <h3>{form === 'save' ? 'A theme to keep' : 'Share your theme'}</h3>
           <p className="catalogue-page">
             {form === 'save' ? tab.host + pagePath : form.host + form.pagePath}
           </p>
-          <label htmlFor="catalogue-title">Titre</label>
+          <label htmlFor="catalogue-title">Title</label>
           <input
             autoFocus
             id="catalogue-title"
@@ -222,7 +220,7 @@ export function Catalogue({
             value={title}
             onChange={(event) => setTitle(event.target.value)}
           />
-          <label htmlFor="catalogue-description">Petite description</label>
+          <label htmlFor="catalogue-description">Short description</label>
           <textarea
             id="catalogue-description"
             className="form-input"
@@ -234,13 +232,12 @@ export function Catalogue({
           />
           {form !== 'save' && (
             <p className="field-help">
-              Le titre, la description, la page cible et les styles seront ajoutés au catalogue
-              public.
+              The title, description, target page and styles will be added to the public catalogue.
             </p>
           )}
           {form !== 'save' && CATALOGUE_REQUIRES_CODE && (
             <div className="catalogue-publisher">
-              <label htmlFor="catalogue-publisher-code">Code de publication</label>
+              <label htmlFor="catalogue-publisher-code">Publishing code</label>
               <input
                 id="catalogue-publisher-code"
                 name="publisherCode"
@@ -253,7 +250,7 @@ export function Catalogue({
                 aria-describedby="catalogue-publisher-help"
               />
               <p className="field-help" id="catalogue-publisher-help">
-                Demandez un code à l’équipe ReFace pour publier un thème.
+                Ask the ReFace team for a code to publish a theme.
               </p>
             </div>
           )}
@@ -264,10 +261,10 @@ export function Catalogue({
               disabled={busy}
               onClick={() => setForm(null)}
             >
-              Annuler
+              Cancel
             </button>
             <button className="button button-primary" disabled={busy}>
-              {busy ? 'Un instant…' : form === 'save' ? 'Enregistrer' : 'Publier'}
+              {busy ? 'One moment…' : form === 'save' ? 'Save' : 'Publish'}
             </button>
           </div>
         </form>
@@ -282,12 +279,12 @@ export function Catalogue({
       )}
       {section === 'public' && loading && (
         <p role="status" className="rules-description">
-          Chargement des thèmes…
+          Loading themes…
         </p>
       )}
       <ul
         className="catalogue-list"
-        aria-label={section === 'private' ? 'Thèmes privés' : 'Thèmes publics'}
+        aria-label={section === 'private' ? 'Private themes' : 'Public themes'}
       >
         {(section === 'private' ? privateEntries : publicEntries).map((entry) => {
           const imported = privateEntries.some(
@@ -306,11 +303,11 @@ export function Catalogue({
                 <button
                   type="button"
                   className="icon-button catalogue-remove"
-                  aria-label={`Supprimer ${entry.title} de la collection privée`}
-                  title="Supprimer"
+                  aria-label={`Delete ${entry.title} from the private collection`}
+                  title="Delete"
                   disabled={busy}
                   onClick={() =>
-                    void run(() => deletePrivateEntry(entry), 'Thème retiré de votre collection.')
+                    void run(() => deletePrivateEntry(entry), 'Theme removed from your collection.')
                   }
                 >
                   ×
@@ -323,7 +320,7 @@ export function Catalogue({
               <h3>{entry.title}</h3>
               <p>{entry.description}</p>
               <span className="catalogue-count">
-                {entry.rules.length} modification{entry.rules.length > 1 ? 's' : ''}
+                {entry.rules.length} change{entry.rules.length > 1 ? 's' : ''}
               </span>
               <div className="catalogue-actions">
                 {section === 'public' ? (
@@ -333,34 +330,32 @@ export function Catalogue({
                     onClick={() =>
                       void run(async () => {
                         await savePrivateEntry(entry);
-                      }, 'Thème ajouté à votre collection privée.')
+                      }, 'Theme added to your private collection.')
                     }
                   >
-                    {imported ? 'Dans votre collection' : 'Ajouter à ma collection'}
+                    {imported ? 'In your collection' : 'Add to my collection'}
                   </button>
                 ) : (
                   <>
                     <button
                       className="button catalogue-selected"
                       disabled={busy || !applicable || applied}
-                      title={
-                        applicable ? undefined : 'Ouvrez la page indiquée pour appliquer ce thème.'
-                      }
+                      title={applicable ? undefined : 'Open the page shown to apply this theme.'}
                       onClick={() =>
                         void run(
                           () => applyCatalogueEntry(entry, tab.url),
-                          'Thème appliqué sur cette page.',
+                          'Theme applied to this page.',
                         )
                       }
                     >
-                      {applied ? 'Appliqué' : applicable ? 'Appliquer' : 'Autre page'}
+                      {applied ? 'Applied' : applicable ? 'Apply' : 'Other page'}
                     </button>
                     <button
                       className="button"
                       disabled={busy || alreadyPublic}
                       onClick={() => openForm(entry)}
                     >
-                      {alreadyPublic ? 'Déjà public' : 'Publier'}
+                      {alreadyPublic ? 'Already public' : 'Publish'}
                     </button>
                   </>
                 )}
@@ -370,7 +365,7 @@ export function Catalogue({
         })}
       </ul>
       {section === 'public' && !loading && !publicEntries.length && !message && (
-        <p className="rules-empty">Aucun thème public pour le moment.</p>
+        <p className="rules-empty">No public themes yet.</p>
       )}
     </section>
   );

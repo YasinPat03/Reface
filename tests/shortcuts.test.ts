@@ -78,7 +78,7 @@ describe('withShortcut', () => {
 
   it('refuse une page qui n’est pas http(s)', () => {
     expect(() => withShortcut(empty, { url: 'chrome://newtab', title: '' }, 's_1', NOW)).toThrow(
-      /ne peut pas servir de raccourci/,
+      /can’t be used as a shortcut/,
     );
   });
 });

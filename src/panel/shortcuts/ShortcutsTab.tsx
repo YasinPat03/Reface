@@ -49,9 +49,9 @@ function HotkeyHint({
         </>
       ) : (
         <>
-          Aucune touche n’est attribuée pour {name}.{' '}
+          No key is assigned to {name}.{' '}
           <button type="button" className="text-button" onClick={onConfigure}>
-            Configurer
+            Configure
           </button>
         </>
       )}
@@ -91,20 +91,20 @@ export function ShortcutsTab({ tab }: { tab: ActiveTab }) {
   return (
     <section
       className="rules-workspace shortcuts-workspace"
-      aria-label="Raccourcis du site"
+      aria-label="Site shortcuts"
       data-testid="shortcuts-tab"
     >
       <header className="rules-heading">
-        <p className="eyebrow">Sur ce site</p>
-        <h2>Vos raccourcis.</h2>
+        <p className="eyebrow">On this site</p>
+        <h2>Your shortcuts.</h2>
         <p className="rules-description">
-          Revenez en un clic aux pages enfouies, chaque fois que vous êtes sur {tab.host}.
+          Get back to buried pages in one click, whenever you’re on {tab.host}.
         </p>
       </header>
 
       {site.shortcuts.length === 0 ? (
         <p className="rules-empty">
-          Aucun raccourci sur ce site. Créez-en un pour revenir en un clic à une page enfouie.
+          No shortcuts on this site. Create one to get back to a buried page in one click.
         </p>
       ) : (
         <ul className="rule-list" data-testid="shortcuts">
@@ -133,7 +133,7 @@ export function ShortcutsTab({ tab }: { tab: ActiveTab }) {
                   >
                     <input
                       name="label"
-                      aria-label="Nom du raccourci"
+                      aria-label="Shortcut name"
                       defaultValue={shortcut.label}
                       maxLength={MAX_LABEL}
                       autoFocus
@@ -159,11 +159,11 @@ export function ShortcutsTab({ tab }: { tab: ActiveTab }) {
                         {shortcutPath(shortcut.url)}
                       </span>
                     </a>
-                    {here && <span className="tab-count shortcut-here">page actuelle</span>}
+                    {here && <span className="tab-count shortcut-here">current page</span>}
                     <button
                       type="button"
-                      aria-label="Renommer ce raccourci"
-                      title="Renommer"
+                      aria-label="Rename this shortcut"
+                      title="Rename"
                       onClick={() => setEditing(shortcut.id)}
                       className="icon-button"
                     >
@@ -171,8 +171,8 @@ export function ShortcutsTab({ tab }: { tab: ActiveTab }) {
                     </button>
                     <button
                       type="button"
-                      aria-label="Supprimer ce raccourci"
-                      title="Supprimer"
+                      aria-label="Delete this shortcut"
+                      title="Delete"
                       onClick={() => run(() => removeShortcut(site.host, shortcut.id))}
                       className="icon-button"
                     >
@@ -210,23 +210,23 @@ export function ShortcutsTab({ tab }: { tab: ActiveTab }) {
           }
         >
           <PlusIcon size={16} aria-hidden="true" />
-          Créer un raccourci
+          Create a shortcut
         </button>
         <p className="field-help">
-          Naviguez ensuite jusqu’à la page voulue, puis cliquez sur « C’est cette page ».
+          Then navigate to the page you want, and click “This is the page”.
         </p>
         <HotkeyHint
           hotkey={recordKey}
           testId="hotkey-hint"
-          name="enregistrer un raccourci"
-          action="sur n’importe quelle page : démarre un raccourci sans ouvrir le panel, puis l’enregistre."
+          name="recording a shortcut"
+          action="on any page: starts a shortcut without opening the panel, then saves it."
           onConfigure={configureKeys}
         />
         <HotkeyHint
           hotkey={paletteKey}
           testId="palette-hint"
-          name="afficher les raccourcis"
-          action="affiche les raccourcis du site directement sur la page."
+          name="showing the shortcuts"
+          action="shows the site’s shortcuts right on the page."
           onConfigure={configureKeys}
         />
       </div>
