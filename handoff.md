@@ -79,7 +79,7 @@ Dernière mise à jour : 22 novembre 2026, sur la branche `on-boarding` (présen
 ```bash
 npm run build                 # typecheck + build → dist/ (à charger dans chrome://extensions)
 npm run lint && npm test      # ESLint + 144 tests unitaires (Vitest)
-npm run test:e2e              # build + Playwright/Chromium + faux LLM, phases 1 à 10, dont 4 échecs hérités en phase 3 (voir §5) (6 = changements séparés, 7 = raccourcis, 8 = touche ⌘⇧E, 9 = palette ⌘⇧X, 10 = présentation)
+npm run test:e2e              # build + Playwright/Chromium + faux LLM, phases 1 à 13, dont 4 échecs hérités en phase 3 (voir §5) (6 = changements séparés, 7 = raccourcis, 8 = touche ⌘⇧E, 9 = palette ⌘⇧X, 13 = présentation)
 node tests/e2e/live.ts [filtre]   # VRAI LLM, pilote l'UI réelle, captures dans .live-shots/
 node tests/e2e/demo-sites.ts      # sites de démo réels, sans LLM
 node tests/e2e/distill-real.ts    # taille et durée de la distillation

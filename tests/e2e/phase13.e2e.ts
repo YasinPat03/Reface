@@ -1,4 +1,4 @@
-// Phase 10 : présentation du premier lancement (logo au centre, puis visite guidée du panneau).
+// Phase 13 : présentation du premier lancement (logo au centre, puis visite guidée du panneau).
 import { assert, check, done, launch, startServer } from './harness.ts';
 import { TOUR_STEPS, stepDuration } from '../../src/panel/onboarding/steps.ts';
 
@@ -14,7 +14,7 @@ const seen = async () =>
     { seenAt: string } | undefined;
 const reset = () => worker.evaluate((k) => chrome.storage.local.remove(k), KEY);
 
-console.log('Phase 10');
+console.log('Phase 13');
 
 const site = await context.newPage();
 await site.goto(origin);
@@ -35,7 +35,7 @@ const waitTour = () =>
   panel.locator('[data-testid=onboarding][data-phase=tour]').waitFor({ timeout: 8000 });
 const waitGone = () => overlay().waitFor({ state: 'detached', timeout: 3000 });
 
-await check('10.1 profil neuf : le logo se joue en grand, au centre', async () => {
+await check('13.1 profil neuf : le logo se joue en grand, au centre', async () => {
   await panel.locator('[data-testid=onboarding][data-phase=intro]').waitFor({ timeout: 3000 });
   await panel.locator('.brand-intro').waitFor();
   await panel.getByText('Une page à votre mesure.').waitFor();
@@ -49,7 +49,7 @@ await check('10.1 profil neuf : le logo se joue en grand, au centre', async () =
   );
 });
 
-await check('10.2 la visite commence d’elle-même sur la 1re zone', async () => {
+await check('13.2 la visite commence d’elle-même sur la 1re zone', async () => {
   await waitTour();
   await bubble().getByText(TOUR_STEPS[0]!.title).waitFor();
   assert((await spotlightTarget()) === TOUR_STEPS[0]!.target, 'projecteur mal placé');
@@ -57,7 +57,7 @@ await check('10.2 la visite commence d’elle-même sur la 1re zone', async () =
 });
 
 await check(
-  '10.3 → parcourt chaque zone dans l’ordre, la bulle reste dans le panneau',
+  '13.3 → parcourt chaque zone dans l’ordre, la bulle reste dans le panneau',
   async () => {
     for (const [i, step] of TOUR_STEPS.entries()) {
       if (i > 0) await panel.keyboard.press('ArrowRight');
@@ -84,7 +84,7 @@ await check(
   },
 );
 
-await check('10.4 la bulle de fin ferme la visite et la marque comme vue', async () => {
+await check('13.4 la bulle de fin ferme la visite et la marque comme vue', async () => {
   await panel.keyboard.press('ArrowRight');
   await bubble().getByText('C’est parti').waitFor();
   assert(!(await seen()), 'clé écrite trop tôt');
@@ -94,21 +94,21 @@ await check('10.4 la bulle de fin ferme la visite et la marque comme vue', async
   assert((await panel.locator('main.app-shell').getAttribute('inert')) === null, 'panneau inerte');
 });
 
-await check('10.5 elle ne revient pas à la réouverture du panneau', async () => {
+await check('13.5 elle ne revient pas à la réouverture du panneau', async () => {
   await panel.reload();
   await panel.getByTestId('host').filter({ hasText: '127.0.0.1' }).waitFor();
   await panel.waitForTimeout(1500);
   assert((await overlay().count()) === 0, 'la présentation s’est rejouée');
 });
 
-await check('10.6 « Revoir la présentation » (Options) la relance', async () => {
+await check('13.6 « Revoir la présentation » (Options) la relance', async () => {
   await panel.getByRole('button', { name: 'Options' }).click();
   await panel.getByRole('button', { name: 'Revoir la présentation' }).click();
   await panel.locator('[data-testid=onboarding][data-phase=intro]').waitFor({ timeout: 3000 });
   assert(!(await panel.locator('#panel-options').isVisible()), 'les options restent ouvertes');
 });
 
-await check('10.7 la visite avance seule, puis Échap la ferme', async () => {
+await check('13.7 la visite avance seule, puis Échap la ferme', async () => {
   await panel.locator('[data-testid=onboarding]').click(); // un clic écourte l'intro
   await waitTour();
   await progress()
@@ -121,7 +121,7 @@ await check('10.7 la visite avance seule, puis Échap la ferme', async () => {
   assert((await seen())?.seenAt, 'clé non écrite après Échap');
 });
 
-await check('10.8 « Passer » ferme la visite', async () => {
+await check('13.8 « Passer » ferme la visite', async () => {
   await reset();
   await waitTour();
   await panel.getByRole('button', { name: 'Passer', exact: true }).click();
@@ -130,7 +130,7 @@ await check('10.8 « Passer » ferme la visite', async () => {
 });
 
 await check(
-  '10.9 sans page web : un site fictif pendant la visite, puis la page vide',
+  '13.9 sans page web : un site fictif pendant la visite, puis la page vide',
   async () => {
     await reset();
     panel = await context.newPage();

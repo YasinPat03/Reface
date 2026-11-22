@@ -114,7 +114,7 @@ On choisit au fur et à mesure. Chacune s'appuie sur le MVP sans le casser.
 - [ ] **F. Ops DOM `move`/`resize`** (ce que le CSS ne sait pas faire)
 - [ ] **G. Gemini Nano** pour la classification sur l'appareil
 - [ ] **H. Crawl agent / macro click-path** (F9/F10)
-- [x] **I. Présentation au premier lancement** (branche `on-boarding`, `tests/e2e/phase10.e2e.ts`)
+- [x] **I. Présentation au premier lancement** (branche `on-boarding`, `tests/e2e/phase13.e2e.ts`)
   - [x] Base shadcn sans `init` : `components.json`, alias `@/`, `cn()`, couleurs shadcn reliées aux variables de `ui.css`
   - [x] Composants Magic UI : `text-animate`, `blur-fade`, `typing-animation`, `border-beam` (`src/components/ui/`)
   - [x] Intro : le logo animé en grand au centre, puis il rejoint l'en-tête
