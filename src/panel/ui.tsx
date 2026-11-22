@@ -34,15 +34,18 @@ export function Segmented<T extends string>({
   options,
   onChange,
   label,
+  tour,
 }: {
   value: T;
   options: { value: T; label: ReactNode }[];
   onChange: (value: T) => void;
   label: string;
+  /** Repère de la présentation guidée (`data-tour`). */
+  tour?: string;
 }) {
   const id = useId();
   return (
-    <div className="segmented" role="radiogroup" aria-label={label}>
+    <div className="segmented" role="radiogroup" aria-label={label} data-tour={tour}>
       {options.map((option) => (
         <label key={option.value} className="segment">
           <input

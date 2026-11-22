@@ -1,9 +1,19 @@
+import type { HTMLAttributes } from 'react';
 import MetallicPaint from './metallic/MetallicPaint';
 import logo from './split-e.svg';
 
-export function Brand({ appearance }: { appearance: 'light' | 'dark' }) {
+export function Brand({
+  appearance,
+  className,
+  ...rest
+}: { appearance: 'light' | 'dark' } & HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className="brand brand-metallic" role="img" aria-label="ReFace">
+    <div
+      {...rest}
+      className={`brand brand-metallic${className ? ` ${className}` : ''}`}
+      role="img"
+      aria-label="ReFace"
+    >
       <span
         className="brand-logo-fallback"
         style={{ maskImage: `url(${logo})`, WebkitMaskImage: `url(${logo})` }}

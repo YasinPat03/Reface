@@ -3,12 +3,16 @@ import { callContent, listen, type BgApi } from '../shared/messages';
 import { generate, keep, quickHide } from './agent';
 import { listModels } from './llm';
 import { suggestAccessibility } from './accessibility';
+import { onInstalledOnboarding } from '../shared/onboarding';
 import './shortcutHotkey';
 
 const enablePanelOnClick = () =>
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.error);
 
-chrome.runtime.onInstalled.addListener(enablePanelOnClick);
+chrome.runtime.onInstalled.addListener(({ reason }) => {
+  enablePanelOnClick();
+  void onInstalledOnboarding(reason).catch(console.error);
+});
 chrome.runtime.onStartup.addListener(enablePanelOnClick);
 
 listen<BgApi>({

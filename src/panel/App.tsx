@@ -16,6 +16,7 @@ import { Chat } from './Chat';
 import { useSite } from './hooks';
 import { Rules } from './Rules';
 import { Catalogue } from './Catalogue';
+import { DEMO_TAB, Onboarding, useOnboarding } from './onboarding';
 import { RecordingBar, ShortcutsTab, ShortcutsTabLabel, useShortcutCount } from './shortcuts';
 import { useActiveTab, type ActiveTab } from './tab';
 import { AssemblyDiagram, Segmented, Switch } from './ui';
@@ -67,6 +68,7 @@ function Site({ tab, active }: { tab: ActiveTab; active: boolean }) {
         </p>
         <div className="site-controls">
           <Segmented
+            tour="compare"
             label="Comparer avec la page d’origine"
             value={original ? 'original' : 'modified'}
             onChange={(v) => void toggleOriginal(v === 'original')}
@@ -75,7 +77,7 @@ function Site({ tab, active }: { tab: ActiveTab; active: boolean }) {
               { value: 'modified', label: 'Modifié' },
             ]}
           />
-          <div className="pause-control">
+          <div className="pause-control" data-tour="pause">
             <span>Pause</span>
             <Switch
               checked={paused}
@@ -116,22 +118,24 @@ function Site({ tab, active }: { tab: ActiveTab; active: boolean }) {
         className="workspace-tabs"
       >
         <Tabs.List className="workspace-nav" aria-label="Outils de la page">
-          <Tabs.Tab value="edit" className="workspace-tab">
+          <Tabs.Tab value="edit" className="workspace-tab" data-tour="tab-edit">
             Modifier
           </Tabs.Tab>
           <Tabs.Tab
             value="rules"
             className="workspace-tab"
+            data-tour="tab-rules"
             aria-label={`Modifications (${enabledCount}/${site.rules.length})`}
           >
             Modifications <span className="tab-count">{site.rules.length}</span>
           </Tabs.Tab>
-          <Tabs.Tab value="catalogue" className="workspace-tab">
+          <Tabs.Tab value="catalogue" className="workspace-tab" data-tour="tab-catalogue">
             Catalogue
           </Tabs.Tab>
           <Tabs.Tab
             value="shortcuts"
             className="workspace-tab"
+            data-tour="tab-shortcuts"
             aria-label={`Raccourcis (${shortcutCount})`}
           >
             <ShortcutsTabLabel count={shortcutCount} />
@@ -174,16 +178,20 @@ export function App() {
   const [optionsOpen, setOptionsOpen] = useState(false);
   const tab = useActiveTab();
   const { appearance, toggleAppearance } = useAppearance();
+  const onboarding = useOnboarding();
+  // Pendant la visite, sans page web, le panneau montre un site fictif pour présenter ses zones.
+  const siteTab = tab?.host ? tab : onboarding.active ? DEMO_TAB : null;
   return (
     <MotionConfig reducedMotion="user">
       <ThemeBackground appearance={appearance} />
-      <main className="app-shell">
+      <main className="app-shell" inert={onboarding.active}>
         <header className="app-header">
-          <Brand appearance={appearance} />
+          <Brand appearance={appearance} data-tour="brand" />
           <div className="header-actions">
             <button
               type="button"
               className="icon-button"
+              data-tour="theme"
               aria-label={
                 appearance === 'light' ? 'Activer le mode sombre' : 'Activer le mode clair'
               }
@@ -195,6 +203,7 @@ export function App() {
             <button
               type="button"
               className="icon-button"
+              data-tour="options"
               aria-label={optionsOpen ? 'Retour au site' : 'Options'}
               title={optionsOpen ? 'Retour au site' : 'Options'}
               aria-expanded={optionsOpen}
@@ -206,11 +215,15 @@ export function App() {
           </div>
         </header>
         <div id="panel-options" hidden={!optionsOpen}>
-          {optionsOpen && <OptionsContent />}
+          {optionsOpen && <OptionsContent onReplayOnboarding={() => setOptionsOpen(false)} />}
         </div>
         <div className="panel-site" hidden={optionsOpen}>
-          {tab?.host ? (
-            <Site key={`${tab.id}:${tab.host}`} tab={tab} active={!optionsOpen} />
+          {siteTab ? (
+            <Site
+              key={`${siteTab.id}:${siteTab.host}`}
+              tab={siteTab}
+              active={!optionsOpen && siteTab !== DEMO_TAB}
+            />
           ) : (
             <section className="empty-page">
               <AssemblyDiagram />
@@ -221,6 +234,12 @@ export function App() {
           )}
         </div>
       </main>
+      <Onboarding
+        phase={onboarding.phase}
+        appearance={appearance}
+        onIntroDone={onboarding.startTour}
+        onFinish={onboarding.finish}
+      />
     </MotionConfig>
   );
 }

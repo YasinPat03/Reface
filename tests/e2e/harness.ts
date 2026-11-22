@@ -22,7 +22,14 @@ export async function startServer(pages: Pages): Promise<{ server: Server; origi
   return { server, origin: `http://127.0.0.1:${address.port}` };
 }
 
-export async function launch(extraArgs: string[] = []): Promise<{
+/**
+ * `onboarding: true` garde la présentation du premier lancement. Par défaut, elle est marquée
+ * comme vue, pour que les phases qui ne la testent pas trouvent le panneau directement.
+ */
+export async function launch(
+  extraArgs: string[] = [],
+  { onboarding = false }: { onboarding?: boolean } = {},
+): Promise<{
   context: BrowserContext;
   worker: Worker;
   extensionId: string;
@@ -35,6 +42,8 @@ export async function launch(extraArgs: string[] = []): Promise<{
   });
   const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
   const extensionId = new URL(worker.url()).host;
+  if (!onboarding)
+    await worker.evaluate(() => chrome.storage.local.set({ 'onboarding:v1': { seenAt: 'e2e' } }));
   return { context, worker, extensionId };
 }
 
