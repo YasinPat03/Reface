@@ -97,9 +97,6 @@ export function ShortcutsTab({ tab }: { tab: ActiveTab }) {
       <header className="rules-heading">
         <p className="eyebrow">On this site</p>
         <h2>Your shortcuts.</h2>
-        <p className="rules-description">
-          Get back to buried pages in one click, whenever you’re on {tab.host}.
-        </p>
       </header>
 
       {site.shortcuts.length === 0 ? (

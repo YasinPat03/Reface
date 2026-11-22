@@ -22,7 +22,6 @@ import { AssemblyDiagram } from './ui';
 type Status = 'idle' | 'generating' | 'saving' | 'picking';
 
 const NO_PICKS: PickResult[] = [];
-const EXAMPLES = ['Hide the comments', 'Bigger, airier text'];
 
 export function Chat({
   tab,
@@ -252,7 +251,7 @@ export function Chat({
     >
       <div className="workspace-heading">
         <div>
-          <p className="eyebrow">{draft ? 'Preview' : 'Adjustment'}</p>
+          {draft && <p className="eyebrow">Preview</p>}
           <h2>{draft ? 'Refine the change' : 'What do you want to change?'}</h2>
         </div>
         <AssemblyDiagram
@@ -269,7 +268,6 @@ export function Chat({
           }
         />
       </div>
-      {!draft && <p className="workspace-description">Try it on the page before keeping it.</p>}
       {aiBlocked && (
         <p data-testid="ai-blocked" className="message message-caution">
           <LockSimpleIcon size={18} aria-hidden="true" />
@@ -492,23 +490,6 @@ export function Chat({
           </p>
         )}
       </form>
-      {!draft && !prompt && !aiBlocked && (
-        <div className="suggestions" aria-label="Change ideas">
-          <p className="eyebrow">A few ideas</p>
-          {EXAMPLES.map((example) => (
-            <button
-              key={example}
-              type="button"
-              onClick={() => setPrompt(example)}
-              disabled={busy}
-              className="suggestion"
-            >
-              <span>{example}</span>
-              <ArrowRightIcon size={14} aria-hidden="true" />
-            </button>
-          ))}
-        </div>
-      )}
       {error && (
         <p role="alert" className="message message-error">
           <WarningCircleIcon size={18} aria-hidden="true" />

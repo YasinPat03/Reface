@@ -123,16 +123,13 @@ export function AccessibilitySettings() {
     >
       <h2 id="accessibility-title">Accessibility</h2>
       <form className="accessibility-description" onSubmit={applySuggestions}>
-        <label className="field-label" htmlFor="accessibility-description">
-          Describe your accessibility needs
-        </label>
         <textarea
-          id="accessibility-description"
+          aria-label="Describe your accessibility needs"
           className="form-input"
           rows={2}
           disabled={applying}
           maxLength={500}
-          placeholder="I need bigger text and buttons that are easier to click."
+          placeholder="Describe your accessibility needs"
           value={description}
           onChange={(event) => {
             setDescription(event.target.value);

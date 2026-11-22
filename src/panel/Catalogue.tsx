@@ -149,11 +149,7 @@ export function Catalogue({
   return (
     <section className="catalogue" aria-label="Catalogue">
       <header className="rules-heading">
-        <p className="eyebrow">Your themes, ready to reuse</p>
         <h2>Catalogue</h2>
-        <p className="rules-description">
-          Keep a version of your changes or discover new ones to try.
-        </p>
       </header>
       <Tabs.Root
         value={section}
@@ -177,7 +173,6 @@ export function Catalogue({
         </Tabs.List>
         <Tabs.Panel value="private">
           <div className="catalogue-intro">
-            <p>Your collection stays on this device.</p>
             <button className="button" disabled={!canSave || busy} onClick={() => openForm('save')}>
               Save this page
             </button>

@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { ThemeBackground } from '../shared/ThemeBackground';
 import { useAppearance } from '../shared/appearance';
 import { MoonIcon } from '@phosphor-icons/react/dist/csr/Moon';
+import { PauseIcon } from '@phosphor-icons/react/dist/csr/Pause';
 import { SunIcon } from '@phosphor-icons/react/dist/csr/Sun';
 import { Brand } from '../shared/Brand';
 import { callContent } from '../shared/messages';
@@ -56,13 +57,7 @@ function Site({ tab, active }: { tab: ActiveTab; active: boolean }) {
   return (
     <>
       <section className="site-context" aria-label="Current page">
-        <div className="section-meta">
-          <span className="eyebrow">Current page</span>
-          <span className={`site-state ${paused ? 'is-paused' : ''}`}>
-            <span />
-            {paused ? 'Paused' : 'Active'}
-          </span>
-        </div>
+        <p className="eyebrow">Current page</p>
         <p className="site-host" data-testid="host">
           {tab.host}
         </p>
@@ -78,7 +73,7 @@ function Site({ tab, active }: { tab: ActiveTab; active: boolean }) {
             ]}
           />
           <div className="pause-control" data-tour="pause">
-            <span>Pause</span>
+            <PauseIcon size={14} aria-hidden="true" />
             <Switch
               checked={paused}
               label="Pause on this site"
@@ -162,10 +157,6 @@ function Site({ tab, active }: { tab: ActiveTab; active: boolean }) {
           <ShortcutsTab tab={tab} />
         </Tabs.Panel>
       </Tabs.Root>
-      <footer className="app-footer">
-        <span className="footer-line" />
-        <span>Kept changes come back on every visit.</span>
-      </footer>
     </>
   );
 }

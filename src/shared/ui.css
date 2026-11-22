@@ -178,12 +178,6 @@ button:disabled {
   color: var(--ink);
   background: var(--surface-soft);
 }
-.section-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
 .eyebrow {
   font-family: var(--mono);
   font-size: 11px;
@@ -196,23 +190,6 @@ button:disabled {
 .site-context {
   border-top: 1px solid var(--ink);
   padding: 17px 0 22px;
-}
-.site-state {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 12px;
-  color: var(--muted);
-}
-.site-state > span {
-  width: 5px;
-  height: 5px;
-  background: var(--success);
-  border-radius: 50%;
-}
-.site-state.is-paused > span {
-  background: var(--muted);
-  border-radius: 0;
 }
 .site-host {
   font-family: var(--mono);
@@ -272,8 +249,7 @@ button:disabled {
 .pause-control {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 12px;
+  gap: 8px;
   color: var(--muted);
 }
 .switch-control {
@@ -383,8 +359,10 @@ button:disabled {
   line-height: 1.25;
   letter-spacing: -0.6px;
   font-weight: 500;
-  margin-top: 8px;
   max-width: 240px;
+}
+.workspace-heading .eyebrow + h2 {
+  margin-top: 8px;
 }
 .assembly-diagram {
   width: 96px;
@@ -418,11 +396,6 @@ button:disabled {
 }
 .phase-preview .layer-2 {
   stroke: var(--accent);
-}
-.workspace-description {
-  font-size: 13px;
-  color: var(--muted);
-  margin: 7px 0 22px;
 }
 .adjustment-form {
   display: flex;
@@ -608,29 +581,6 @@ button:disabled {
   justify-content: space-between;
   padding: 12px 15px;
 }
-.suggestions {
-  margin-top: 28px;
-}
-.suggestions > .eyebrow {
-  margin-bottom: 8px;
-}
-.suggestion {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  text-align: left;
-  padding: 11px 0;
-  width: 100%;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  background: none;
-  color: var(--muted);
-  font-size: 12px;
-}
-.suggestion:hover {
-  color: var(--accent);
-}
 .draft-sheet {
   margin: 16px 0 22px;
   border-top: 1px solid var(--accent);
@@ -698,22 +648,6 @@ button:disabled {
 }
 .message-success {
   color: var(--success);
-}
-.app-footer {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-top: auto;
-  padding-top: 34px;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.5;
-}
-.footer-line {
-  width: 16px;
-  height: 1px;
-  background: var(--line-strong);
-  flex-shrink: 0;
 }
 .empty-page {
   margin: auto 0;
@@ -991,8 +925,7 @@ button:disabled {
   }
   .button,
   .pick-button,
-  .workspace-tab,
-  .suggestion {
+  .workspace-tab {
     min-height: 44px;
   }
   .segment > span {
@@ -1260,7 +1193,6 @@ button:disabled {
   margin: 0 0 16px;
 }
 
-.accessibility-description .field-label,
 .accessibility-description .field-help {
   margin: 0;
 }

@@ -20,7 +20,6 @@ export function Rules({ site, onCatalogue }: { site: SiteRules; onCatalogue: () 
       <header className="rules-heading">
         <p className="eyebrow">On this site</p>
         <h2>Your changes.</h2>
-        <p className="rules-description">Turn on, adjust or remove what you’ve kept.</p>
       </header>
       {site.rules.length === 0 ? (
         <p className="rules-empty">No saved changes on this site.</p>

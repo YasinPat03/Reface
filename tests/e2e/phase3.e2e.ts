@@ -97,9 +97,11 @@ await context.route(/(?:\/api\/catalogue|\/functions\/v1\/reface-catalogue)$/, a
     });
 });
 
-await check('3.2 chat : exemple → preview → Garder', async () => {
+await check('3.2 chat : saisie → preview → Garder', async () => {
   await panel.getByTestId('host').filter({ hasText: '127.0.0.1' }).waitFor();
-  await panel.getByRole('button', { name: 'Hide the comments' }).click();
+  await panel
+    .getByRole('textbox', { name: 'What do you want to change?' })
+    .fill('Hide the comments');
   await panel.getByRole('button', { name: 'Preview' }).click();
   await panel.getByTestId('draft').waitFor({ timeout: 5000 });
   assert(!(await commentsVisible()), 'preview non appliquée');
