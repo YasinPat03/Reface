@@ -2,7 +2,8 @@
 // Jamais de valeurs de formulaire ; emails et longues suites de chiffres expurgés.
 import type { DistillResult } from '../shared/types';
 import { mediaInventory, siteContext } from './context';
-import { isStableId, stableClasses } from './selectors';
+import { designSnapshot } from './design';
+import { isStableId, repeatSignature, stableClasses } from './selectors';
 
 const MAX_REGIONS = 150;
 /** Budget de caractères pour les lignes de régions (~2,5k tokens). */
@@ -60,6 +61,14 @@ export function textSample(element: Element, max = 60): string {
   return redact(text).slice(0, max);
 }
 
+/** Fond opaque différent de celui du parent (ou attribut HTML bgcolor). */
+function ownBackground(element: Element): boolean {
+  if (element.hasAttribute('bgcolor')) return true;
+  const own = getComputedStyle(element).backgroundColor;
+  if (/^rgba\(.*,\s*0\)$|^transparent$/.test(own)) return false;
+  return !element.parentElement || getComputedStyle(element.parentElement).backgroundColor !== own;
+}
+
 function isVisible(element: Element, rect: DOMRect): boolean {
   if (rect.width < 2 || rect.height < 2) return false;
   if (typeof element.checkVisibility === 'function') {
@@ -81,8 +90,10 @@ function repeatInfo(element: Element): { rank: number; total: number } {
   if (!parent) return { rank: 0, total: 1 };
   const groups = new Map<string, Element[]>();
   for (const child of parent.children) {
-    // Un id distingue des frères structurels (#header, #contents…) : ce ne sont pas des répétitions.
-    const signature = `${child.tagName}#${child.id}.${stableClasses(child).sort().join('.')}`;
+    // Un id stable distingue des frères structurels (#header, #contents…) : ce ne sont pas des
+    // répétitions. Un id généré ou numérique (lignes HN « 50582069 ») n'empêche pas la répétition.
+    const id = child.id && isStableId(child.id) ? child.id : '';
+    const signature = `${id}#${repeatSignature(child)}`;
     groups.set(signature, [...(groups.get(signature) ?? []), child]);
   }
   for (const members of groups.values()) {
@@ -96,7 +107,8 @@ function describe(element: Element, index: number, rect: DOMRect, depth: number)
   const vh = window.innerHeight || 1;
   const tag = element.tagName.toLowerCase();
   const attrs: string[] = [];
-  if (element.id) attrs.push(`id=${quote(element.id)}`);
+  // Un id généré (« 50582069 », « mwDg8 ») n'aide pas le LLM : seuls les ids stables sont montrés.
+  if (element.id && isStableId(element.id)) attrs.push(`id=${quote(element.id)}`);
   const role = element.getAttribute('role');
   if (role) attrs.push(`role=${role}`);
   const aria = element.getAttribute('aria-label');
@@ -206,7 +218,14 @@ export function distill(
     else if (area > 0.03) score += 2;
     // Loin sous la ligne de flottaison : un peu moins prioritaire.
     if (rect.top + window.scrollY > window.innerHeight * 4) score -= 2;
-    if (/^H[1-3]$/.test(tag)) score += 3;
+    // Le titre principal est souvent visé (« le titre en rouge ») : il ne doit jamais être évincé.
+    if (tag === 'H1') score += 10;
+    else if (/^H[23]$/.test(tag)) score += 3;
+    // 1ers exemplaires d'une liste répétée (articles, cartes, lignes) : sans eux, le LLM ne
+    // voit que le conteneur et ne peut pas viser les éléments.
+    if (repeatInfo(element).total >= REPEAT_MIN) score += 4;
+    // Surface au fond propre (barre de navigation, encadré) : c'est ce qu'on repeint.
+    if (score < 4 && area > 0.01 && ownBackground(element)) score += 4;
     // Seuil bas : c'est le tri par score + le budget qui décident ensuite.
     const keep = isForced || score >= 4;
     if (keep) candidates.push({ element, rect, score: score + Math.min(area, 1) });
@@ -247,6 +266,7 @@ export function distill(
     typography: typography(),
     site: siteContext(),
     media: mediaInventory(),
+    design: designSnapshot(),
     included,
   };
 }

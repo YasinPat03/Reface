@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { completeJson, listModels } from '../src/background/llm';
+import { completeJson, listModels, nextEffort } from '../src/background/llm';
 
 const settings = { apiKey: 'sk-test', baseUrl: 'https://api.test/v1/', model: 'm' };
 const messages = [{ role: 'user' as const, content: 'x' }];
@@ -50,10 +50,61 @@ describe('completeJson : gestion des erreurs (5.3)', () => {
       await completeJson({ ...settings, model }, messages);
       const body = JSON.parse(fetch.mock.calls[0]![1].body);
       expect(body).not.toHaveProperty('temperature');
-      expect(body.reasoning_effort).toBe('low');
+      expect(body.reasoning_effort).toBe('none');
       expect(body.response_format.json_schema.strict).toBe(true);
     },
   );
+
+  const effortRefused = (message = 'Unsupported value for reasoning_effort.') =>
+    reply(400, { error: { param: 'reasoning_effort', message } });
+  const sentEffort = (fetch: ReturnType<typeof vi.fn>, call: number) =>
+    JSON.parse(fetch.mock.calls[call]![1].body).reasoning_effort;
+
+  it('Astra refuse « none » : repli sur « low », mémorisé pour les appels suivants', async () => {
+    const model = 'gpt-6.2-astra';
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(effortRefused())
+      .mockImplementation(() => Promise.resolve(ok({ a: 1 })));
+    vi.stubGlobal('fetch', fetch);
+    await expect(completeJson({ ...settings, model }, messages)).resolves.toEqual({ a: 1 });
+    expect([sentEffort(fetch, 0), sentEffort(fetch, 1)]).toEqual(['none', 'low']);
+    await completeJson({ ...settings, model }, messages);
+    expect(sentEffort(fetch, 2)).toBe('low'); // pas de nouvelle requête perdue
+  });
+
+  it('valeurs acceptées listées par le fournisseur : la plus faible est choisie', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        effortRefused(
+          "Unsupported value: 'reasoning_effort' does not support 'none' with this model. Supported values are: 'medium', 'low' and 'high'.",
+        ),
+      )
+      .mockImplementation(() => Promise.resolve(ok({ a: 1 })));
+    vi.stubGlobal('fetch', fetch);
+    await completeJson({ ...settings, model: 'gpt-6-test-list' }, messages);
+    expect(sentEffort(fetch, 1)).toBe('low');
+  });
+
+  it('paramètre refusé quelle que soit la valeur : il est omis', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(effortRefused())
+      .mockResolvedValueOnce(effortRefused())
+      .mockImplementation(() => Promise.resolve(ok({ a: 1 })));
+    vi.stubGlobal('fetch', fetch);
+    await expect(
+      completeJson({ ...settings, model: 'gpt-6-test-none' }, messages),
+    ).resolves.toEqual({ a: 1 });
+    expect(JSON.parse(fetch.mock.calls[2]![1].body)).not.toHaveProperty('reasoning_effort');
+  });
+
+  it('nextEffort : none → low → omis', () => {
+    expect(nextEffort('none', '')).toBe('low');
+    expect(nextEffort('low', '')).toBeNull();
+    expect(nextEffort(null, '')).toBeNull();
+  });
 
   it('HTTP 400 : indique le paramètre refusé sans exposer le message brut', async () => {
     const fetch = vi

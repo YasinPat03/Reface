@@ -34,6 +34,9 @@ listen<ContentApi>({
     clearPreview();
     return null;
   },
+  async currentPreview() {
+    return { css: document.getElementById('bp-preview')?.textContent ?? '' };
+  },
   pick: () => pick(),
   async cancelPick() {
     cancelPick();

@@ -1,6 +1,14 @@
 // Phase 2 : boucle agent complète contre un faux LLM compatible OpenAI.
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { assert, check, done, launch, startServer } from './harness.ts';
+import {
+  assert,
+  check,
+  done,
+  launch,
+  startServer,
+  declineRefine,
+  isRefineRequest,
+} from './harness.ts';
 
 const PAGE = `<!doctype html><html><head><title>Article de test</title>
 <style>body{font:16px sans-serif;margin:0} header,nav,main,aside,footer{display:block;padding:20px}
@@ -37,6 +45,7 @@ function regionOf(user: string, needle: RegExp): number {
 async function llm(req: IncomingMessage, res: ServerResponse) {
   let raw = '';
   for await (const chunk of req) raw += chunk;
+  if (isRefineRequest(raw)) return declineRefine(res);
   const body = JSON.parse(raw) as { messages: { role: string; content: string }[] };
   const user = body.messages.find((m) => m.role === 'user')?.content ?? '';
   requests.push({ body, user, auth: String(req.headers.authorization) });

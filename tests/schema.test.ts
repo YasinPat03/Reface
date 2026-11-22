@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseRecipe, toWire } from '../src/shared/schema';
+import { parseRecipe, parseReview, toWire } from '../src/shared/schema';
 
 const legacy = {
   ops: [
@@ -43,6 +43,28 @@ describe('parseRecipe', () => {
     expect(recipe.changes[1]!.targets.t1!.regionIndex).toBe(1);
     expect(recipe.changes[1]!.ops).toEqual([{ op: 'style', target: 't1', css: { color: 'red' } }]);
     expect(recipe.changes[2]!.css).toBe('main p{font-size:20px}');
+  });
+
+  it('normalise une clé de cible invalide au lieu de rejeter toute la réponse', () => {
+    const recipe = parseRecipe({
+      changes: [
+        {
+          title: 'Titre rouge',
+          ops: [
+            {
+              op: 'style',
+              target: 'titre-principal',
+              declarations: [{ property: 'color', value: 'red' }],
+            },
+          ],
+          targets: [{ key: 'titre-principal', regionIndex: 7, selectorHints: [], scope: 'one' }],
+          css: '',
+        },
+      ],
+      explanation: 'Rouge.',
+    });
+    expect(recipe.changes[0]!.targets.titre_principal!.regionIndex).toBe(7);
+    expect(recipe.changes[0]!.ops[0]!.target).toBe('titre_principal');
   });
 
   it('ignore les changements vides', () => {
@@ -104,5 +126,17 @@ describe('parseRecipe', () => {
     expect(() => parseRecipe({ ops: [] })).toThrow();
     expect(() => parseRecipe({ changes: [{ title: 'x' }], explanation: '' })).toThrow();
     expect(() => parseRecipe('pas du json')).toThrow();
+  });
+});
+
+describe('parseReview (affinage visuel)', () => {
+  it('lit les défauts et le verdict, en ignorant le reste de la recette', () => {
+    expect(
+      parseReview({ review: { defects: ['cartes trop hautes', 3], clean: false }, changes: [] }),
+    ).toEqual({ defects: ['cartes trop hautes'], clean: false });
+  });
+  it('sans critique valide : pas de défaut, pas propre', () => {
+    expect(parseReview({ changes: [] })).toEqual({ defects: [], clean: false });
+    expect(parseReview(null)).toEqual({ defects: [], clean: false });
   });
 });

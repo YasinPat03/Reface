@@ -1,7 +1,15 @@
 // Phase 4 : element picker (survol, ↑ parent, Échap), « Cacher cet élément » sans LLM,
 // et prompt ciblé (région pointée + sous-arbre envoyés au LLM).
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { assert, check, done, launch, startServer } from './harness.ts';
+import {
+  assert,
+  check,
+  done,
+  launch,
+  startServer,
+  declineRefine,
+  isRefineRequest,
+} from './harness.ts';
 
 const PAGE = `<!doctype html><html><head><title>Picker</title>
 <style>body{margin:0;font:16px sans-serif} main{padding:20px;min-height:300px} aside{padding:20px;min-height:200px}</style></head>
@@ -15,6 +23,7 @@ let lastUser = '';
 async function llm(req: IncomingMessage, res: ServerResponse) {
   let raw = '';
   for await (const chunk of req) raw += chunk;
+  if (isRefineRequest(raw)) return declineRefine(res);
   lastUser = (JSON.parse(raw) as { messages: { content: string }[] }).messages[1]!.content;
   const index = Number(
     lastUser.match(/Selected regions \(in selection order\): 1\. \[#(\d+)\]/)?.[1] ?? -1,

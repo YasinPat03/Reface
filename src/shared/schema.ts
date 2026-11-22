@@ -2,6 +2,7 @@
 // Format « fil » compatible avec le mode strict des structured outputs (pas d'objets ouverts),
 // puis converti en Recipe interne après validation Zod.
 import { z } from 'zod';
+import type { ThemeRole, ThemeTokens } from './theme';
 import type { CssDeclarations, Op, Recipe, RecipeChange, RecipeTarget } from './types';
 
 const declaration = z.object({
@@ -24,12 +25,67 @@ const wireTarget = z.object({
   scope: z.enum(['one', 'all_similar']).default('one'),
 });
 
+const THEME_ROLES = [
+  'page',
+  'header',
+  'footer',
+  'surface',
+  'item',
+  'title',
+  'meta',
+  'link',
+  'heading',
+  'input',
+] as const satisfies readonly ThemeRole[];
+const DENSITIES = ['compact', 'comfortable', 'airy'] as const;
+const CARD_SHAPES = ['auto', 'square', 'landscape'] as const;
+const PALETTE_KEYS = [
+  'background',
+  'surface',
+  'text',
+  'muted',
+  'accent',
+  'header',
+  'onHeader',
+  'border',
+] as const;
+
+/** Thème conçu par le LLM (jetons libres) : compilé en CSS par l'extension (`shared/theme.ts`). */
+const wireTheme = z.object({
+  inspiredBy: z.string().max(80),
+  palette: z.object(
+    Object.fromEntries(PALETTE_KEYS.map((k) => [k, z.string().max(40)])) as Record<
+      (typeof PALETTE_KEYS)[number],
+      z.ZodString
+    >,
+  ),
+  typography: z.object({
+    fontFamily: z.string().max(200),
+    baseSize: z.number(),
+    scale: z.number(),
+    titleWeight: z.number(),
+  }),
+  shape: z.object({ radius: z.number(), shadow: z.string().max(200) }),
+  layout: z.object({
+    cards: z.boolean(),
+    density: z.enum(DENSITIES),
+    maxWidth: z.number(),
+    dividers: z.boolean(),
+    columns: z.number().default(1),
+    cardShape: z.enum(CARD_SHAPES).default('auto'),
+  }),
+  roleStyles: z
+    .array(z.object({ role: z.enum(THEME_ROLES), declarations: z.array(declaration).max(20) }))
+    .max(12),
+});
+
 /** Un changement distinct : ses cibles sont propres (clés t1, t2… réutilisables d'un changement à l'autre). */
 const wireChange = z.object({
   title: z.string().max(80),
   ops: z.array(wireOp).max(20),
   targets: z.array(wireTarget).max(20),
   css: z.string().max(16_000),
+  theme: wireTheme.nullable().optional(),
 });
 
 export const wireRecipe = z.object({
@@ -88,6 +144,87 @@ const targetsSchema = {
   },
 } as const;
 
+const declarationsSchema = {
+  type: 'array',
+  items: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['property', 'value'],
+    properties: { property: { type: 'string' }, value: { type: 'string' } },
+  },
+} as const;
+
+const object = <P extends Record<string, unknown>>(properties: P, description?: string) => ({
+  type: 'object',
+  additionalProperties: false,
+  required: Object.keys(properties),
+  properties,
+  ...(description ? { description } : {}),
+});
+
+const themeSchema = {
+  anyOf: [
+    { type: 'null' },
+    object(
+      {
+        inspiredBy: {
+          type: 'string',
+          description:
+            'Design reference(s) this theme draws from (e.g. "Linear + Stripe"), or "" for an original design.',
+        },
+        palette: object(
+          Object.fromEntries(
+            PALETTE_KEYS.map((k) => [
+              k,
+              { type: 'string', description: 'Hex color, e.g. #1d1d1f.' },
+            ]),
+          ),
+          'Your own palette for this request and site. background = behind cards, surface = content/cards, muted = secondary text, header/onHeader = top bar and its text.',
+        ),
+        typography: object({
+          fontFamily: { type: 'string', description: 'System font stack only (no web fonts).' },
+          baseSize: { type: 'number', description: 'Body size in px (12-22).' },
+          scale: { type: 'number', description: 'Title / body ratio (1.1-1.6).' },
+          titleWeight: { type: 'number', description: '400-800.' },
+        }),
+        shape: object({
+          radius: { type: 'number', description: 'One radius in px, reused everywhere.' },
+          shadow: { type: 'string', description: 'CSS box-shadow, or "none".' },
+        }),
+        layout: object({
+          cards: { type: 'boolean', description: 'Each list item becomes a card.' },
+          density: { type: 'string', enum: DENSITIES },
+          maxWidth: { type: 'number', description: 'Max content width in px, 0 to keep.' },
+          dividers: {
+            type: 'boolean',
+            description: 'Hairline rules between list items (without cards).',
+          },
+          columns: {
+            type: 'number',
+            description:
+              'Items per row: 1 = vertical list, 2-4 = grid of cards ("3 per row"). The extension builds the grid and keeps each item (with its sibling rows) in one card.',
+          },
+          cardShape: {
+            type: 'string',
+            enum: CARD_SHAPES,
+            description: 'Card proportions in a grid: square, landscape, or auto (content height).',
+          },
+        }),
+        roleStyles: {
+          type: 'array',
+          description:
+            'Optional creative extras per role beyond the tokens (gradients, borders, letter-spacing, text-transform…). color and font-size are owned by the tokens and ignored here.',
+          items: object({
+            role: { type: 'string', enum: THEME_ROLES },
+            declarations: declarationsSchema,
+          }),
+        },
+      },
+      'Whole-page look designed by you (dark mode, modern, minimal, "like X", colors of the whole site…). The extension applies it to every surface, the top bar, list items, titles and metadata with guaranteed hierarchy and contrast. null for targeted edits.',
+    ),
+  ],
+} as const;
+
 /** JSON Schema envoyé au LLM (response_format json_schema, strict). */
 export const recipeJsonSchema = {
   type: 'object',
@@ -101,7 +238,7 @@ export const recipeJsonSchema = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['title', 'ops', 'targets', 'css'],
+        required: ['title', 'ops', 'targets', 'css', 'theme'],
         properties: {
           title: {
             type: 'string',
@@ -115,12 +252,54 @@ export const recipeJsonSchema = {
             description:
               'Optional extra plain CSS for THIS change only. Empty string if not needed.',
           },
+          theme: themeSchema,
         },
       },
     },
     explanation: { type: 'string' },
   },
 } as const;
+
+/**
+ * Schéma de l'affinage visuel : la CRITIQUE d'abord (les défauts vus sur la capture, et si c'est
+ * propre), puis la recette. Les sorties structurées suivent l'ordre du schéma : le modèle regarde
+ * vraiment la capture avant de décider, au lieu de recopier sa recette.
+ */
+export const refineJsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['review', 'changes', 'explanation'],
+  properties: {
+    review: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['defects', 'clean'],
+      properties: {
+        defects: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Visible defects in the screenshot that matter for the request or for a clean design (short, in the language of the user request). Empty if none.',
+        },
+        clean: {
+          type: 'boolean',
+          description: 'true only if the result is faithful to the request and visually clean.',
+        },
+      },
+    },
+    changes: recipeJsonSchema.properties.changes,
+    explanation: recipeJsonSchema.properties.explanation,
+  },
+} as const;
+
+/** Critique de l'affinage visuel (le reste de la réponse est une recette normale). */
+export function parseReview(raw: unknown): { defects: string[]; clean: boolean } {
+  const review = (raw as { review?: { defects?: unknown; clean?: unknown } } | null)?.review;
+  const defects = Array.isArray(review?.defects)
+    ? review.defects.filter((d): d is string => typeof d === 'string').map((d) => d.slice(0, 160))
+    : [];
+  return { defects: defects.slice(0, 6), clean: review?.clean === true };
+}
 
 function parseChange(wire: WireChange, index: number): RecipeChange {
   const keys = new Set(wire.targets.map((t) => t.key));
@@ -146,16 +325,72 @@ function parseChange(wire: WireChange, index: number): RecipeChange {
       { regionIndex: t.regionIndex, selectorHints: t.selectorHints, scope: t.scope },
     ]),
   );
-  return { title: wire.title.trim() || `Changement ${index + 1}`, ops, targets, css: wire.css };
+  const theme: ThemeTokens | null = wire.theme
+    ? {
+        ...wire.theme,
+        roleStyles: wire.theme.roleStyles.map((style) => ({
+          role: style.role,
+          declarations: Object.fromEntries(style.declarations.map((d) => [d.property, d.value])),
+        })),
+      }
+    : null;
+  return {
+    title: wire.title.trim() || `Changement ${index + 1}`,
+    ops,
+    targets,
+    css: wire.css,
+    ...(theme ? { theme } : {}),
+  };
 }
 
 /** Valide la sortie brute du LLM et la convertit au format interne. Lève une erreur lisible. */
-export function parseRecipe(raw: unknown): Recipe {
+/** Clé de cible conforme (t1, titre_principal…) : le LLM écrit parfois « titre-principal ». */
+function cleanKey(key: unknown): unknown {
+  return typeof key === 'string' ? key.replace(/[^a-z0-9_]/gi, '_').slice(0, 20) || 't' : key;
+}
+
+/**
+ * Normalise les clés de cible (et les références des ops) avant validation, plutôt que de
+ * rejeter toute la réponse pour un tiret. Le reste du format est validé strictement par Zod.
+ */
+function normalizeKeys(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object') return raw;
+  const fix = (change: unknown) => {
+    if (!change || typeof change !== 'object') return change;
+    const c = change as { ops?: unknown; targets?: unknown };
+    return {
+      ...c,
+      ...(Array.isArray(c.targets)
+        ? {
+            targets: c.targets.map((t) =>
+              t && typeof t === 'object'
+                ? { ...t, key: cleanKey((t as { key?: unknown }).key) }
+                : t,
+            ),
+          }
+        : {}),
+      ...(Array.isArray(c.ops)
+        ? {
+            ops: c.ops.map((o) => {
+              if (!o || typeof o !== 'object') return o;
+              const target = (o as { target?: unknown }).target;
+              return { ...o, target: target === '' ? '' : cleanKey(target) };
+            }),
+          }
+        : {}),
+    };
+  };
+  const r = raw as { changes?: unknown };
+  return Array.isArray(r.changes) ? { ...r, changes: r.changes.map(fix) } : fix(raw);
+}
+
+export function parseRecipe(input: unknown): Recipe {
+  const raw = normalizeKeys(input);
   const result = wireRecipe.safeParse(raw);
   if (result.success) {
     const changes = result.data.changes
       .map(parseChange)
-      .filter((c) => c.ops.length || c.css.trim());
+      .filter((c) => c.ops.length || c.css.trim() || c.theme);
     return { changes, explanation: result.data.explanation };
   }
   const legacy = legacyRecipe.safeParse(raw);
@@ -188,6 +423,18 @@ export function toWire(recipe: Recipe): WireRecipe {
         scope: t.scope ?? 'one',
       })),
       css: change.css,
+      theme: change.theme
+        ? {
+            ...change.theme,
+            roleStyles: change.theme.roleStyles.map((style) => ({
+              role: style.role,
+              declarations: Object.entries(style.declarations).map(([property, value]) => ({
+                property,
+                value,
+              })),
+            })),
+          }
+        : null,
     })),
     explanation: recipe.explanation,
   };

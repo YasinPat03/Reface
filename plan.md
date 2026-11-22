@@ -93,6 +93,18 @@
 On choisit au fur et à mesure. Chacune s'appuie sur le MVP sans le casser.
 
 - [x] **Changements séparés** : un prompt « X, Y et Z » donne 3 changements (recette `changes[]`), cochables un par un en preview, et enregistrés comme 3 règles activables séparément (`tests/e2e/phase6.e2e.ts`, scénario live `wiki-multi`)
+- [x] **Qualité du design** (branche `feat/design-quality`) : contexte « design » envoyé au LLM, consignes de design, garde-fous après la preview, réponse sans raisonnement (2× plus rapide). Mesuré par `tests/e2e/design-bench.ts`, testé par `tests/e2e/phase10.e2e.ts`
+  - [x] Banc de mesure : 3 sites (HN, Wikipedia, forum fictif), latence, sélecteurs morts, contraste dégradé, surfaces oubliées
+  - [x] Correctifs : ids numériques et lignes nues de tableau ne cassent plus la détection des listes, repli sur les suggestions du LLM pour « tous les similaires », plus de fausses alertes, `border-spacing` conservé
+  - [x] Instantané design (`src/content/design.ts`) : surfaces et `bgcolor`, palette, listes répétées avec lignes compagnes et parties, en-tête et pied, sélecteurs vérifiés
+  - [x] Consignes de design dans le prompt système (palette, contraste, cartes en tableau, héritage des couleurs, langue)
+  - [x] Garde-fous (`src/content/qualityCheck.ts`) : masquage abusif, sélecteurs morts, changement sans effet, surfaces claires d'un thème sombre, contraste corrigé par calcul
+  - [x] Thème par jetons : le LLM conçoit le goût (palette, typographie, formes, mise en page, styles par rôle), inspiré d'une bibliothèque de références (`src/shared/designReferences.ts`). L'extension l'exécute sur la carte des rôles (`roleMap`, `src/shared/theme.ts`) avec hiérarchie, contraste et cohérence garantis (`tests/e2e/phase11.e2e.ts`)
+  - [x] Le banc mesure aussi le goût : hiérarchie titre/méta, cohérence entre éléments, nombre de couleurs, articles déchirés
+  - [x] Grille par jetons (`layout.columns` 1 à 4, `cardShape`) : l'extension construit la grille, y compris pour les listes en lignes de tableau (HN : titre, infos et espaceur dans la même colonne via `:nth-child(… of …)`)
+  - [x] Garde-fou d'intégrité : article déchiré (titre séparé de ses infos), textes superposés, cartes vidées par la modif, débordement horizontal. Correction par le LLM, puis **refus expliqué** si le problème persiste
+  - [x] Affinage visuel, toujours actif : le LLM reçoit une capture de sa preview (v1), écrit d'abord sa critique, puis renvoie une v2. Elle n'est retenue que si elle passe les garde-fous, sans défaire un souhait explicite (`refine`, `tests/e2e/phase12.e2e.ts`)
+  - [x] Repli de `reasoning_effort` par modèle (`none` → la valeur acceptée la plus faible → paramètre omis) : corrige l'erreur 400 avec `gpt-6.2-astra`
 - [ ] **A. Raccourcis vers pages enfouies** (F7/F8)
   - [ ] Op `insertLink` + allow-list de liens (https, même domaine enregistrable, `textContent` seulement)
   - [ ] Inventaire des liens dans la distillation, pour pouvoir promouvoir un lien caché

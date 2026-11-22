@@ -57,3 +57,24 @@ export function done(): void {
   console.log(failures ? `\n${failures} échec(s)` : '\nTout est vert.');
   process.exit(failures ? 1 : 0);
 }
+
+/**
+ * Requête d'affinage visuel (le dernier message contient une capture). Les faux LLM des phases
+ * qui ne testent pas l'affinage y répondent par une erreur : la v1 reste alors telle quelle.
+ */
+export function isRefineRequest(raw: string): boolean {
+  try {
+    const messages = (JSON.parse(raw) as { messages?: { content: unknown }[] }).messages ?? [];
+    const last = messages.at(-1)?.content;
+    return Array.isArray(last) && last.some((p) => (p as { type?: string }).type === 'image_url');
+  } catch {
+    return false;
+  }
+}
+
+/** Réponse d'un faux LLM qui décline l'affinage visuel. */
+export function declineRefine(res: import('node:http').ServerResponse): void {
+  res
+    .writeHead(400, { 'Content-Type': 'application/json' })
+    .end('{"error":{"message":"refine not supported by this fake"}}');
+}

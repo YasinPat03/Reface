@@ -41,8 +41,13 @@ function compileOp(op: Op, targets: Record<string, Target>): string {
 }
 
 /** CSS d'une règle. Le CSS libre est déjà normalisé à l'enregistrement ; on le revérifie. */
-export function compileRule(rule: Pick<Rule, 'ops' | 'targets' | 'css'>): string {
+export function compileRule(
+  rule: Pick<Rule, 'ops' | 'targets' | 'css'> & { themeCss?: string },
+): string {
   const parts = rule.ops.map((op) => compileOp(op, rule.targets)).filter(Boolean);
+  // Thème d'abord : le CSS libre du LLM et les corrections passent après et peuvent l'affiner.
+  const theme = rule.themeCss?.trim();
+  if (theme && cssViolation(theme) === null) parts.unshift(theme);
   const free = rule.css.trim();
   if (free && cssViolation(free) === null) parts.push(free);
   return parts.join('\n');

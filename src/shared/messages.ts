@@ -15,6 +15,11 @@ export interface BgApi {
     { tabId: number; prompt: string; previous: Draft | null; pick: string | string[] | null },
     Draft
   >;
+  /**
+   * Affinage visuel : le LLM voit une capture de la preview et renvoie une version corrigée.
+   * Retourne le brouillon affiné (`refined: true`) ou, sinon, le brouillon reçu inchangé.
+   */
+  refine: Def<{ tabId: number; draft: Draft }, Draft>;
   /** Enregistre chaque changement coché du brouillon comme une règle distincte du site. */
   keep: Def<{ tabId: number; draft: Draft }, { ruleIds: string[] }>;
   /** Retire la preview. */
@@ -35,6 +40,8 @@ export interface ContentApi {
   /** Cases cochées/décochées dans la preview : ne prévisualise que les changements `enabled`. */
   updatePreview: Def<{ changes: DraftChange[] }, { previewCss: string }>;
   clearPreview: Def<Record<string, never>, null>;
+  /** CSS de la preview actuellement appliquée (pour ne pas écraser un brouillon déjà gardé). */
+  currentPreview: Def<Record<string, never>, { css: string }>;
   /** Bascule temporaire Original / Modifié (sans toucher au stockage). `set` absent = lecture. */
   original: Def<{ set?: boolean }, { original: boolean }>;
   /** Lance le picker ; répond à la sélection (null si annulé). */

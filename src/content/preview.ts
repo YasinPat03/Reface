@@ -1,9 +1,24 @@
 // Résolution de la recette (regionIndex → sélecteurs), normalisation du CSS libre et preview.
 import { compileRule } from '../shared/compile';
-import { cssViolation, isAllowedProperty } from '../shared/cssSafety';
+import { cssViolation, isAllowedProperty, isSafeSelector } from '../shared/cssSafety';
 import type { Draft, DraftChange, Recipe, RecipeChange, Target } from '../shared/types';
 import { regionAt } from './distill';
+import { compileTheme } from '../shared/theme';
+import { roleMap } from './design';
 import { detectLayoutRegressions } from './layoutCheck';
+import {
+  contrastFixes,
+  deadSelectors,
+  hasVisibleEffect,
+  integrityBefore,
+  integrityProblems,
+  introducedLowContrast,
+  lowContrastBefore,
+  pageLuminance,
+  surfaceFixes,
+  visibleTextLength,
+  type Fix,
+} from './qualityCheck';
 import { buildSelectors, fingerprint, groupSelector } from './selectors';
 
 const PREVIEW_ID = 'bp-preview';
@@ -64,15 +79,29 @@ export function normalizeFreeCss(css: string, warnings: string[]): string {
 
 /** Transforme chaque cible de la recette en sélecteurs robustes + empreinte. */
 export function resolveTargets(
-  change: Pick<RecipeChange, 'targets'>,
+  change: Pick<RecipeChange, 'targets' | 'ops'>,
   warnings: string[],
 ): Record<string, Target> {
   const targets: Record<string, Target> = {};
+  // Une cible qu'aucune opération n'utilise ne produit rien : ni résolution, ni avertissement.
+  const used = new Set(change.ops.map((op) => op.target).filter(Boolean));
+  const count = (selector: string) => {
+    try {
+      return isSafeSelector(selector) ? document.querySelectorAll(selector).length : 0;
+    } catch {
+      return 0;
+    }
+  };
   for (const [key, ref] of Object.entries(change.targets)) {
+    if (!used.has(key)) continue;
     const element = regionAt(ref.regionIndex);
     if (element) {
-      // Toute une liste répétée : un sélecteur de groupe d'abord, puis l'exemplaire en repli.
-      const group = ref.scope === 'all_similar' ? groupSelector(element) : null;
+      // Toute une liste répétée : un sélecteur de groupe d'abord, puis les suggestions du LLM qui
+      // visent plusieurs éléments (la région est souvent le conteneur de la liste), puis l'exemplaire.
+      const group =
+        ref.scope === 'all_similar'
+          ? (groupSelector(element) ?? ref.selectorHints.find((hint) => count(hint) >= 2) ?? null)
+          : null;
       if (ref.scope === 'all_similar' && !group) {
         warnings.push(
           `Cible ${key} : impossible de viser tous les éléments similaires, seul le premier sera modifié.`,
@@ -85,13 +114,7 @@ export function resolveTargets(
       }
     }
     // Pas d'index exploitable : on se rabat sur les suggestions du LLM qui matchent vraiment.
-    const hints = ref.selectorHints.filter((hint) => {
-      try {
-        return document.querySelectorAll(hint).length > 0;
-      } catch {
-        return false;
-      }
-    });
+    const hints = ref.selectorHints.filter((hint) => count(hint) > 0);
     if (hints.length) {
       const first = document.querySelector(hints[0]!)!;
       targets[key] = {
@@ -144,13 +167,157 @@ function resolveChange(change: RecipeChange, warnings: string[]): DraftChange | 
   const targets = resolveTargets(change, local);
   const ops = change.ops.filter((op) => !op.target || op.target in targets);
   const css = normalizeFreeCss(change.css, local);
+  // Thème : les jetons du LLM sont appliqués aux rôles de la page d'origine (sans nos styles).
+  const themeCss = change.theme
+    ? normalizeFreeCss(
+        compileTheme(
+          change.theme,
+          withoutOurStyles(() => roleMap()),
+        ),
+        local,
+      )
+    : '';
   warnings.push(...local.map((w) => `${change.title} : ${w}`));
-  const resolved: DraftChange = { title: change.title, ops, targets, css, enabled: true };
+  const resolved: DraftChange = {
+    title: change.title,
+    ops,
+    targets,
+    css,
+    enabled: true,
+    ...(change.theme ? { theme: change.theme, themeCss } : {}),
+  };
   if (!compileRule(resolved).trim()) {
     warnings.push(`« ${change.title} » ne produit aucun changement visible : ignoré.`);
     return null;
   }
   return resolved;
+}
+
+/** Exécute `fn` sans les règles enregistrées du site (bp-styles), la preview restant active. */
+function withoutSavedStyles<T>(fn: () => T): T {
+  const saved = document.getElementById('bp-styles') as HTMLStyleElement | null;
+  const previous = saved?.disabled ?? false;
+  if (saved) saved.disabled = true;
+  try {
+    return fn();
+  } finally {
+    if (saved) saved.disabled = previous;
+  }
+}
+
+/** Un changement qui cache quelque chose (op hide ou display:none dans son CSS). */
+function hidesSomething(change: DraftChange): boolean {
+  return change.ops.some((op) => op.op === 'hide') || /display\s*:\s*none/i.test(change.css);
+}
+
+/** Ajoute des corrections calculées au CSS de leur changement (normalisées comme le CSS libre). */
+function applyFixes(changes: DraftChange[], fixes: Fix[]): void {
+  for (const fix of fixes) {
+    const change = changes[fix.change];
+    if (!change) continue;
+    try {
+      const css = normalizeFreeCss(fix.css, []);
+      if (css) change.css = [change.css, css].filter((s) => s.trim()).join('\n');
+    } catch {
+      /* correction refusée par la validation CSS : ignorée */
+    }
+  }
+}
+
+/**
+ * Garde-fous de qualité (`qualityCheck.ts`). Modifie `changes` en place :
+ * - désactive un changement qui masque la majeure partie de la page ;
+ * - signale les changements dont la plupart des règles ne visent rien (demande ignorée) ;
+ * - repeint les surfaces restées claires d'un thème sombre et corrige le contraste dégradé.
+ * Retourne les problèmes à renvoyer au LLM (en anglais) pour une auto-correction.
+ */
+function enforceQuality(
+  changes: DraftChange[],
+  warnings: string[],
+): { issues: string[]; broken: string[] } {
+  const issues: string[] = [];
+  setPreview('');
+  const list = withoutOurStyles(() => roleMap()).list;
+  const integrity = integrityBefore(list);
+  const textBefore = Math.max(1, visibleTextLength());
+  const lowBefore = lowContrastBefore();
+  const luminanceBefore = pageLuminance();
+
+  for (const change of changes) {
+    if (!hidesSomething(change)) continue;
+    setPreview(compileRule(change));
+    const lost = 1 - visibleTextLength() / textBefore;
+    if (lost > 0.5) {
+      change.enabled = false;
+      warnings.push(
+        `« ${change.title} » masquait ${Math.round(lost * 100)} % du texte de la page : désactivé.`,
+      );
+      issues.push(
+        `The change "${change.title}" hid ${Math.round(lost * 100)}% of the page text: it targets a container that also holds the main content. Target only the smallest element that contains what the user wants hidden (see the layout roles in the design snapshot).`,
+      );
+    }
+  }
+
+  for (const change of changes) {
+    if (!change.enabled) continue;
+    // Le thème compilé vise des rôles vérifiés : seul le CSS écrit par le LLM peut viser à côté.
+    const css = compileRule({ ...change, themeCss: undefined });
+    const total = css.split('{').length - 1;
+    const dead = deadSelectors(css);
+    if (total && dead.length * 2 >= total) {
+      warnings.push(
+        `« ${change.title} » : ${dead.length} règle(s) sur ${total} ne visent aucun élément de la page.`,
+      );
+      issues.push(
+        `In the change "${change.title}", these selectors match nothing on this page: ${dead.slice(0, 4).join(' ; ')}. Use the verified selectors from the design snapshot instead.`,
+      );
+    }
+  }
+
+  for (const change of changes) {
+    if (!change.enabled) continue;
+    const css = compileRule(change);
+    const effect = () =>
+      hasVisibleEffect(
+        css,
+        () => setPreview(css),
+        () => setPreview(''),
+      );
+    if (effect()) continue;
+    // Sans effet parce qu'une règle déjà enregistrée fait la même chose : on prévient seulement.
+    if (withoutSavedStyles(effect)) {
+      warnings.push(`« ${change.title} » est déjà appliqué par une modification enregistrée.`);
+      continue;
+    }
+    warnings.push(`« ${change.title} » ne change rien de visible sur la page.`);
+    issues.push(
+      `The change "${change.title}" has NO visible effect: its selectors match, but the computed styles do not change (the elements probably set their own value, e.g. a heading with its own color inside the styled container). Apply the declarations to the elements that actually display the text or surface (e.g. the h1 itself, or "container *").`,
+    );
+  }
+
+  const compiled = () => changes.map((change) => (change.enabled ? compileRule(change) : ''));
+  setPreview(compileChanges(changes));
+  applyFixes(changes, surfaceFixes(luminanceBefore, compiled()));
+  setPreview(compileChanges(changes));
+  // Une à une : chaque correction n'est gardée que si elle réduit les textes illisibles.
+  let lowCount = introducedLowContrast(lowBefore);
+  for (const fix of lowCount ? contrastFixes(lowBefore, compiled()) : []) {
+    const change = changes[fix.change];
+    if (!change) continue;
+    const previous = change.css;
+    applyFixes(changes, [fix]);
+    setPreview(compileChanges(changes));
+    const now = introducedLowContrast(lowBefore);
+    if (now < lowCount) lowCount = now;
+    else change.css = previous;
+    if (!lowCount) break;
+  }
+  // Intégrité de la mise en page, sur le résultat final (corrections comprises).
+  setPreview(compileChanges(changes));
+  const integrityCheck = integrityProblems(list, integrity);
+  issues.push(...integrityCheck.issues);
+  setPreview('');
+  return { issues, broken: integrityCheck.user };
 }
 
 /** Construit le brouillon complet et l'applique en preview. */
@@ -159,6 +326,7 @@ export function prepareDraft(recipe: Recipe, prompts: string[]): Draft {
   const changes = recipe.changes
     .map((change) => resolveChange(change, warnings))
     .filter((c): c is DraftChange => !!c);
+  const { issues: qualityIssues, broken } = enforceQuality(changes, warnings);
   const previewCss = compileChanges(changes);
   if (!previewCss.trim() && !warnings.length) {
     warnings.push('Cette modification ne produit aucun changement visible.');
@@ -169,7 +337,7 @@ export function prepareDraft(recipe: Recipe, prompts: string[]): Draft {
       .filter(([key]) => change.ops.some((op) => op.op === 'hide' && op.target === key))
       .flatMap(([, t]) => t.selectors),
   );
-  const layoutIssues = detectLayoutRegressions(
+  const regressions = detectLayoutRegressions(
     () => setPreview(previewCss),
     () => setPreview(''),
     (element) =>
@@ -181,6 +349,7 @@ export function prepareDraft(recipe: Recipe, prompts: string[]): Draft {
         }
       }) || getComputedStyle(element).display === 'none',
   );
+  const layoutIssues = [...qualityIssues, ...regressions];
   return {
     host: location.hostname,
     prompts,
@@ -190,6 +359,7 @@ export function prepareDraft(recipe: Recipe, prompts: string[]): Draft {
     previewCss,
     warnings,
     layoutIssues,
+    broken,
   };
 }
 

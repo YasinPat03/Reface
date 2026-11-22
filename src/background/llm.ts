@@ -10,6 +10,8 @@ export class LlmError extends Error {
     readonly retryable: boolean,
     /** Paramètre de requête refusé par le modèle (ex. « temperature »), s'il est connu. */
     readonly rejectedParam: string | null = null,
+    /** Message brut du fournisseur : usage interne (valeurs acceptées), jamais affiché. */
+    readonly providerMessage = '',
   ) {
     super(message);
   }
@@ -20,12 +22,37 @@ const OPTIONAL_PARAMS = new Set(['temperature']);
 /** Mémoire (par modèle) des paramètres refusés, pour ne pas reperdre une requête à chaque fois. */
 const rejected = new Map<string, Set<string>>();
 
+/**
+ * Effort de raisonnement des GPT-6, du plus rapide au plus lent. Tous les modèles n'acceptent pas
+ * « none » (ex. gpt-6.2-astra) : on se replie vers la valeur acceptée la plus faible, puis on
+ * omet le paramètre. Le choix est mémorisé par modèle (null = paramètre omis).
+ */
+const EFFORTS = ['none', 'minimal', 'low', 'medium', 'high'] as const;
+const effortByModel = new Map<string, string | null>();
+
+export function nextEffort(current: string | null, providerMessage: string): string | null {
+  if (current === null) return null;
+  const supported = providerMessage
+    .match(/supported values are:?\s*([^\n]+)/i)?.[1]
+    ?.match(/'([a-z]+)'|"([a-z]+)"|\b([a-z]+)\b/gi)
+    ?.map((v) => v.replace(/['"]/g, '').toLowerCase())
+    .filter(
+      (v): v is (typeof EFFORTS)[number] =>
+        (EFFORTS as readonly string[]).includes(v) && v !== current,
+    );
+  if (supported?.length) {
+    return [...supported].sort((a, b) => EFFORTS.indexOf(a) - EFFORTS.indexOf(b))[0]!;
+  }
+  // Sans liste : « none » → « low » → paramètre omis.
+  return current === 'none' || current === 'minimal' ? 'low' : null;
+}
+
 /** Extrait { message, param } d'un corps d'erreur au format OpenAI. */
 function providerError(body: string): { message: string; param: string | null } {
   try {
     const error = (JSON.parse(body) as { error?: { message?: string; param?: string | null } })
       .error;
-    return { message: String(error?.message ?? '').slice(0, 200), param: error?.param ?? null };
+    return { message: String(error?.message ?? '').slice(0, 600), param: error?.param ?? null };
   } catch {
     return { message: '', param: null };
   }
@@ -46,7 +73,10 @@ function describeHttpError(status: number, body: string): LlmError {
       : new LlmError('Limite de requêtes atteinte. Réessayez dans un instant.', true);
   }
   if (status === 400) {
-    const { param } = providerError(body);
+    const { message } = providerError(body);
+    // Certains fournisseurs nomment le paramètre seulement dans le message.
+    const param =
+      providerError(body).param ?? (/reasoning_effort/i.test(message) ? 'reasoning_effort' : null);
     const parameter = typeof param === 'string' && /^[\w.[\]-]{1,100}$/.test(param) ? param : '';
     return new LlmError(
       parameter === 'response_format'
@@ -56,24 +86,39 @@ function describeHttpError(status: number, body: string): LlmError {
           : 'Requête refusée (HTTP 400). Vérifiez le modèle et les paramètres de l’API.',
       false,
       param,
+      message,
     );
   }
   return new LlmError(`Le fournisseur LLM a répondu ${status}.`, status >= 500);
 }
 
+/** Partie d'un message multimodal (texte, ou image en data URL pour l'affinage visuel). */
+export type ContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string; detail?: 'low' | 'high' | 'auto' } };
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
-  content: string;
+  content: string | ContentPart[];
 }
 
 type ResponseSchema = { name: string; schema: object };
+
+/** GPT-6 : refuse temperature, accepte (selon le modèle) reasoning_effort. */
+function isGpt6(model: string): boolean {
+  return /^(?:openai\/)?gpt-6(?:[.-]|$)/i.test(model);
+}
+
+function effortParam(model: string): { reasoning_effort?: string } {
+  const effort = effortByModel.has(model) ? effortByModel.get(model)! : 'none';
+  return effort === null ? {} : { reasoning_effort: effort };
+}
 
 async function once(
   settings: Settings,
   messages: ChatMessage[],
   responseSchema: ResponseSchema,
 ): Promise<unknown> {
-  const isGpt6 = /^(?:openai\/)?gpt-6(?:[.-]|$)/i.test(settings.model);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   let response: Response;
@@ -88,9 +133,10 @@ async function once(
       body: JSON.stringify({
         model: settings.model,
         messages,
-        // GPT-6 refuse temperature ; un effort faible convient aux recettes CSS interactives.
-        ...(isGpt6
-          ? { reasoning_effort: 'low' }
+        // GPT-6 refuse temperature. Sans raisonnement, la réponse arrive 2× plus vite (≈2,7 s au
+        // lieu de 5 s) : le contexte design fournit déjà les sélecteurs et la structure.
+        ...(isGpt6(settings.model)
+          ? effortParam(settings.model)
           : rejected.get(settings.model)?.has('temperature')
             ? {}
             : { temperature: 0.2 }),
@@ -139,13 +185,22 @@ export async function completeJson(
     throw new LlmError('Aucune clé API configurée. Ouvrez les Options pour en ajouter une.', false);
   }
   let transientRetryUsed = false;
-  // Au plus : un retry transitoire + un retry par paramètre optionnel refusé.
-  for (let attempt = 0; attempt < 2 + OPTIONAL_PARAMS.size; attempt++) {
+  // Au plus : un retry transitoire, un par paramètre optionnel refusé, 3 replis d'effort.
+  for (let attempt = 0; attempt < 5 + OPTIONAL_PARAMS.size; attempt++) {
     try {
       return await once(settings, messages, responseSchema);
     } catch (error) {
       if (!(error instanceof LlmError)) throw error;
       const param = error.rejectedParam;
+      if (param === 'reasoning_effort' && isGpt6(settings.model)) {
+        const current = effortByModel.has(settings.model)
+          ? effortByModel.get(settings.model)!
+          : 'none';
+        if (current !== null) {
+          effortByModel.set(settings.model, nextEffort(current, error.providerMessage));
+          continue;
+        }
+      }
       const known = rejected.get(settings.model) ?? new Set<string>();
       if (param && OPTIONAL_PARAMS.has(param) && !known.has(param)) {
         rejected.set(settings.model, known.add(param));

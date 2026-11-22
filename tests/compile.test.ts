@@ -135,8 +135,16 @@ describe('allow-list des propriétés', () => {
     'border-top-left-radius',
     '--accent',
     'inset-inline-start',
+    // Longhands générées par Chrome pour border-spacing (sinon les cartes restent collées).
+    '-webkit-border-horizontal-spacing',
+    '-webkit-border-vertical-spacing',
   ])('autorise %s', (property) => expect(isSafeDeclaration(property, '1px')).toBe(true));
-  it.each(['content', 'all', '-moz-binding', 'behavior'])('refuse %s', (property) =>
-    expect(isSafeDeclaration(property, 'x')).toBe(false),
-  );
+  it.each([
+    'content',
+    'all',
+    '-moz-binding',
+    'behavior',
+    '-webkit-mask-image',
+    '-webkit-box-reflect',
+  ])('refuse %s', (property) => expect(isSafeDeclaration(property, 'x')).toBe(false));
 });
