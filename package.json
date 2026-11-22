@@ -11,6 +11,7 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:e2e": "npm run build && for f in tests/e2e/phase*.e2e.ts; do node \"$f\" || exit 1; done",
+    "catalogue:bundle": "node scripts/bundle-catalogue-function.mjs",
     "catalogue": "node --experimental-strip-types scripts/catalogue-server.ts"
   },
   "dependencies": {

@@ -70,7 +70,7 @@ const tabId = await worker.evaluate(
 await panel.goto(ext(`src/panel/index.html?tabId=${tabId}`));
 const commentsVisible = () => page.isVisible('#comments');
 let publications: Record<string, unknown>[] = [];
-await context.route('http://127.0.0.1:8892/api/catalogue', async (route) => {
+await context.route(/(?:\/api\/catalogue|\/functions\/v1\/reface-catalogue)$/, async (route) => {
   if (route.request().method() === 'POST') {
     const incoming = route.request().postDataJSON() as Record<string, unknown>;
     const entry = { ...incoming, id: 'c_e2e_publication', createdAt: new Date().toISOString() };
@@ -168,6 +168,8 @@ await check(
     await panel
       .getByLabel('Petite description')
       .fill('Le thème de lecture publié pour la démonstration.');
+    const code = panel.getByLabel('Code de publication');
+    if (await code.isVisible()) await code.fill('rfc_' + 'a'.repeat(43));
     await panel
       .getByRole('form', { name: 'Publier un thème' })
       .getByRole('button', { name: 'Publier', exact: true })

@@ -1,7 +1,7 @@
 import { compileRule } from './compile.ts';
 import type { CatalogueEntry } from './catalogueSchema';
 
-function themeStyles(entry: CatalogueEntry): string {
+export function themeStyles(entry: CatalogueEntry): string {
   const css = entry.rules.map(compileRule).join('\n');
   const blocks: string[] = [];
   let block = '',
