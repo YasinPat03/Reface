@@ -9,7 +9,11 @@ import { persist } from './rules';
 import type { SiteRules } from './types';
 
 export const CATALOGUE_PREFIX = 'catalogue:entry:';
-export const CATALOGUE_URL = 'http://127.0.0.1:8892/api/catalogue';
+export const CATALOGUE_URL =
+  import.meta.env.VITE_REFACE_CATALOGUE_URL ??
+  'https://sfqrjerdqzfqxmhjmwel.supabase.co/functions/v1/reface-catalogue';
+export const CATALOGUE_REQUIRES_CODE =
+  !/^http:\/\/(?:127\.0\.0\.1|localhost):8892\/api\/catalogue$/.test(CATALOGUE_URL);
 
 export async function getPrivateCatalogue(): Promise<CatalogueEntry[]> {
   const stored = await chrome.storage.local.get(null);
@@ -88,13 +92,19 @@ export async function publishEntry(
   entry: CatalogueEntry,
   title: string,
   description: string,
+  publisherCode?: string,
 ): Promise<CatalogueEntry> {
   const publication = publicEntry(catalogueEntrySchema.parse({ ...entry, title, description }));
   let response: Response;
   try {
     response = await fetch(CATALOGUE_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(CATALOGUE_REQUIRES_CODE && publisherCode
+          ? { 'X-ReFace-Publish-Code': publisherCode.trim() }
+          : {}),
+      },
       body: JSON.stringify(publication),
       signal: AbortSignal.timeout(5000),
     });
@@ -103,6 +113,13 @@ export async function publishEntry(
       'Le catalogue public est indisponible. Votre thème reste dans votre collection privée.',
     );
   }
+  if (response.status === 403)
+    throw new Error('Code de publication manquant, invalide ou révoqué.');
+  if (response.status === 413) throw new Error('Le thème est trop volumineux pour être publié.');
+  if (response.status === 422)
+    throw new Error('Cette page ne peut pas être partagée dans le catalogue.');
+  if (response.status === 429)
+    throw new Error('Limite de publication atteinte. Réessayez plus tard.');
   if (response.status === 409) throw new Error('Ce thème est déjà dans le catalogue public.');
   if (!response.ok) throw new Error('La publication a échoué. Réessayez dans un instant.');
   return catalogueEntrySchema.parse(await response.json());

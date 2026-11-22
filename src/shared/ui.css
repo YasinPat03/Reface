@@ -1277,3 +1277,13 @@ button:disabled {
 .accessibility-description-status:empty {
   display: none;
 }
+
+.catalogue-publisher {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.catalogue-publisher .field-help {
+  margin: 0;
+}

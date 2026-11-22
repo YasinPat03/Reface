@@ -114,10 +114,33 @@ Avant le premier `test:e2e`, installer Chromium avec `npx playwright install chr
 
 **Debug :** `chrome-extension://<id>/src/panel/index.html?tabId=<id>` ouvre le panel dans un onglet, en visant un autre onglet.
 
-## Catalogue public de démonstration
+## Catalogue public hébergé
 
-Dans un terminal séparé, démarrer `npm run catalogue` (Node 22.6 ou plus récent). Le service écoute seulement sur `127.0.0.1:8892` et lit les thèmes dans `demo/catalogue/public/`. Chaque publication crée un nouveau fichier JSON dans ce dossier. Des thèmes de démonstration sont inclus. Modifier ou ajouter des fichiers respectant `reface/catalogue/v1`, puis cliquer **Actualiser** pour les voir.
+L’onglet **Publique** liste les 100 thèmes les plus récents depuis Supabase. La consultation et l’import fonctionnent sans compte. **Publier** demande un code individuel fourni par l’équipe. La collection **Privée** reste dans `chrome.storage.local` et fonctionne hors ligne. Importer un thème ne l’applique pas automatiquement. **Appliquer** le charge uniquement sur son origine et son chemin de page.
 
-Ce catalogue « public » est une démonstration locale, accessible à l’extension sur cet ordinateur. Les collections privées restent dans `chrome.storage.local`. Ajouter un thème public à la collection ne l’active pas : **Appliquer** le charge uniquement sur son origine et son chemin de page. Les thèmes conservent leurs styles, pas les prompts originaux ni les extraits de texte capturés par le sélecteur. Aucun appel à un modèle n’est nécessaire.
+L’API vérifie le format du thème et assainit les règles avant de les partager. Elle utilise le CSS compilé et l’adresse cible pour détecter les doublons. Les tables ne sont pas accessibles directement depuis l’extension.
+
+### Donner ou révoquer un code
+
+Générez un code par personne dans un terminal de confiance :
+
+```sh
+node -e "const {randomBytes,createHash}=require('node:crypto'); const code='rfc_'+randomBytes(32).toString('base64url'); console.log('Code :',code); console.log('Empreinte :',createHash('sha256').update(code).digest('hex'));"
+```
+
+Insérez **l’empreinte** dans le SQL Editor du projet Supabase et remettez le **code** au destinataire en privé.
+
+```sql
+insert into public.reface_catalogue_publishers (label, code_hash)
+values ('Nom du testeur', '<empreinte>');
+```
+
+Pour bloquer un code, renseignez `revoked_at` pour son empreinte. Les thèmes déjà publiés restent visibles. Un code peut publier 20 nouveaux thèmes par heure.
+
+### Développement
+
+La migration se trouve dans `supabase/migrations`. `npm run catalogue:bundle` produit l’Edge Function dans `node_modules/.cache/reface-catalogue/index.js`. Déployez ce bundle en tant que fonction `reface-catalogue`, avec la vérification JWT de la plateforme désactivée. La fonction vérifie elle-même le code pour les publications et utilise les identifiants de service injectés par Supabase.
+
+Pour tester le serveur de démonstration local, définissez `VITE_REFACE_CATALOGUE_URL=http://127.0.0.1:8892/api/catalogue` dans `.env.local`, reconstruisez l’extension, puis lancez `npm run catalogue`. Le service local lit les thèmes dans `demo/catalogue/public/`.
 
 Les anciennes règles restent actives à l’échelle du site. Les thèmes du Catalogue sont enregistrés séparément et leur CSS est compilé par page. L’injecteur suit aussi les changements de chemin des applications à navigation interne.

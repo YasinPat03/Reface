@@ -8,6 +8,7 @@ import {
   capturePage,
   catalogueRuleId,
   CATALOGUE_PREFIX,
+  CATALOGUE_REQUIRES_CODE,
   getPrivateCatalogue,
   getPublicCatalogue,
   matchesPage,
@@ -124,18 +125,24 @@ export function Catalogue({
       setMessage({ error: true, text: 'Ajoutez un titre et une petite description.' });
       return;
     }
+    const code = new FormData(event.currentTarget as HTMLFormElement).get('publisherCode');
     await run(
       async () => {
         if (form === 'save') await savePrivateEntry(capturePage(site, tab.url, title, description));
         else {
-          const published = await publishEntry(form, title, description);
+          const published = await publishEntry(
+            form,
+            title,
+            description,
+            typeof code === 'string' ? code : undefined,
+          );
           setPublicEntries((previous) => [published, ...previous]);
         }
         setForm(null);
       },
       form === 'save'
         ? 'Thème enregistré dans votre collection privée.'
-        : 'Votre thème a été publié dans le catalogue public de démonstration.',
+        : 'Votre thème a été publié dans le catalogue public.',
     );
   }
 
@@ -184,7 +191,7 @@ export function Catalogue({
         </Tabs.Panel>
         <Tabs.Panel value="public">
           <div className="catalogue-intro">
-            <p>Catalogue partagé de démonstration.</p>
+            <p>Thèmes partagés par la communauté ReFace.</p>
             <button
               className="text-button"
               disabled={loading || busy}
@@ -228,8 +235,27 @@ export function Catalogue({
           {form !== 'save' && (
             <p className="field-help">
               Le titre, la description, la page cible et les styles seront ajoutés au catalogue
-              public de démonstration.
+              public.
             </p>
+          )}
+          {form !== 'save' && CATALOGUE_REQUIRES_CODE && (
+            <div className="catalogue-publisher">
+              <label htmlFor="catalogue-publisher-code">Code de publication</label>
+              <input
+                id="catalogue-publisher-code"
+                name="publisherCode"
+                className="form-input"
+                type="password"
+                autoComplete="off"
+                spellCheck={false}
+                required
+                maxLength={47}
+                aria-describedby="catalogue-publisher-help"
+              />
+              <p className="field-help" id="catalogue-publisher-help">
+                Demandez un code à l’équipe ReFace pour publier un thème.
+              </p>
+            </div>
           )}
           <div className="catalogue-actions">
             <button
