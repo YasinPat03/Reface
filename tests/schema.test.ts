@@ -90,6 +90,23 @@ describe('parseRecipe', () => {
     expect(recipe.changes[0]!.title).toBe('Cache les commentaires.');
   });
 
+  it('menuBar : menu replié à montrer en barre, 0 par défaut', () => {
+    const recipe = parseRecipe({
+      changes: [
+        { title: 'Navbar', ops: [], targets: [], css: '', theme: null, menuBar: 1 },
+        { ...multi.changes[2]!, theme: null, menuBar: 0 },
+      ],
+      explanation: 'Barre de navigation.',
+    });
+    // Un changement qui ne fait que montrer le menu n'est pas vide.
+    expect(recipe.changes).toHaveLength(2);
+    expect(recipe.changes[0]!.menuBar).toBe(1);
+    expect(recipe.changes[1]!.menuBar).toBeUndefined();
+    expect(parseRecipe(multi).changes[0]!.menuBar).toBeUndefined();
+    expect(toWire(recipe).changes.map((c) => c.menuBar)).toEqual([1, 0]);
+    expect(parseRecipe(toWire(recipe))).toEqual(recipe);
+  });
+
   it('aller-retour toWire → parseRecipe', () => {
     for (const raw of [legacy, multi]) {
       const recipe = parseRecipe(raw);

@@ -84,6 +84,8 @@ export interface RecipeChange {
   css: string;
   /** Thème conçu par le LLM (jetons), compilé en CSS par l'extension. */
   theme?: ThemeTokens | null;
+  /** Menu replié n (« [menu n] » de l'instantané) à montrer en barre horizontale ; 0 ou absent : aucun. */
+  menuBar?: number;
 }
 
 /** Réponse brute du LLM (validée par Zod en phase 2). */
@@ -148,6 +150,8 @@ export interface Draft {
   refined?: boolean;
   /** Défauts vus par le LLM sur la capture de la v1 (et corrigés par la v2). */
   review?: string[];
+  /** Page distillée pour ce brouillon : l'affinage la réutilise au lieu de redistiller. */
+  page?: DistillResult;
 }
 
 /** Changement résolu : sélecteurs robustes, CSS normalisé. */
@@ -159,6 +163,9 @@ export interface DraftChange {
   /** Jetons du thème (révisables en itération) et leur CSS compilé, fusionné dans `css` au Keep. */
   theme?: ThemeTokens;
   themeCss?: string;
+  /** Menu replié montré en barre (révisable en itération) et son CSS calculé, fusionné au Keep. */
+  menuBar?: number;
+  menuCss?: string;
   /** Coché dans la preview : seuls les changements cochés sont prévisualisés et enregistrés. */
   enabled: boolean;
   /** Prompt(s) qui ont produit CE changement (pas ceux des autres changements du brouillon). */

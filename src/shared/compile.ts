@@ -42,10 +42,13 @@ function compileOp(op: Op, targets: Record<string, Target>): string {
 
 /** CSS d'une règle. Le CSS libre est déjà normalisé à l'enregistrement ; on le revérifie. */
 export function compileRule(
-  rule: Pick<Rule, 'ops' | 'targets' | 'css'> & { themeCss?: string },
+  rule: Pick<Rule, 'ops' | 'targets' | 'css'> & { themeCss?: string; menuCss?: string },
 ): string {
   const parts = rule.ops.map((op) => compileOp(op, rule.targets)).filter(Boolean);
-  // Thème d'abord : le CSS libre du LLM et les corrections passent après et peuvent l'affiner.
+  // Thème d'abord, puis la barre de menu : le CSS libre du LLM et les corrections passent après
+  // et peuvent les affiner.
+  const menu = rule.menuCss?.trim();
+  if (menu && cssViolation(menu) === null) parts.unshift(menu);
   const theme = rule.themeCss?.trim();
   if (theme && cssViolation(theme) === null) parts.unshift(theme);
   const free = rule.css.trim();

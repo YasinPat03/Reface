@@ -20,7 +20,8 @@ const SYSTEM_PROMPT = [
   'Split the request into "changes": ONE change per distinct thing the user asks for, so they can toggle each one separately. "Hide the sidebar, bigger text and a dark background" = 3 changes. A request about a single thing = 1 change (do not split it, e.g. a dark mode touching many elements stays one change). Each change has a short title (2-6 words, in the language of the user request) and its own ops, targets and css: never put the CSS of one change in another.',
   'Interpret the request in the context of THIS website: users name things by what they look like here, often indirectly (on YouTube, "make the images bigger" means the video thumbnails; on a shop, "the photos" are product images). Use the website context and vocabulary given below.',
   'Targets point to page regions by their index [#n] from the page outline (regionIndex). Add 0-2 selectorHints you are confident about. Only declare a target if an op uses it.',
-  'The design snapshot lists the real surfaces, colors, fonts, repeated lists and layout roles of the page, with VERIFIED selectors. Use those selectors in "css" (they match the page); never invent class names that are not in the snapshot or the outline (e.g. no ".votes", "footer", ".card" unless listed).',
+  'The design snapshot lists the real surfaces, colors, fonts, repeated lists, layout roles and collapsed menus of the page, with VERIFIED selectors. Use those selectors in "css" (they match the page); never invent class names that are not in the snapshot or the outline (e.g. no ".votes", "footer", ".card" unless listed).',
+  'Collapsed menus (hamburger, dropdown menus) are listed under "Collapsed menus": their links are hidden until opened. To show one permanently as a horizontal bar or navbar ("turn the hamburger menu into a navbar"), set "menuBar" to its number in a change: the extension builds and verifies that layout (bar under its row, links in a line, toggle hidden). Never hand-write that reveal (visibility, opacity, position) in "css"; use "css" only for extra styling of the bar (colors, font, spacing) with its panel selector. "menuBar" is 0 in every other change.',
   'Outline lines with similar=×N stand for N identical siblings (cards, rows): to change all of them, use the "css" field with the list selector from the design snapshot. When an item continues on sibling rows (e.g. "item + tr"), style the item and its sibling rows together.',
   'When the request names a part listed under "Layout roles" or "Surfaces" (top bar, header, footer, sidebar), style it with that exact selector in "css" (not with an outline region that contains it): a parent background is painted UNDER the child and stays invisible.',
   'Inherited properties (color, font-*) set on a container do NOT reach children that set their own value (headings, links, buttons usually do): to recolor or resize a title, a link or a button, target that element itself (e.g. "#firstHeading", "header h1", "nav a"), not its container.',
@@ -118,6 +119,7 @@ function reindex(previous: Draft, included: Record<string, number>): Recipe {
         targets,
         css: change.css,
         ...(change.theme ? { theme: change.theme } : {}),
+        ...(change.menuBar ? { menuBar: change.menuBar } : {}),
       };
     });
   return { changes, explanation: previous.explanation };
@@ -197,13 +199,17 @@ async function generateDraft(
   const messages = buildMessages(text, page, current, saved, picked);
   const recipe = parseRecipe(await completeJson(settings, messages));
   const prompts = [...(previous?.prompts ?? []), text];
-  const draft = await callContent(tabId, 'preparePreview', { recipe, prompts });
+  // Mesurée sans être affichée : une v1 cassée ne s'affiche pas pendant l'auto-correction,
+  // et la page n'est restylée qu'une fois, avec la version retenue.
+  const measured = await callContent(tabId, 'preparePreview', { recipe, prompts, apply: false });
   // Content script resté à l'ancienne version (onglet ouvert avant la mise à jour).
-  if (!Array.isArray(draft?.changes)) {
+  if (!Array.isArray(measured?.changes)) {
     await callContent(tabId, 'clearPreview', {}).catch(() => null);
     throw new Error('ReFace was updated: reload the tab.');
   }
-  if (!draft.layoutIssues?.length) return draft;
+  // L'affinage réutilise cette distillation (pas de 2e passage sur la page).
+  const draft: Draft = { ...measured, page };
+  if (!draft.layoutIssues?.length) return show(tabId, draft);
 
   // Auto-correction (une seule fois) : on renvoie au LLM ce que sa modif a cassé.
   const repairMessages: ChatMessage[] = [
@@ -220,18 +226,27 @@ async function generateDraft(
   ];
   try {
     const repaired = parseRecipe(await completeJson(settings, repairMessages));
-    const fixed = await callContent(tabId, 'preparePreview', { recipe: repaired, prompts });
+    const fixed = await callContent(tabId, 'preparePreview', {
+      recipe: repaired,
+      prompts,
+      apply: false,
+    });
     if ((fixed.layoutIssues?.length ?? 0) <= draft.layoutIssues.length) {
       if (fixed.layoutIssues?.length) fixed.warnings.push(LAYOUT_WARNING);
-      return await refuseIfBroken(tabId, fixed);
+      return await show(tabId, await refuseIfBroken(tabId, { ...fixed, page }));
     }
   } catch (error) {
     if (error instanceof BrokenLayoutError) throw error;
     /* la correction a échoué : on garde la première version, avec un avertissement */
   }
-  const first = await callContent(tabId, 'preparePreview', { recipe, prompts });
-  first.warnings.push(LAYOUT_WARNING);
-  return refuseIfBroken(tabId, first);
+  draft.warnings.push(LAYOUT_WARNING);
+  return show(tabId, await refuseIfBroken(tabId, draft));
+}
+
+/** Affiche la version retenue (déjà résolue et vérifiée : un simple remplacement du CSS). */
+async function show(tabId: number, draft: Draft): Promise<Draft> {
+  await callContent(tabId, 'updatePreview', { changes: draft.changes });
+  return draft;
 }
 
 class BrokenLayoutError extends Error {}
@@ -294,7 +309,7 @@ export async function keep(tabId: number, draft: Draft): Promise<{ ruleIds: stri
       ops: change.ops,
       targets: change.targets,
       // Le thème compilé est fusionné : la règle enregistrée reste du CSS (injecteur inchangé).
-      css: [change.themeCss, change.css].filter((part) => part?.trim()).join('\n'),
+      css: [change.themeCss, change.menuCss, change.css].filter((part) => part?.trim()).join('\n'),
       explanation: draft.changes.length > 1 ? change.title : draft.explanation,
     }),
   );
@@ -332,6 +347,15 @@ const REFINE_PROMPT = [
 ].join('\n');
 
 /**
+ * La capture montre le contenu du site, souvent en plusieurs langues : sans ancrage, l'affinage
+ * répondait parfois en espagnol, en thaï ou en russe. L'explication de la v1, écrite sans capture,
+ * est dans la bonne langue : elle sert de référence.
+ */
+function refineLanguage(draft: Draft): string {
+  return `Write the defects, every "title" and the "explanation" in the language of the user request, the same language as the current explanation: ${JSON.stringify(draft.explanation.slice(0, 200))}. Never use the language of the page content visible in the screenshot.`;
+}
+
+/**
  * Affinage visuel (toujours actif) : le LLM voit une capture de sa preview et peut la corriger,
  * en UN seul tour. La v2 n'est retenue que si elle change le rendu, passe les garde-fous et n'a pas
  * plus de problèmes mesurés que la v1 ; sinon la v1 reste affichée, sans bruit.
@@ -352,16 +376,26 @@ export async function refine(tabId: number, draft: Draft): Promise<Draft> {
     .filter((change) => change.enabled)
     .flatMap((change) => Object.values(change.targets).map((t) => t.selectors[0]))
     .filter((selector): selector is string => !!selector);
-  const page = await callContent(tabId, 'distill', { include, focus: null });
+  // La distillation de la génération sert encore (même page, quelques secondes plus tard) : on
+  // évite un 2e passage complet sur la page, qui la gèle sur les gros sites.
+  let page: DistillResult;
+  let included: Record<string, number>;
+  if (draft.page) {
+    page = draft.page;
+    included = await callContent(tabId, 'locate', { selectors: include }).catch(() => ({}));
+  } else {
+    page = await callContent(tabId, 'distill', { include, focus: null });
+    included = page.included;
+  }
   const saved = (await getSiteRules(page.host)).rules;
-  const current = reindex(draft, page.included);
+  const current = reindex(draft, included);
   const request = draft.prompts.join(' → ');
   const messages: ChatMessage[] = [
     ...buildMessages(request, page, current, saved, []),
     {
       role: 'user',
       content: [
-        { type: 'text', text: REFINE_PROMPT },
+        { type: 'text', text: `${REFINE_PROMPT}\n${refineLanguage(draft)}` },
         { type: 'image_url', image_url: { url: screenshot, detail: 'high' } },
       ],
     },
@@ -384,20 +418,24 @@ export async function refine(tabId: number, draft: Draft): Promise<Draft> {
   const still = await callContent(tabId, 'currentPreview', {}).catch(() => null);
   if (!still || still.css !== draft.previewCss) return draft;
 
-  const next = await callContent(tabId, 'preparePreview', { recipe, prompts: draft.prompts });
+  // Mesurée sans être affichée : la v1 reste à l'écran tant que la v2 n'est pas retenue.
+  const next = await callContent(tabId, 'preparePreview', {
+    recipe,
+    prompts: draft.prompts,
+    apply: false,
+  });
   const better =
     next.changes.length > 0 &&
     !next.broken?.length &&
     next.previewCss !== draft.previewCss &&
     (next.layoutIssues?.length ?? 0) <= (draft.layoutIssues?.length ?? 0);
-  if (!better) {
-    await callContent(tabId, 'updatePreview', { changes: draft.changes });
-    return draft;
-  }
+  if (!better) return draft;
+  await callContent(tabId, 'updatePreview', { changes: next.changes });
   // Chaque changement garde le prompt qui l'a produit (appariement par titre).
   const promptOf = new Map(draft.changes.map((change) => [change.title, change.prompt]));
   return {
     ...next,
+    page,
     refined: true,
     review: review.defects,
     changes: next.changes.map((change) => ({

@@ -1,6 +1,6 @@
 // Content script B (document_idle) : distillation, preview, picker, health check.
 import { listen, type ContentApi } from '../shared/messages';
-import { distill } from './distill';
+import { distill, locate } from './distill';
 import { checkHealth, scheduleHealthCheck } from './health';
 import { cancelPick, pick } from './picker';
 import './shortcutOverlay';
@@ -22,8 +22,11 @@ listen<ContentApi>({
   async distill({ include, focus }) {
     return withoutOurStyles(() => distill(include, focus));
   },
-  async preparePreview({ recipe, prompts }) {
-    return prepareDraft(recipe, prompts);
+  async preparePreview({ recipe, prompts, apply }) {
+    return prepareDraft(recipe, prompts, apply ?? true);
+  },
+  async locate({ selectors }) {
+    return locate(selectors);
   },
   async updatePreview({ changes }) {
     const previewCss = compileChanges(changes);

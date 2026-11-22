@@ -222,6 +222,46 @@ describe('compileTheme : grille de cartes', () => {
     );
     expect(css).toContain('aspect-ratio:4 / 3');
     expect(css).not.toContain('nth-child');
+    // Les autres enfants du conteneur (étagères, sections) ne sont pas écrasés dans une case.
+    // Règle de structure : sans :where(), elle l'emporte sur une règle de taille déjà gardée.
+    expect(css).toContain('\nul.posts > :not(ul.posts > li){grid-column:1 / -1}');
+  });
+  it('carte horizontale (miniature à côté du texte, YouTube) : empilée en grille', () => {
+    const list = {
+      ...HN.list!,
+      table: false,
+      item: 'ytd-video-renderer',
+      companions: [],
+      spacer: null,
+      container: 'ytd-item-section-renderer > div#contents',
+      containerTable: null,
+      horizontal: {
+        row: 'ytd-video-renderer #dismissible',
+        media: 'ytd-video-renderer ytd-thumbnail',
+      },
+    };
+    const css = grid('auto', list);
+    expect(css).toContain('\nytd-video-renderer #dismissible{flex-direction:column');
+    expect(css).toContain('\nytd-video-renderer #dismissible > *{min-width:0;max-width:100%}');
+    expect(css).toContain(
+      '\nytd-video-renderer ytd-thumbnail{width:100%;max-width:100%;min-width:0;flex:none',
+    );
+    // En liste (1 colonne), la rangée horizontale garde sa mise en page.
+    const single = compileTheme(tokens(), { ...HN, list });
+    expect(single).not.toContain('flex-direction:column');
+  });
+  it('carte avec un média : le format (carré, paysage) ne coupe pas son contenu', () => {
+    const list = {
+      ...HN.list!,
+      table: false,
+      companions: [],
+      spacer: null,
+      container: 'ul.posts',
+      containerTable: null,
+      item: 'ul.posts > li',
+    };
+    expect(grid('landscape', { ...list, media: true })).not.toContain('aspect-ratio');
+    expect(grid('landscape', { ...list, media: false })).toContain('aspect-ratio:4 / 3');
   });
 });
 

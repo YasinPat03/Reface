@@ -87,6 +87,18 @@ const SCENARIOS: Scenario[] = [
     layout: YT_LAYOUT_OK,
   },
   {
+    // Cartes horizontales (miniature à côté du texte) mêlées à des playlists et des étagères.
+    name: 'youtube-search-cards',
+    url: 'https://www.youtube.com/results?search_query=lofi+music',
+    prompts: ['Show the videos as 3 cards per row'],
+    verify: `(() => {
+      const cards = [...document.querySelectorAll('ytd-video-renderer, yt-lockup-view-model')]
+        .filter((c) => c.getBoundingClientRect().width > 0 && c.getBoundingClientRect().width < innerWidth * 0.45);
+      return new Set(cards.slice(0, 6).map((c) => Math.round(c.getBoundingClientRect().left))).size >= 3;
+    })()`,
+    layout: YT_LAYOUT_OK,
+  },
+  {
     name: 'wiki-toc',
     url: 'https://en.wikipedia.org/wiki/Golden_ratio',
     prompts: ['Cache la table des matières'],
@@ -124,6 +136,23 @@ const SCENARIOS: Scenario[] = [
     changes: 2,
     soloPrompts: true,
     verify: `!document.querySelector('#mw-panel-toc')?.checkVisibility()`,
+  },
+  {
+    // Le menu principal est replié derrière un hamburger (case à cocher, panneau caché).
+    name: 'wiki-navbar',
+    url: 'https://en.wikipedia.org/wiki/Golden_ratio',
+    prompts: ['Turn the hamburger menu into a navbar'],
+    verify: `(() => {
+      const links = [...document.querySelectorAll('#vector-main-menu li a')]
+        .filter((a) => a.checkVisibility({ visibilityProperty: true, opacityProperty: true }));
+      return links.length >= 8 && new Set(links.map((a) => Math.round(a.getBoundingClientRect().top))).size <= 2;
+    })()`,
+    layout: `(() => {
+      const links = [...document.querySelectorAll('#vector-main-menu li a')].map((a) => a.getBoundingClientRect());
+      const bottom = Math.max(...links.map((r) => r.bottom));
+      const title = document.querySelector('#firstHeading').getBoundingClientRect().top;
+      return title >= bottom - 1 || 'la barre recouvre le titre (' + Math.round(bottom) + ' > ' + Math.round(title) + ')';
+    })()`,
   },
   {
     name: 'hn-dark',
@@ -273,10 +302,10 @@ for (const s of SCENARIOS.filter((x) => !filter || x.name.includes(filter))) {
     if (!previewOk || !replayOk) {
       failures++;
       console.log(
-        `✗ ${s.name} : effet ${previewOk ? 'ok' : 'ABSENT'} en preview, ${replayOk ? 'ok' : 'ABSENT'} après reload\n    CSS : ${css.slice(0, 400)}`,
+        `✗ ${s.name} : effet ${previewOk ? 'ok' : 'ABSENT'} en preview, ${replayOk ? 'ok' : 'ABSENT'} après reload\n    CSS : ${process.env.LIVE_CSS ? css : css.slice(0, 400)}`,
       );
     } else {
-      console.log(`✓ ${s.name}\n    CSS : ${css.slice(0, 200)}`);
+      console.log(`✓ ${s.name}\n    CSS : ${process.env.LIVE_CSS ? css : css.slice(0, 200)}`);
     }
   } catch (error) {
     failures++;

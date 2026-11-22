@@ -103,6 +103,28 @@ export interface ChatMessage {
 
 type ResponseSchema = { name: string; schema: object };
 
+/** Moitié isolée d'une paire de substitution UTF-16 (un emoji coupé en deux). */
+const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g;
+
+/**
+ * Les textes de la page sont coupés au caractère UTF-16 près (échantillons de 30 à 60 caractères) :
+ * un emoji coupé en deux (« 📚 » dans un titre YouTube) rend tout le corps JSON invalide pour le
+ * fournisseur, qui refuse la requête (HTTP 400 « failed to parse JSON »). On remplace ces moitiés
+ * isolées par « � » avant l'envoi.
+ */
+export function wellFormedMessages(messages: ChatMessage[]): ChatMessage[] {
+  const clean = (text: string) => text.replace(LONE_SURROGATE, '\ufffd');
+  return messages.map((message) => ({
+    ...message,
+    content:
+      typeof message.content === 'string'
+        ? clean(message.content)
+        : message.content.map((part) =>
+            part.type === 'text' ? { ...part, text: clean(part.text) } : part,
+          ),
+  }));
+}
+
 /** GPT-6 : refuse temperature, accepte (selon le modèle) reasoning_effort. */
 function isGpt6(model: string): boolean {
   return /^(?:openai\/)?gpt-6(?:[.-]|$)/i.test(model);
@@ -131,7 +153,7 @@ async function once(
       },
       body: JSON.stringify({
         model: settings.model,
-        messages,
+        messages: wellFormedMessages(messages),
         // GPT-6 refuse temperature. Sans raisonnement, la réponse arrive 2× plus vite (≈2,7 s au
         // lieu de 5 s) : le contexte design fournit déjà les sélecteurs et la structure.
         ...(isGpt6(settings.model)

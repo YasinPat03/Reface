@@ -105,6 +105,15 @@ On choisit au fur et à mesure. Chacune s'appuie sur le MVP sans le casser.
   - [x] Garde-fou d'intégrité : article déchiré (titre séparé de ses infos), textes superposés, cartes vidées par la modif, débordement horizontal. Correction par le LLM, puis **refus expliqué** si le problème persiste
   - [x] Affinage visuel, toujours actif : le LLM reçoit une capture de sa preview (v1), écrit d'abord sa critique, puis renvoie une v2. Elle n'est retenue que si elle passe les garde-fous, sans défaire un souhait explicite (`refine`, `tests/e2e/phase12.e2e.ts`)
   - [x] Repli de `reasoning_effort` par modèle (`none` → la valeur acceptée la plus faible → paramètre omis) : corrige l'erreur 400 avec `gpt-6.2-astra`
+- [x] **YouTube saccadé et menus repliés** (branche `fix/youtube-wikipedia`, `tests/e2e/phase14.e2e.ts`, mesure `tests/e2e/jank.ts`)
+  - [x] Menus repliés (hamburger) : signalés au LLM (« Collapsed menus »), barre calculée et vérifiée par l'extension (`menuBar`), scénario live `wiki-navbar`
+  - [x] « Sans effet visible » : `display` seul ne compte plus (styler le bouton du menu passait pour un succès)
+  - [x] Ce que voit le LLM sur YouTube : classes entières, enveloppes en double écartées, listes et surfaces sans chemin positionnel profond, liste la plus fine d'abord
+  - [x] Grille sur cartes à média : cartes horizontales empilées, enfants hors liste en pleine largeur, pas de format imposé, règles de structure hors `:where()` (scénario live `youtube-search-cards`)
+  - [x] Garde-fous sans faux positifs : titres coupés à 2 lignes (line-clamp), images d'une liste repliée
+  - [x] Fluidité : preview mesurée sans affichage (`apply: false`), affinage sans redistillation, contraste en un recalcul, contrôle de mise en page sans recalcul supplémentaire
+  - [x] Requêtes refusées pour un emoji coupé en deux (`wellFormedMessages`), langue de l'affinage ancrée sur la v1
+  - [ ] Découper la preview en tranches si YouTube connecté gèle encore (voir `handoff.md` §5)
 - [ ] **A. Raccourcis vers pages enfouies** (F7/F8)
   - [ ] Op `insertLink` + allow-list de liens (https, même domaine enregistrable, `textContent` seulement)
   - [ ] Inventaire des liens dans la distillation, pour pouvoir promouvoir un lien caché

@@ -96,7 +96,12 @@ export function deadSelectors(css: string): string[] {
   return dead;
 }
 
-/** Propriétés qui rendent une modif visible (au repos, sans survol). */
+/**
+ * Propriétés qui rendent une modif visible (au repos, sans survol). Pas `display` : un changement
+ * de `display` ne se voit que s'il déplace ou redimensionne quelque chose, ce que les rectangles
+ * mesurés (l'élément et ses descendants) captent déjà. Sinon `display:flex` sur un bouton de
+ * 32 px passait pour un succès alors que rien ne bougeait à l'écran.
+ */
 const VISIBLE_PROPERTIES = [
   'color',
   'background-color',
@@ -109,7 +114,6 @@ const VISIBLE_PROPERTIES = [
   'letter-spacing',
   'text-transform',
   'text-decoration-line',
-  'display',
   'visibility',
   'opacity',
   'padding-top',
@@ -229,7 +233,17 @@ function degraded(element: Element, before: ContrastBefore): boolean {
 
 /** Nombre de textes rendus peu contrastés par la modif en cours. */
 export function introducedLowContrast(before: ContrastBefore): number {
-  return textElements().filter((e) => degraded(e, before)).length;
+  return degradedTexts(before).length;
+}
+
+/** Textes rendus peu contrastés par la modif en cours. */
+export function degradedTexts(before: ContrastBefore): Element[] {
+  return textElements().filter((e) => degraded(e, before));
+}
+
+/** Parmi `texts`, ceux qui restent peu contrastés (après une correction). */
+export function stillDegraded(texts: Element[], before: ContrastBefore): Element[] {
+  return texts.filter((e) => degraded(e, before));
 }
 
 /** Luminance du fond de page (html/body). */
@@ -305,9 +319,8 @@ function fixSelector(element: Element): string | null {
 }
 
 /** Index du changement qui a donné son fond (sinon sa couleur) à l'élément ; -1 si aucun. */
-function owningChange(element: Element, changesCss: string[]): number {
+function owningChange(element: Element, rulesPerChange: StyleRule[][]): number {
   const owner = backgroundOwner(element) ?? document.body;
-  const rulesPerChange = changesCss.map(styleRules);
   const matches = (e: Element, rule: StyleRule) =>
     rule.selectors.some((s) => {
       const base = restingSelector(s);
@@ -367,14 +380,20 @@ export interface Fix {
  * prise dans la palette de la modif si possible. Une règle par sélecteur, rattachée au changement
  * qui a posé le fond (pour qu'elle s'active et se désactive avec lui).
  */
-export function contrastFixes(before: ContrastBefore, changesCss: string[]): Fix[] {
+export function contrastFixes(
+  before: ContrastBefore,
+  changesCss: string[],
+  texts: Element[] = degradedTexts(before),
+): Fix[] {
   const palette = paletteColors(changesCss.join('\n'));
+  // CSS des changements analysé une fois (et non une fois par texte : le thème fait plusieurs Ko).
+  const rulesPerChange = changesCss.map(styleRules);
   const fixes = new Map<string, Fix>();
-  for (const element of textElements()) {
+  for (const element of texts) {
     if (!degraded(element, before)) continue;
     const selector = fixSelector(element);
     if (!selector || fixes.has(selector)) continue;
-    const change = owningChange(element, changesCss);
+    const change = owningChange(element, rulesPerChange);
     if (change < 0) continue;
     const current = parseColor(getComputedStyle(element).color)?.rgb ?? [0, 0, 0];
     const color = readableColor(current, backgroundOf(element), threshold(element), palette);
@@ -394,7 +413,7 @@ export function contrastFixes(before: ContrastBefore, changesCss: string[]): Fix
 export function surfaceFixes(luminanceBefore: number, changesCss: string[]): Fix[] {
   if (luminanceBefore < 0.4 || pageLuminance() > 0.2) return [];
   const background = pageBackground();
-  const change = owningChange(document.body, changesCss);
+  const change = owningChange(document.body, changesCss.map(styleRules));
   if (change < 0) return [];
   const area = innerWidth * innerHeight;
   const fixes: Fix[] = [];
@@ -433,6 +452,52 @@ const overlapArea = (a: DOMRect, b: DOMRect) =>
   Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) *
   Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
 
+type Box = { left: number; top: number; right: number; bottom: number };
+
+/**
+ * Zone où le texte est réellement peint : l'intersection de l'élément et de ses ancêtres proches
+ * en overflow non visible. Un titre coupé à 2 lignes (line-clamp, YouTube) garde le rectangle de
+ * ses lignes masquées : sans cette découpe, il « chevauchait » la ligne d'infos en dessous.
+ */
+export function paintedBox(element: Element): Box | null {
+  let box: Box | null = null;
+  for (
+    let e: Element | null = element, hops = 0;
+    e && e !== document.body && hops < 8;
+    e = e.parentElement, hops++
+  ) {
+    const s = getComputedStyle(e);
+    if (s.overflowX === 'visible' && s.overflowY === 'visible') continue;
+    const r = e.getBoundingClientRect();
+    box = box
+      ? {
+          left: Math.max(box.left, r.left),
+          top: Math.max(box.top, r.top),
+          right: Math.min(box.right, r.right),
+          bottom: Math.min(box.bottom, r.bottom),
+        }
+      : { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+  }
+  return box;
+}
+
+/** Lignes d'un texte, découpées à la zone peinte (les lignes entièrement masquées disparaissent). */
+function paintedLines(element: Element): DOMRect[] {
+  const clip = paintedBox(element);
+  return [...element.getClientRects()]
+    .map((r) =>
+      clip
+        ? new DOMRect(
+            Math.max(r.left, clip.left),
+            Math.max(r.top, clip.top),
+            Math.min(r.right, clip.right) - Math.max(r.left, clip.left),
+            Math.min(r.bottom, clip.bottom) - Math.max(r.top, clip.top),
+          )
+        : r,
+    )
+    .filter((r) => r.width > 1 && r.height > 1);
+}
+
 /**
  * Paires de textes qui se chevauchent (sans que l'un contienne l'autre), 2 premiers écrans.
  * On compare les boîtes LIGNE PAR LIGNE : la boîte englobante d'un lien sur 2 lignes couvre
@@ -441,10 +506,7 @@ const overlapArea = (a: DOMRect, b: DOMRect) =>
 function textOverlaps(): { count: number; sample: string[] } {
   const items = textElements()
     .filter((element) => !!visibleBox(element))
-    .map((element) => ({
-      element,
-      lines: [...element.getClientRects()].filter((r) => r.width > 1 && r.height > 1),
-    }));
+    .map((element) => ({ element, lines: paintedLines(element) }));
   let count = 0;
   const sample: string[] = [];
   for (let i = 0; i < items.length; i++) {
