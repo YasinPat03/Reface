@@ -136,13 +136,32 @@ function groupSignature(element: Element): string | null {
   return classes.length ? `${tag}.${classes.join('.')}` : null;
 }
 
+/**
+ * Signature de répétition : balise + classes stables. Sans classe ni balise custom, on y ajoute
+ * la structure (nombre d'enfants, 1er enfant) : les lignes nues d'une table de mise en page
+ * (en-tête, espaceur, contenu, pied) ne sont pas une liste répétée.
+ */
+export function repeatSignature(element: Element): string {
+  const classes = stableClasses(element).sort().join('.');
+  const base = `${element.tagName}.${classes}`;
+  // Les éléments de liste par nature (li, article) restent répétés même si leur contenu varie.
+  if (classes || element.tagName.includes('-') || /^(?:LI|ARTICLE|DT|DD)$/.test(element.tagName))
+    return base;
+  const first = element.firstElementChild;
+  return `${base}|${element.childElementCount}|${first ? `${first.tagName}.${stableClasses(first).sort().join('.')}` : ''}`;
+}
+
+/** Id qui distingue un élément structurel (#header…) ; un id généré ou numérique ne compte pas. */
+function hasStructuralId(element: Element): boolean {
+  return !!element.id && isStableId(element.id);
+}
+
 function sameSignatureSiblings(element: Element): number {
   const parent = element.parentElement;
-  if (!parent || element.id) return 1;
-  const signature = `${element.tagName}.${stableClasses(element).sort().join('.')}`;
-  return [...parent.children].filter(
-    (c) => !c.id && `${c.tagName}.${stableClasses(c).sort().join('.')}` === signature,
-  ).length;
+  if (!parent || hasStructuralId(element)) return 1;
+  const signature = repeatSignature(element);
+  return [...parent.children].filter((c) => !hasStructuralId(c) && repeatSignature(c) === signature)
+    .length;
 }
 
 /**

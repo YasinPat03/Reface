@@ -50,7 +50,7 @@ describe('completeJson : gestion des erreurs (5.3)', () => {
       await completeJson({ ...settings, model }, messages);
       const body = JSON.parse(fetch.mock.calls[0]![1].body);
       expect(body).not.toHaveProperty('temperature');
-      expect(body.reasoning_effort).toBe('low');
+      expect(body.reasoning_effort).toBe('none');
       expect(body.response_format.json_schema.strict).toBe(true);
     },
   );

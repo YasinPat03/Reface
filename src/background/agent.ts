@@ -8,6 +8,7 @@ import { sectionOf } from '../shared/section';
 import { sensitiveReason } from '../shared/sensitive';
 import { getSettings, getSiteRules } from '../shared/storage';
 import type { DistillResult, Draft, PickResult, Recipe, RecipeChange, Rule } from '../shared/types';
+import { designGuide } from '../shared/designReferences';
 import { describeSite } from '../shared/siteContext';
 import { completeJson, type ChatMessage } from './llm';
 
@@ -17,8 +18,20 @@ const SYSTEM_PROMPT = [
   'Operations: "hide" (hide a target), "style" (CSS declarations on a target), "theme" (page-wide declarations, target "").',
   'Split the request into "changes": ONE change per distinct thing the user asks for, so they can toggle each one separately. "Hide the sidebar, bigger text and a dark background" = 3 changes. A request about a single thing = 1 change (do not split it, e.g. a dark mode touching many elements stays one change). Each change has a short title (2-6 words, in the language of the user request) and its own ops, targets and css: never put the CSS of one change in another.',
   'Interpret the request in the context of THIS website: users name things by what they look like here, often indirectly (on YouTube, "make the images bigger" means the video thumbnails; on a shop, "the photos" are product images). Use the website context and vocabulary given below.',
-  'Targets point to page regions by their index [#n] from the page outline (regionIndex). Add 0-2 selectorHints you are confident about.',
-  'Outline lines with similar=×N stand for N identical siblings (cards, rows): to change all of them, prefer the "css" field with a selector matching every item.',
+  'Targets point to page regions by their index [#n] from the page outline (regionIndex). Add 0-2 selectorHints you are confident about. Only declare a target if an op uses it.',
+  'The design snapshot lists the real surfaces, colors, fonts, repeated lists and layout roles of the page, with VERIFIED selectors. Use those selectors in "css" (they match the page); never invent class names that are not in the snapshot or the outline (e.g. no ".votes", "footer", ".card" unless listed).',
+  'Outline lines with similar=×N stand for N identical siblings (cards, rows): to change all of them, use the "css" field with the list selector from the design snapshot. When an item continues on sibling rows (e.g. "item + tr"), style the item and its sibling rows together.',
+  'When the request names a part listed under "Layout roles" or "Surfaces" (top bar, header, footer, sidebar), style it with that exact selector in "css" (not with an outline region that contains it): a parent background is painted UNDER the child and stays invisible.',
+  'Inherited properties (color, font-*) set on a container do NOT reach children that set their own value (headings, links, buttons usually do): to recolor or resize a title, a link or a button, target that element itself (e.g. "#firstHeading", "header h1", "nav a"), not its container.',
+  'To hide one part of the page, target the smallest element that contains only that part (e.g. the footer role from the snapshot), never a container that also holds the main content.',
+  [
+    'Whole-page looks (dark mode, "modern", "beautiful", "minimal", "like Apple", a color scheme, "cards" for the whole list…) go in the change "theme" field: YOU design the taste as tokens (palette, typography, shape, layout, optional roleStyles) and the extension applies them to every surface, the top bar, the list items (with their sibling rows), titles and metadata, with guaranteed hierarchy (title > metadata) and contrast. Do not rewrite that CSS by hand in "css": use "css" only for extras the tokens cannot express. Targeted edits (hide X, make the title red, bigger images) keep theme null and use ops/css.',
+    'Cards, list density/spacing and title/metadata typography of the WHOLE list are a look too: put them in a theme change (layout.cards, density, typography), even when no color is asked. Without a color wish, copy the current colors of the design snapshot into the palette (page, surfaces, top bar, text, muted, links) so the site keeps its colors. Other requested parts (blue top bar, hide the footer) stay separate changes.',
+    'The theme must be YOUR design for this request and this site, not a copy: draw on the references below (mix them, adapt them) or invent. Honor every explicit wish ("blue top bar" → header color; "rounded cards" → cards + radius; "less contrast" → closer text/background).',
+    'Design quality for hand-written css (targeted edits): keep text readable (4.5:1), keep secondary text smaller than titles, to enlarge titles target the title link only (never the whole item row), reuse one radius, soft shadows.',
+    '- Lists laid out with table rows (tr): border-spacing separates EVERY row, also the rows of one item, so never use it for cards.',
+    designGuide(),
+  ].join('\n'),
   'For images, thumbnails or videos, use the selectors from the media inventory in the "css" field.',
   'Size changes are RELATIVE to the current sizes given in the inventory: "bigger"/"larger" means about 1.3-1.5x the current width (smaller: about 0.7x). Never set a size equal to or below the current one when asked for bigger.',
   'Override every constraint listed under "size limited by" (max-width, min-width, flex-basis, fixed width) on those exact elements, otherwise the change has no visible effect. Keep the aspect ratio (height:auto or aspect-ratio).',
@@ -32,6 +45,22 @@ const SYSTEM_PROMPT = [
   'Write "explanation" in one short sentence, in the same language as the user request.',
 ].join('\n');
 
+/**
+ * Demande « d'allure » (FR/EN) : un simple indice pour que le LLM passe par le thème (le compilateur
+ * garantit hiérarchie, contraste et cohérence). Il n'impose rien : le LLM reste libre du contenu.
+ */
+const LOOK_REQUEST =
+  /\b(?:cartes?|cards?|th[eè]me|sombre|dark|clair|light|moderne|modern|beau|belle|joli|pretty|beautiful|minimalist\w*|minimal\w*|[ée]l[ée]gant\w*|style|look|façon|fa[cç]on|comme|like|couleurs?|colou?rs?|palette|typo\w*|police|font|a[ée]r[ée]\w*|spacing|espace\w*)\b/i;
+
+/** Langue de l'interface du navigateur : repli quand la demande est trop courte (« Mode sombre »). */
+function uiLanguage(): string {
+  try {
+    return chrome.i18n.getUILanguage() || 'fr';
+  } catch {
+    return 'fr';
+  }
+}
+
 function buildMessages(
   prompt: string,
   page: DistillResult,
@@ -41,16 +70,21 @@ function buildMessages(
 ): ChatMessage[] {
   const parts = [
     `User request: ${prompt}`,
+    LOOK_REQUEST.test(prompt)
+      ? 'Hint: this request asks for a look (cards, theme, colors of the site, style, typography of the list): put that part in a change with the "theme" field, not in hand-written css.'
+      : '',
+    `Language for every "title" and the "explanation": the language of the user request; if the request is too short to tell, use "${uiLanguage()}" (the browser language). Never answer in another language.`,
     picked.length
       ? `Selected regions (in selection order): ${picked.map((region, i) => `${i + 1}. [#${region}]`).join(', ')}. Use these as the targets when the user refers to the selection.`
       : '',
     `<untrusted_site_context>\n${describeSite(page.site)}\nPage: ${page.title} (${page.url})\n</untrusted_site_context>`,
     `Typography:\n${page.typography}`,
+    page.design ? `<untrusted_design>\n${page.design}\n</untrusted_design>` : '',
     page.media ? `<untrusted_media_inventory>\n${page.media}\n</untrusted_media_inventory>` : '',
     `<untrusted_page_outline regions="${page.regionCount}">\n${page.regions}\n</untrusted_page_outline>`,
     current ? `Current edit being previewed (revise it):\n${JSON.stringify(toWire(current))}` : '',
     saved.length
-      ? `Edits already saved on this site (for context, do not repeat them):\n${saved
+      ? `Edits already saved on this site, for context (they may only apply to other pages of the site: if the user asks for one of them again, produce it again for THIS page):\n${saved
           .map((r) => `- ${r.title ?? r.prompt}`)
           .join('\n')}`
       : '',
@@ -77,7 +111,13 @@ function reindex(previous: Draft, included: Record<string, number>): Recipe {
           selectorHints: target.selectors,
         };
       }
-      return { title: change.title, ops: change.ops, targets, css: change.css };
+      return {
+        title: change.title,
+        ops: change.ops,
+        targets,
+        css: change.css,
+        ...(change.theme ? { theme: change.theme } : {}),
+      };
     });
   return { changes, explanation: previous.explanation };
 }
@@ -171,9 +211,9 @@ async function generateDraft(
     {
       role: 'user',
       content: [
-        'Your recipe was applied as a preview and it BROKE the page layout:',
+        'Your recipe was applied as a preview and these problems were measured on the page:',
         ...draft.layoutIssues.map((issue) => `- ${issue}`),
-        'Return the complete corrected recipe: keep fulfilling the request, but make sure every text stays visible, readable and not covered by images (e.g. widen the column, or stack the image above its text with flex-direction:column, give the text container width:auto/100%).',
+        'Return the complete corrected recipe: keep fulfilling the whole request, use only selectors that exist on the page (design snapshot, outline), and make sure every text stays visible, readable and not covered by images (e.g. widen the column, or stack the image above its text with flex-direction:column, give the text container width:auto/100%).',
       ].join('\n'),
     },
   ];
@@ -193,7 +233,7 @@ async function generateDraft(
 }
 
 const LAYOUT_WARNING =
-  'La mise en page semble abîmée (texte écrasé ou recouvert). Précisez par exemple « garde les titres lisibles ».';
+  'La modification garde des défauts après correction automatique (mise en page abîmée ou éléments introuvables). Précisez la demande, par exemple « garde les titres lisibles ».';
 
 async function tabOrigin(tabId: number): Promise<{ host: string; origin: string; path: string }> {
   const tab = await chrome.tabs.get(tabId);
@@ -237,7 +277,8 @@ export async function keep(tabId: number, draft: Draft): Promise<{ ruleIds: stri
       ...(draft.changes.length > 1 ? { title: change.title } : {}),
       ops: change.ops,
       targets: change.targets,
-      css: change.css,
+      // Le thème compilé est fusionné : la règle enregistrée reste du CSS (injecteur inchangé).
+      css: [change.themeCss, change.css].filter((part) => part?.trim()).join('\n'),
       explanation: draft.changes.length > 1 ? change.title : draft.explanation,
     }),
   );

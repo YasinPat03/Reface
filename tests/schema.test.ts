@@ -45,6 +45,28 @@ describe('parseRecipe', () => {
     expect(recipe.changes[2]!.css).toBe('main p{font-size:20px}');
   });
 
+  it('normalise une clé de cible invalide au lieu de rejeter toute la réponse', () => {
+    const recipe = parseRecipe({
+      changes: [
+        {
+          title: 'Titre rouge',
+          ops: [
+            {
+              op: 'style',
+              target: 'titre-principal',
+              declarations: [{ property: 'color', value: 'red' }],
+            },
+          ],
+          targets: [{ key: 'titre-principal', regionIndex: 7, selectorHints: [], scope: 'one' }],
+          css: '',
+        },
+      ],
+      explanation: 'Rouge.',
+    });
+    expect(recipe.changes[0]!.targets.titre_principal!.regionIndex).toBe(7);
+    expect(recipe.changes[0]!.ops[0]!.target).toBe('titre_principal');
+  });
+
   it('ignore les changements vides', () => {
     const recipe = parseRecipe({
       ...multi,

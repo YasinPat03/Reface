@@ -111,7 +111,8 @@ const ALLOWED_PROPERTY = new RegExp(
       'contain',
       'tab-size',
       'quotes',
-      '-webkit-(?:line-clamp|box-orient|text-.+|font-smoothing|appearance|user-select)',
+      // Chrome développe `border-spacing` (autorisé) en ces deux longhands : sans elles, il serait perdu.
+      '-webkit-(?:line-clamp|box-orient|text-.+|font-smoothing|appearance|user-select|border-(?:horizontal|vertical)-spacing)',
       '--[a-z0-9-]+',
     ].join('|') +
     ')$',

@@ -170,29 +170,29 @@ for (const s of SCENARIOS.filter((x) => !filter || x.name.includes(filter))) {
       await panel.getByRole('button', { name: i === 0 ? 'Prévisualiser' : 'Réviser' }).click();
       // Attendre la vraie fin de la génération (le brouillon précédent est déjà affiché en itération).
       await panel
-        .getByRole('button', { name: 'Génération…' })
+        .getByRole('button', { name: 'Préparation de l’aperçu…' })
         .waitFor({ timeout: 2000 })
         .catch(() => null);
       await panel
-        .getByRole('button', { name: 'Génération…' })
+        .getByRole('button', { name: 'Préparation de l’aperçu…' })
         .waitFor({ state: 'detached', timeout: 60_000 });
       const outcome = (await panel.getByRole('alert').count()) ? 'error' : 'draft';
       const ms = Date.now() - t0;
       if (outcome === 'error')
         throw new Error(`erreur après ${ms} ms : ${await panel.getByRole('alert').textContent()}`);
-      const explanation = await panel.getByTestId('draft').locator('p').nth(1).textContent();
-      const warnings = await panel
+      const explanation = await panel
         .getByTestId('draft')
-        .locator('p', { hasText: '⚠️' })
-        .allTextContents();
+        .locator('.draft-explanation')
+        .textContent();
+      const warnings = await panel.getByTestId('draft').locator('.draft-warning').allTextContents();
       console.log(
-        `  « ${prompt} » → ${ms} ms · ${explanation}${warnings.length ? ` · ${warnings.join(' ')}` : ''}`,
+        `  « ${prompt} » → ${ms} ms · ${explanation}${warnings.length ? ` · ⚠️ ${warnings.join(' ⚠️ ')}` : ''}`,
       );
     }
     {
       const titles = await panel
         .getByTestId('draft-changes')
-        .locator('label')
+        .locator('li')
         .allTextContents()
         .catch(() => []);
       console.log(

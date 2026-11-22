@@ -88,9 +88,10 @@ async function once(
       body: JSON.stringify({
         model: settings.model,
         messages,
-        // GPT-6 refuse temperature ; un effort faible convient aux recettes CSS interactives.
+        // GPT-6 refuse temperature. Sans raisonnement, la réponse arrive 2× plus vite (≈2,7 s au
+        // lieu de 5 s) : le contexte design fournit déjà les sélecteurs et la structure.
         ...(isGpt6
-          ? { reasoning_effort: 'low' }
+          ? { reasoning_effort: 'none' }
           : rejected.get(settings.model)?.has('temperature')
             ? {}
             : { temperature: 0.2 }),

@@ -1,4 +1,5 @@
 import type { SiteContext } from './siteContext';
+import type { ThemeTokens } from './theme';
 
 // Modèles de données partagés. Voir PRD §4.
 
@@ -81,6 +82,8 @@ export interface RecipeChange {
   /** Clés propres à ce changement. */
   targets: Record<string, RecipeTarget>;
   css: string;
+  /** Thème conçu par le LLM (jetons), compilé en CSS par l'extension. */
+  theme?: ThemeTokens | null;
 }
 
 /** Réponse brute du LLM (validée par Zod en phase 2). */
@@ -115,6 +118,8 @@ export interface DistillResult {
   site: SiteContext;
   /** Inventaire des images/vidéos visibles, groupées avec un sélecteur vérifié. */
   media: string;
+  /** Surfaces, palette, listes répétées et rôles, avec des sélecteurs vérifiés (`content/design.ts`). */
+  design?: string;
   /** Pour chaque sélecteur demandé dans `include`, l'index de région de l'élément (ou -1). */
   included: Record<string, number>;
 }
@@ -142,6 +147,9 @@ export interface DraftChange {
   ops: Op[];
   targets: Record<string, Target>;
   css: string;
+  /** Jetons du thème (révisables en itération) et leur CSS compilé, fusionné dans `css` au Keep. */
+  theme?: ThemeTokens;
+  themeCss?: string;
   /** Coché dans la preview : seuls les changements cochés sont prévisualisés et enregistrés. */
   enabled: boolean;
   /** Prompt(s) qui ont produit CE changement (pas ceux des autres changements du brouillon). */
