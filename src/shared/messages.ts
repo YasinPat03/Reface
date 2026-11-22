@@ -12,7 +12,7 @@ export interface BgApi {
   ping: Def<{ tabId: number }, { host: string; content: 'ok' | 'unreachable' }>;
   /** Prompt → LLM → recette → preview. `previous` = brouillon en cours (itération). */
   generate: Def<
-    { tabId: number; prompt: string; previous: Draft | null; pick: string | null },
+    { tabId: number; prompt: string; previous: Draft | null; pick: string | string[] | null },
     Draft
   >;
   /** Enregistre chaque changement coché du brouillon comme une règle distincte du site. */
@@ -29,8 +29,8 @@ export interface BgApi {
 /** Messages traités par le content script B (document_idle). */
 export interface ContentApi {
   ping: Def<Record<string, never>, { host: string }>;
-  /** `focus` : élément pointé, inclus avec ses ancêtres ET son sous-arbre. */
-  distill: Def<{ include: string[]; focus: string | null }, DistillResult>;
+  /** `focus` : éléments pointés, inclus avec leurs ancêtres et descendants. */
+  distill: Def<{ include: string[]; focus: string | string[] | null }, DistillResult>;
   preparePreview: Def<{ recipe: Recipe; prompts: string[] }, Draft>;
   /** Cases cochées/décochées dans la preview : ne prévisualise que les changements `enabled`. */
   updatePreview: Def<{ changes: DraftChange[] }, { previewCss: string }>;

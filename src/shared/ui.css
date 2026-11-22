@@ -470,6 +470,30 @@ button:disabled {
   justify-content: space-between;
   gap: 8px;
 }
+.target-list {
+  display: grid;
+  gap: 0;
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+.target-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  border-bottom: 1px solid var(--line);
+}
+.target-index {
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  min-height: 20px;
+  font: 11px var(--mono);
+  background: var(--accent-soft);
+  border-radius: 2px;
+}
 .target-label {
   font-family: var(--mono);
   font-size: 12px;
@@ -477,7 +501,7 @@ button:disabled {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  margin: 4px 0 9px;
+  margin: 0;
 }
 .text-button {
   display: inline-flex;

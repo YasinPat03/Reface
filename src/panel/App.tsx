@@ -22,7 +22,7 @@ import { AssemblyDiagram, Segmented, Switch } from './ui';
 
 type View = 'edit' | 'rules' | 'catalogue' | 'shortcuts';
 
-function Site({ tab }: { tab: ActiveTab }) {
+function Site({ tab, active }: { tab: ActiveTab; active: boolean }) {
   const { site, paused } = useSite(tab.host);
   const [saveRequest, setSaveRequest] = useState(0);
   const shortcutCount = useShortcutCount(tab.host);
@@ -139,7 +139,12 @@ function Site({ tab }: { tab: ActiveTab }) {
           <Tabs.Indicator className="workspace-indicator" />
         </Tabs.List>
         <Tabs.Panel value="edit" keepMounted className="workspace-panel">
-          <Chat tab={tab} aiBlocked={sensitiveReason(tab.url)} onSaved={() => setView('rules')} />
+          <Chat
+            active={active && view === 'edit'}
+            tab={tab}
+            aiBlocked={sensitiveReason(tab.url)}
+            onSaved={() => setView('rules')}
+          />
         </Tabs.Panel>
         <Tabs.Panel value="rules" className="workspace-panel">
           <Rules
@@ -205,7 +210,7 @@ export function App() {
         </div>
         <div className="panel-site" hidden={optionsOpen}>
           {tab?.host ? (
-            <Site key={`${tab.id}:${tab.host}`} tab={tab} />
+            <Site key={`${tab.id}:${tab.host}`} tab={tab} active={!optionsOpen} />
           ) : (
             <section className="empty-page">
               <AssemblyDiagram />

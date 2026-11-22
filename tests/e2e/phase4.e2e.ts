@@ -16,7 +16,9 @@ async function llm(req: IncomingMessage, res: ServerResponse) {
   let raw = '';
   for await (const chunk of req) raw += chunk;
   lastUser = (JSON.parse(raw) as { messages: { content: string }[] }).messages[1]!.content;
-  const index = Number(lastUser.match(/pointed at region \[#(\d+)\]/)?.[1] ?? -1);
+  const index = Number(
+    lastUser.match(/Selected regions \(in selection order\): 1\. \[#(\d+)\]/)?.[1] ?? -1,
+  );
   const recipe = {
     ops: [
       { op: 'style', target: 't1', declarations: [{ property: 'color', value: 'rgb(255, 0, 0)' }] },
@@ -57,7 +59,7 @@ const overlayPresent = () => page.evaluate(() => !!document.querySelector('[data
 
 console.log('Phase 4');
 
-await check('4.1 Échap annule le pointage', async () => {
+await check('4.1 Échap termine le pointage sans sélection', async () => {
   await panel.getByRole('button', { name: 'Pointer un élément' }).click();
   await page.bringToFront();
   await page.waitForFunction(() => !!document.querySelector('[data-bp-picker]'));
@@ -90,23 +92,17 @@ await check('4.1 le clic de sélection ne déclenche pas la page', async () => {
 });
 
 await check('4.1 ↑ remonte au parent, puis 4.3 « Cacher cet élément » sans LLM', async () => {
-  await panel.getByRole('button', { name: 'Pointer un élément' }).click();
-  await page.bringToFront();
-  await page.waitForFunction(() => !!document.querySelector('[data-bp-picker]'));
+  assert(await overlayPresent(), 'le pointage doit rester actif après le premier clic');
   await hover('#c1');
   await page.keyboard.press('ArrowUp');
   const before = lastUser;
-  await page.mouse.click(
-    ...(await page
-      .locator('#c1')
-      .boundingBox()
-      .then((b) => [b!.x + 5, b!.y + 5] as const)),
-  );
+  await page.keyboard.press('Enter');
   await panel
     .getByTestId('picked')
     .filter({ hasText: 'aside#comments' })
     .waitFor({ timeout: 2000 });
-  await panel.getByRole('button', { name: 'Cacher cet élément' }).click();
+  await panel.getByRole('button', { name: 'Pointer un élément' }).waitFor({ timeout: 2000 });
+  await panel.getByRole('button', { name: /Cacher cet élément : aside#comments/ }).click();
   await panel.getByTestId('rules').getByText('Cacher « aside#comments').waitFor({ timeout: 3000 });
   await page.waitForSelector('#comments', { state: 'hidden', timeout: 2000 });
   assert(lastUser === before, 'aucun appel LLM attendu');
@@ -119,6 +115,7 @@ await check('4.1 ↑ remonte au parent, puis 4.3 « Cacher cet élément » sans
 
 await check('4.2 prompt ciblé : région pointée + sous-arbre envoyés au LLM', async () => {
   await panel.getByRole('tab', { name: 'Modifier', exact: true }).click();
+  await panel.getByRole('button', { name: /Retirer de la sélection : button#buy/ }).click();
   // Rétablir les commentaires pour pointer à l'intérieur.
   await worker.evaluate(() => chrome.storage.local.set({ 'paused:127.0.0.1': true }));
   await page.waitForSelector('#comments', { state: 'visible' });
@@ -133,11 +130,29 @@ await check('4.2 prompt ciblé : région pointée + sous-arbre envoyés au LLM',
       .then((b) => [b!.x + 5, b!.y + 5] as const)),
   );
   await panel.getByTestId('picked').filter({ hasText: 'h1#title' }).waitFor({ timeout: 2000 });
+  assert(await overlayPresent(), 'le pointage doit rester actif entre deux clics');
+  await hover('#buy');
+  await page.keyboard.press('Space');
+  await panel.getByTestId('picked').getByText('button#buy', { exact: false }).waitFor();
+  await page.waitForFunction(() => document.querySelectorAll('[data-bp-selection]').length === 2);
+  await page.keyboard.press('Enter');
+  await panel.getByRole('button', { name: 'Pointer un élément' }).waitFor({ timeout: 2000 });
+  assert(!(await overlayPresent()), 'overlay de survol non retiré');
+  assert(
+    (await page.locator('[data-bp-selection]').count()) === 2,
+    'Entrée doit conserver les sélections',
+  );
   await panel.getByLabel('Que voulez-vous changer ?').fill('en rouge');
   await panel.getByRole('button', { name: 'Prévisualiser' }).click();
   await panel.getByTestId('draft').waitFor({ timeout: 5000 });
-  const index = lastUser.match(/pointed at region \[#(\d+)\]/)?.[1];
+  const index = lastUser.match(/Selected regions \(in selection order\): 1\. \[#(\d+)\]/)?.[1];
   assert(index !== undefined, 'région pointée absente du prompt');
+  const second = lastUser.match(/Selected regions .*?2\. \[#(\d+)\]/)?.[1];
+  assert(second !== undefined && second !== index, 'deuxième région pointée absente du prompt');
+  const secondLine = lastUser
+    .split('\n')
+    .find((l) => new RegExp(`^\\s*\\[#${second}\\] <`).test(l));
+  assert(secondLine?.includes('id="buy"'), `mauvaise deuxième région : ${secondLine}`);
   const line = lastUser.split('\n').find((l) => new RegExp(`^\\s*\\[#${index}\\] <`).test(l));
   assert(line?.includes('id="title"'), `mauvaise région : ${line}`);
   await worker.evaluate(() => chrome.storage.local.remove('paused:127.0.0.1'));
