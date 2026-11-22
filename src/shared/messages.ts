@@ -21,6 +21,7 @@ export interface BgApi {
   discard: Def<{ tabId: number }, null>;
   /** Vérifie la clé et liste les modèles disponibles. */
   testConnection: Def<Settings, { models: string[]; modelFound: boolean }>;
+  suggestAccessibility: Def<{ description: string }, { keys: string[] }>;
   /** Cache l'élément pointé, sans LLM. */
   quickHide: Def<{ tabId: number; pick: PickResult }, { ruleId: string }>;
 }

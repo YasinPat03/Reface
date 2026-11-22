@@ -1,4 +1,6 @@
 import { Tabs } from '@base-ui/react/tabs';
+import { ArrowLeftIcon } from '@phosphor-icons/react/dist/csr/ArrowLeft';
+import { OptionsContent } from '../options/OptionsContent';
 import { GearSixIcon } from '@phosphor-icons/react/dist/csr/GearSix';
 import { MotionConfig } from 'motion/react';
 import { useEffect, useState } from 'react';
@@ -13,7 +15,6 @@ import { setPaused } from '../shared/storage';
 import { Chat } from './Chat';
 import { useSite } from './hooks';
 import { Rules } from './Rules';
-import { Accessibility } from './Accessibility';
 import { Catalogue } from './Catalogue';
 import { RecordingBar, ShortcutsTab, ShortcutsTabLabel, useShortcutCount } from './shortcuts';
 import { useActiveTab, type ActiveTab } from './tab';
@@ -165,24 +166,16 @@ function Site({ tab }: { tab: ActiveTab }) {
 }
 
 export function App() {
-  const [accessibilityOpen, setAccessibilityOpen] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const tab = useActiveTab();
   const { appearance, toggleAppearance } = useAppearance();
   return (
     <MotionConfig reducedMotion="user">
       <ThemeBackground appearance={appearance} />
-      {accessibilityOpen && <Accessibility onClose={() => setAccessibilityOpen(false)} />}
       <main className="app-shell">
         <header className="app-header">
           <Brand appearance={appearance} />
           <div className="header-actions">
-            <button
-              type="button"
-              className="accessibility-open"
-              onClick={() => setAccessibilityOpen(true)}
-            >
-              Accessibilité
-            </button>
             <button
               type="button"
               className="icon-button"
@@ -197,24 +190,31 @@ export function App() {
             <button
               type="button"
               className="icon-button"
-              aria-label="Options"
-              title="Options"
-              onClick={() => chrome.runtime.openOptionsPage()}
+              aria-label={optionsOpen ? 'Retour au site' : 'Options'}
+              title={optionsOpen ? 'Retour au site' : 'Options'}
+              aria-expanded={optionsOpen}
+              aria-controls="panel-options"
+              onClick={() => setOptionsOpen(!optionsOpen)}
             >
-              <GearSixIcon size={19} weight="regular" />
+              {optionsOpen ? <ArrowLeftIcon size={19} /> : <GearSixIcon size={19} />}
             </button>
           </div>
         </header>
-        {tab?.host ? (
-          <Site key={`${tab.id}:${tab.host}`} tab={tab} />
-        ) : (
-          <section className="empty-page">
-            <AssemblyDiagram />
-            <p className="eyebrow">Prêt à ajuster</p>
-            <h1>Une page à votre mesure.</h1>
-            <p data-testid="host">Ouvrez une page web (http ou https) pour la modifier.</p>
-          </section>
-        )}
+        <div id="panel-options" hidden={!optionsOpen}>
+          {optionsOpen && <OptionsContent />}
+        </div>
+        <div className="panel-site" hidden={optionsOpen}>
+          {tab?.host ? (
+            <Site key={`${tab.id}:${tab.host}`} tab={tab} />
+          ) : (
+            <section className="empty-page">
+              <AssemblyDiagram />
+              <p className="eyebrow">Prêt à ajuster</p>
+              <h1>Une page à votre mesure.</h1>
+              <p data-testid="host">Ouvrez une page web (http ou https) pour la modifier.</p>
+            </section>
+          )}
+        </div>
       </main>
     </MotionConfig>
   );

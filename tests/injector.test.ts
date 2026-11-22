@@ -10,7 +10,13 @@ beforeAll(async () => {
     'utf8',
   );
   const section = await readFile(new URL('../src/shared/section.ts', import.meta.url), 'utf8');
-  const raw = section.replace(/export /g, '') + injector.replace(/^import .*;\r?\n/m, '');
+  const accessibility = await readFile(
+    new URL('../src/shared/accessibility.ts', import.meta.url),
+    'utf8',
+  );
+  const raw = [section, accessibility, injector.replace(/^import .*;\r?\n/gm, '')]
+    .join('\n')
+    .replace(/export /g, '');
   source = ts.transpileModule(raw, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
   }).outputText;
@@ -107,36 +113,36 @@ describe('accessibility replay', () => {
   it('persists alongside modifications, reacts live, and respects pause and reset', async () => {
     const page = await fixture({
       'css:example.com': 'p{color:red}',
-      'accessibility-css:example.com': 'button{min-height:44px}',
+      'reface-accessibility:v1:larger-controls': true,
     });
     expect(page.css()).toContain('p{color:red}');
-    expect(page.css()).toContain('min-height:44px');
+    expect(page.css()).toContain('min-block-size:44px');
     page.change({ 'paused:example.com': { newValue: true } });
     expect(page.css()).toBe('');
     page.change({ 'paused:example.com': { newValue: false } });
-    expect(page.css()).toContain('min-height:44px');
+    expect(page.css()).toContain('min-block-size:44px');
     page.navigate('/other');
-    expect(page.css()).toContain('min-height:44px');
-    page.change({ 'accessibility-css:example.com': { newValue: '' } });
+    expect(page.css()).toContain('min-block-size:44px');
+    page.change({ 'reface-accessibility:v1:enabled': { newValue: false } });
     expect(page.css()).toBe('p{color:red}');
   });
 });
 
 describe('global accessibility profile', () => {
   it('applies on unrelated pages and supersedes old per-site preferences, including disabling', async () => {
-    const profile = { 'accessibility-css:global': 'button{min-height:52px}' };
+    const profile = { 'reface-accessibility:v1:instant-scroll': true };
     const first = await fixture({
       ...profile,
       'accessibility-css:example.com': 'p{font-size:18px}',
     });
     const second = await fixture(profile, '/another-page');
-    expect(first.css()).toBe('button{min-height:52px}');
+    expect(first.css()).toBe('*{scroll-behavior:auto!important}');
     expect(second.css()).toBe(first.css());
-    first.change({ 'accessibility-css:global': { newValue: '' } });
+    first.change({ 'reface-accessibility:v1:instant-scroll': { newValue: false } });
     expect(first.css()).toBe('');
     second.change({ 'paused:example.com': { newValue: true } });
     expect(second.css()).toBe('');
     second.change({ 'paused:example.com': { newValue: false } });
-    expect(second.css()).toBe('button{min-height:52px}');
+    expect(second.css()).toBe('*{scroll-behavior:auto!important}');
   });
 });

@@ -2,6 +2,7 @@
 import { callContent, listen, type BgApi } from '../shared/messages';
 import { generate, keep, quickHide } from './agent';
 import { listModels } from './llm';
+import { suggestAccessibility } from './accessibility';
 import './shortcutHotkey';
 
 const enablePanelOnClick = () =>
@@ -28,6 +29,7 @@ listen<BgApi>({
     return null;
   },
   quickHide: ({ tabId, pick }) => quickHide(tabId, pick),
+  suggestAccessibility: ({ description }) => suggestAccessibility(description),
   async testConnection(settings) {
     const models = await listModels(settings);
     return { models, modelFound: models.includes(settings.model) };
