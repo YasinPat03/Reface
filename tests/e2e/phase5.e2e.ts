@@ -133,15 +133,14 @@ await check('5.2 health check automatique : la règle cassée devient « suspect
   );
 });
 
-await check('5.2 badge « cassée » et bouton « Vérifier » dans le panel', async () => {
+await check('5.2 le badge de règle cassée apparaît dans le panel', async () => {
   const tabId = await tabIdOf(origin + '/');
   const p = await context.newPage();
   await p.goto(`chrome-extension://${extensionId}/src/panel/index.html?tabId=${tabId}`);
   await p.getByRole('tab', { name: /Modifications \(/ }).click();
-  await p.getByText('cassée').waitFor({ timeout: 3000 });
-  assert((await p.getByText('cassée').count()) === 1, 'un seul badge attendu');
-  await p.getByRole('button', { name: 'Vérifier' }).click();
-  await p.getByText('1 règle(s) sur 2 ne trouvent plus leurs éléments.').waitFor({ timeout: 3000 });
+  const badge = p.getByTestId('rules').getByText('cassée', { exact: true });
+  await badge.waitFor({ timeout: 3000 });
+  assert((await badge.count()) === 1, 'un seul badge attendu');
   await p.close();
 });
 

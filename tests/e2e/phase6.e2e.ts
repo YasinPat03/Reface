@@ -122,7 +122,7 @@ await check('itération : seuls les changements cochés sont renvoyés au LLM', 
   const sent = requests.at(-1)!;
   assert(sent.includes('Cacher les commentaires'), 'changement coché non renvoyé');
   assert(!sent.includes('Titre en rouge'), 'changement décoché renvoyé au LLM');
-  const titles = await panel.getByTestId('draft-changes').locator('label').allTextContents();
+  const titles = await panel.getByTestId('draft-changes').locator('li > span').allTextContents();
   assert(
     JSON.stringify(titles) ===
       JSON.stringify(['Cacher les commentaires', 'Texte plus grand', 'Fond gris']),
@@ -134,7 +134,9 @@ await check('itération : seuls les changements cochés sont renvoyés au LLM', 
 await check('Garder : une règle par changement coché', async () => {
   await panel.getByRole('checkbox', { name: 'Fond gris' }).uncheck();
   await panel.getByRole('button', { name: 'Garder' }).click();
-  await panel.getByText('Modifications (2/2)').waitFor({ timeout: 5000 });
+  await panel
+    .getByRole('tab', { name: 'Modifications (2/2)', exact: true })
+    .waitFor({ timeout: 5000 });
   const stored = await worker.evaluate(() => chrome.storage.local.get('rules:127.0.0.1'));
   const rules = (stored['rules:127.0.0.1'] as { rules: { title: string; prompt: string }[] }).rules;
   assert(
@@ -159,7 +161,7 @@ await check('liste : chaque changement s’active / se désactive séparément',
   await hideRow.getByRole('switch').click();
   await page.waitForSelector('#comments', { state: 'visible', timeout: 2000 });
   assert(await textBig(), 'désactiver un changement a désactivé l’autre');
-  await panel.getByText('Modifications (1/2)').waitFor();
+  await panel.getByRole('tab', { name: 'Modifications (1/2)', exact: true }).waitFor();
   await page.reload({ waitUntil: 'load' });
   assert(!(await commentsHidden()) && (await textBig()), 'rejeu incorrect après reload');
 });
