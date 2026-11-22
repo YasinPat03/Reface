@@ -175,6 +175,10 @@ await check(
     await panel.getByRole('status').filter({ hasText: 'a été publié' }).waitFor();
     await panel.getByRole('tab', { name: 'Publique', exact: true }).click();
     await panel.getByRole('heading', { name: 'Lecture partagée' }).waitFor();
+    await panel.getByRole('button', { name: 'Dans votre collection' }).waitFor();
+    await panel.getByRole('tab', { name: /Privée/ }).click();
+    await panel.getByRole('button', { name: /Supprimer .* de la collection privée/ }).click();
+    await panel.getByRole('tab', { name: 'Publique', exact: true }).click();
     await panel.getByRole('button', { name: 'Ajouter à ma collection' }).click();
     await panel.getByRole('button', { name: 'Dans votre collection' }).waitFor();
     await panel.getByRole('tab', { name: /Privée/ }).click();
