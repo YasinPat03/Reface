@@ -1,5 +1,6 @@
 // Boucle agent (PRD §3) : distillation → LLM → recette validée → preview ; Keep → règle.
 import { compileRule } from '../shared/compile';
+import { MAX_PICKED_ELEMENTS } from '../shared/picker';
 import { callContent } from '../shared/messages';
 import { addRule, addRules, newRuleId } from '../shared/rules';
 import { parseRecipe, toWire } from '../shared/schema';
@@ -36,12 +37,12 @@ function buildMessages(
   page: DistillResult,
   current: Recipe | null,
   saved: Rule[],
-  picked: number | null,
+  picked: number[],
 ): ChatMessage[] {
   const parts = [
     `User request: ${prompt}`,
-    picked !== null && picked >= 0
-      ? `The user pointed at region [#${picked}]: the request is about it.`
+    picked.length
+      ? `Selected regions (in selection order): ${picked.map((region, i) => `${i + 1}. [#${region}]`).join(', ')}. Use these as the targets when the user refers to the selection.`
       : '',
     `<untrusted_site_context>\n${describeSite(page.site)}\nPage: ${page.title} (${page.url})\n</untrusted_site_context>`,
     `Typography:\n${page.typography}`,
@@ -112,7 +113,7 @@ export async function generate(
   tabId: number,
   prompt: string,
   previous: Draft | null,
-  pick: string | null,
+  pick: string | string[] | null,
 ): Promise<Draft> {
   const draft = await generateDraft(tabId, prompt, previous, pick);
   return attributePrompts(draft, previous, prompt.trim());
@@ -122,7 +123,7 @@ async function generateDraft(
   tabId: number,
   prompt: string,
   previous: Draft | null,
-  pick: string | null,
+  pick: string | string[] | null,
 ): Promise<Draft> {
   const text = prompt.trim();
   if (!text) throw new Error('Décrivez la modification souhaitée.');
@@ -133,18 +134,25 @@ async function generateDraft(
   }
   const settings = await getSettings();
 
+  const focus = [...new Set(Array.isArray(pick) ? pick : pick ? [pick] : [])].slice(
+    0,
+    MAX_PICKED_ELEMENTS,
+  );
   const include = [
-    ...(pick ? [pick] : []),
+    ...focus,
     ...(previous?.changes ?? [])
       .filter((change) => change.enabled)
       .flatMap((change) => Object.values(change.targets).map((t) => t.selectors[0]))
       .filter((selector): selector is string => !!selector),
   ];
-  const page = await callContent(tabId, 'distill', { include, focus: pick });
+  const page = await callContent(tabId, 'distill', { include, focus });
   const saved = (await getSiteRules(page.host)).rules;
   const current = previous ? reindex(previous, page.included) : null;
-  const picked = pick ? (page.included[pick] ?? -1) : null;
+  const picked = focus.map((selector) => page.included[selector] ?? -1);
 
+  if (picked.includes(-1)) {
+    throw new Error('Un élément sélectionné est introuvable. Retirez-le ou pointez-le à nouveau.');
+  }
   const messages = buildMessages(text, page, current, saved, picked);
   const recipe = parseRecipe(await completeJson(settings, messages));
   const prompts = [...(previous?.prompts ?? []), text];

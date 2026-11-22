@@ -1,6 +1,7 @@
 // Pastille affichée dans la page pendant l'enregistrement d'un raccourci (lancé par ⌘⇧E ou le panel).
 // Sans enregistrement en cours, une seule lecture de chrome.storage.session : le SW n'est pas réveillé.
 // Shadow root ouvert (testable) ; les boutons n'agissent que sur un vrai clic (isTrusted).
+import { bindShortcutAppearance, shortcutAppearance } from './shortcutAppearance';
 import {
   shortcutKeys,
   type ShortcutHello,
@@ -17,38 +18,33 @@ let toastTimer: number | undefined;
 let pill: ReturnType<typeof createPill> | null = null;
 
 const STYLE = `
-  [hidden]{display:none !important}
-  .pill{display:flex;align-items:center;gap:10px;max-width:min(460px,calc(100vw - 32px));
-    padding:8px 8px 8px 12px;border-radius:12px;border:1px solid #ddd6fe;background:#fff;color:#18181b;
-    font:13px/1.35 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
-    box-shadow:0 8px 28px rgba(0,0,0,.18)}
-  .dot{flex:none;width:8px;height:8px;border-radius:50%;background:#dc2626;animation:pulse 1.2s ease-in-out infinite}
-  @keyframes pulse{50%{opacity:.35}}
-  .text{min-width:0;flex:1}
-  .title{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .hint{display:block;color:#52525b;font-size:12px}
-  kbd{font:inherit;font-size:11px;white-space:nowrap;padding:0 4px;border:1px solid #d4d4d8;border-radius:4px}
-  button{all:unset;cursor:pointer;flex:none;border-radius:8px;padding:6px 10px;font:inherit;font-size:12px}
-  .save{background:#7c3aed;color:#fff;font-weight:600}
-  .save:hover{background:#6d28d9}
-  .cancel{color:#71717a;padding:6px 8px}
-  .cancel:hover{background:#f4f4f5;color:#18181b}
-  button:focus-visible{outline:2px solid #7c3aed;outline-offset:2px}
-  .pill[data-tone=ok]{border-color:#a7f3d0}
-  .pill[data-tone=warn]{border-color:#fcd34d}
-  @media (prefers-color-scheme: dark){
-    .pill{background:#18181b;color:#fafafa;border-color:#4c1d95}
-    .hint{color:#a1a1aa}
-    kbd{border-color:#52525b}
-    .cancel:hover{background:#27272a;color:#fafafa}
-    .pill[data-tone=ok]{border-color:#065f46}
-    .pill[data-tone=warn]{border-color:#92400e}
-  }`;
+  ${shortcutAppearance}
+  .pill{display:flex;flex-wrap:wrap;align-items:center;gap:8px;box-sizing:border-box;
+    max-width:min(460px,calc(100vw - 32px));padding:10px 12px;border:1px solid var(--line);
+    border-left:2px solid var(--accent);border-radius:3px;background:var(--surface);color:var(--ink);
+    font:13px/1.5 var(--sans);box-shadow:0 8px 24px rgb(0 0 0 / .18)}
+  .dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--error);animation:pulse 1.2s ease-in-out infinite}
+  @keyframes pulse{50%{opacity:.4}}
+  @media(prefers-reduced-motion:reduce){.dot{animation:none}}
+  .text{min-width:0;flex:1 1 175px}
+  .title{display:block;font-weight:600;overflow-wrap:anywhere}
+  .hint{display:block;color:var(--muted);font-size:12px}
+  button{all:unset;box-sizing:border-box;cursor:pointer;min-height:36px;
+    border:1px solid transparent;border-radius:3px;padding:5px 10px;font:500 12px/1.4 var(--sans)}
+  .save{background:var(--accent);color:var(--on-ink)}
+  .save:hover{opacity:.85}
+  .cancel{color:var(--muted)}
+  .cancel:hover{border-color:var(--line);color:var(--ink)}
+  button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .pill[data-tone=ok]{border-left-color:var(--success)}
+  .pill[data-tone=warn]{border-left-color:var(--error)}
+`;
 
 function createPill() {
   const host = document.createElement('div');
   host.setAttribute('data-bp-shortcut', '');
   host.style.cssText = 'all:initial;position:fixed;right:16px;bottom:16px;z-index:2147483647';
+  const unbindAppearance = bindShortcutAppearance(host);
   const root = host.attachShadow({ mode: 'open' });
   root.innerHTML = `<style>${STYLE}</style><div class="pill" role="status">
     <span class="dot"></span>
@@ -70,6 +66,10 @@ function createPill() {
   }
   return {
     host,
+    remove() {
+      unbindAppearance();
+      host.remove();
+    },
     box: $('.pill'),
     dot: $('.dot'),
     title: $('.title'),
@@ -84,7 +84,7 @@ function createPill() {
 function render(): void {
   const state = toast ? 'toast' : recordingHost ? 'recording' : null;
   if (!state) {
-    pill?.host.remove();
+    pill?.remove();
     pill = null;
     return;
   }

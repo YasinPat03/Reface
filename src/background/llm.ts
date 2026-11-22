@@ -66,7 +66,13 @@ export interface ChatMessage {
   content: string;
 }
 
-async function once(settings: Settings, messages: ChatMessage[]): Promise<unknown> {
+type ResponseSchema = { name: string; schema: object };
+
+async function once(
+  settings: Settings,
+  messages: ChatMessage[],
+  responseSchema: ResponseSchema,
+): Promise<unknown> {
   const isGpt6 = /^(?:openai\/)?gpt-6(?:[.-]|$)/i.test(settings.model);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -90,7 +96,7 @@ async function once(settings: Settings, messages: ChatMessage[]): Promise<unknow
             : { temperature: 0.2 }),
         response_format: {
           type: 'json_schema',
-          json_schema: { name: 'recipe', strict: true, schema: recipeJsonSchema },
+          json_schema: { ...responseSchema, strict: true },
         },
       }),
     });
@@ -124,7 +130,11 @@ async function once(settings: Settings, messages: ChatMessage[]): Promise<unknow
 }
 
 /** Appelle le LLM, avec un seul retry sur les erreurs transitoires. */
-export async function completeJson(settings: Settings, messages: ChatMessage[]): Promise<unknown> {
+export async function completeJson(
+  settings: Settings,
+  messages: ChatMessage[],
+  responseSchema: ResponseSchema = { name: 'recipe', schema: recipeJsonSchema },
+): Promise<unknown> {
   if (!settings.apiKey.trim()) {
     throw new LlmError('Aucune clé API configurée. Ouvrez les Options pour en ajouter une.', false);
   }
@@ -132,7 +142,7 @@ export async function completeJson(settings: Settings, messages: ChatMessage[]):
   // Au plus : un retry transitoire + un retry par paramètre optionnel refusé.
   for (let attempt = 0; attempt < 2 + OPTIONAL_PARAMS.size; attempt++) {
     try {
-      return await once(settings, messages);
+      return await once(settings, messages, responseSchema);
     } catch (error) {
       if (!(error instanceof LlmError)) throw error;
       const param = error.rejectedParam;

@@ -1,3 +1,4 @@
+import { ACCESSIBILITY_KEYS, compileAccessibility } from '../shared/accessibility';
 import { cssForSection, readCompiled, sectionOf, type CompiledCss } from '../shared/section';
 // Injecteur document_start (PRD §3). Chemin critique du rejeu : AUCUN appel au service worker,
 // lecture directe de chrome.storage.local, zéro dépendance. Doit rester minuscule.
@@ -5,6 +6,8 @@ import { cssForSection, readCompiled, sectionOf, type CompiledCss } from '../sha
   const host = location.hostname;
   const cssKey = `css:${host}`;
   const pagesKey = `page-css:${host}`;
+  const accessibility: Record<string, unknown> = {};
+  let accessibilityCss = '';
   const pausedKey = `paused:${host}`;
   const STYLE_ID = 'bp-styles';
 
@@ -20,7 +23,7 @@ import { cssForSection, readCompiled, sectionOf, type CompiledCss } from '../sha
       Object.hasOwn(pages, path) && typeof pages[path] === 'string' ? pages[path] : '';
     const text = paused
       ? ''
-      : [cssForSection(compiled, section), pageCss].filter(Boolean).join('\n');
+      : [cssForSection(compiled, section), pageCss, accessibilityCss].filter(Boolean).join('\n');
     if (!text && !style) return; // rien à injecter : on ne touche pas au DOM
     if (!style) {
       style = document.createElement('style');
@@ -33,7 +36,9 @@ import { cssForSection, readCompiled, sectionOf, type CompiledCss } from '../sha
     if (!style.isConnected) document.documentElement.appendChild(style);
   }
 
-  chrome.storage.local.get([cssKey, pagesKey, pausedKey]).then((data) => {
+  chrome.storage.local.get([cssKey, pagesKey, pausedKey, ...ACCESSIBILITY_KEYS]).then((data) => {
+    for (const key of ACCESSIBILITY_KEYS) accessibility[key] = data[key];
+    accessibilityCss = compileAccessibility(accessibility);
     compiled = readCompiled(data[cssKey]);
     pages =
       data[pagesKey] && typeof data[pagesKey] === 'object'
@@ -46,11 +51,19 @@ import { cssForSection, readCompiled, sectionOf, type CompiledCss } from '../sha
   // Mise à jour live (Keep, toggle, pause) sans recharger la page.
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
+    const accessibilityChanged = ACCESSIBILITY_KEYS.some((key) => key in changes);
+    if (accessibilityChanged) {
+      for (const key of ACCESSIBILITY_KEYS) {
+        if (key in changes) accessibility[key] = changes[key]?.newValue;
+      }
+      accessibilityCss = compileAccessibility(accessibility);
+    }
     if (cssKey in changes) compiled = readCompiled(changes[cssKey]?.newValue);
     if (pagesKey in changes)
       pages = (changes[pagesKey]?.newValue as Record<string, string> | undefined) ?? {};
     if (pausedKey in changes) paused = changes[pausedKey]?.newValue === true;
-    if (cssKey in changes || pagesKey in changes || pausedKey in changes) render();
+    if (cssKey in changes || pagesKey in changes || pausedKey in changes || accessibilityChanged)
+      render();
   });
 
   // SPA navigations change the URL without reloading this isolated script.

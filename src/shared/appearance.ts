@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 
+import { APPEARANCE_KEY } from './appearanceKey';
+
 type Appearance = 'light' | 'dark';
-const KEY = 'ui:appearance';
 
 /** Le panneau et les réglages partagent leur apparence, sans modifier les réglages API. */
 export function useAppearance() {
@@ -14,9 +15,9 @@ export function useAppearance() {
       document.documentElement.dataset.appearance = next;
       setAppearance(next);
     };
-    void chrome.storage.local.get(KEY).then((data) => apply(data[KEY]));
+    void chrome.storage.local.get(APPEARANCE_KEY).then((data) => apply(data[APPEARANCE_KEY]));
     const onChanged = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
-      if (area === 'local' && changes[KEY]) apply(changes[KEY].newValue);
+      if (area === 'local' && changes[APPEARANCE_KEY]) apply(changes[APPEARANCE_KEY].newValue);
     };
     chrome.storage.onChanged.addListener(onChanged);
     return () => {
@@ -28,7 +29,7 @@ export function useAppearance() {
     const next = appearance === 'light' ? 'dark' : 'light';
     document.documentElement.dataset.appearance = next;
     setAppearance(next);
-    void chrome.storage.local.set({ [KEY]: next });
+    void chrome.storage.local.set({ [APPEARANCE_KEY]: next });
   };
   return { appearance, toggleAppearance };
 }

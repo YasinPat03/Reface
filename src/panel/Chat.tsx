@@ -9,22 +9,31 @@ import { XIcon } from '@phosphor-icons/react/dist/csr/X';
 import { LockSimpleIcon } from '@phosphor-icons/react/dist/csr/LockSimple';
 import { WarningCircleIcon } from '@phosphor-icons/react/dist/csr/WarningCircle';
 import { callBg, callContent } from '../shared/messages';
+import {
+  MAX_PICKED_ELEMENTS,
+  PICKER_PORT,
+  type PickerCommand,
+  type PickerEvent,
+} from '../shared/picker';
 import type { Draft, PickResult } from '../shared/types';
 import { errorMessage, type ActiveTab } from './tab';
 import { AssemblyDiagram } from './ui';
 
 type Status = 'idle' | 'generating' | 'saving' | 'picking';
 
+const NO_PICKS: PickResult[] = [];
 const EXAMPLES = ['Cache les commentaires', 'Texte plus grand et plus aéré'];
 
 export function Chat({
   tab,
   aiBlocked = null,
+  active = true,
   onSaved,
 }: {
   tab: ActiveTab;
   /** Raison pour laquelle l'IA est désactivée sur ce site (deny-list), ou null. */
   aiBlocked?: string | null;
+  active?: boolean;
   onSaved?: () => void;
 }) {
   const [prompt, setPrompt] = useState('');
@@ -32,7 +41,9 @@ export function Chat({
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [picked, setPicked] = useState<PickResult | null>(null);
+  const [selection, setSelection] = useState<{ url: string; items: PickResult[] } | null>(null);
+  const picked = selection?.url === tab.url ? selection.items : NO_PICKS;
+  const selectionPort = useRef<chrome.runtime.Port | null>(null);
   const draftTab = useRef<number | null>(null);
 
   // Le composant est remonté à chaque changement de site (key={host}) :
@@ -49,34 +60,72 @@ export function Chat({
     },
     [],
   );
-  // Un picker encore actif dans la page est annulé si le panel change de site.
-  useEffect(() => () => void callContent(tab.id, 'cancelPick', {}).catch(() => null), [tab.id]);
+  useEffect(() => {
+    if (!active) return;
+    const port = chrome.tabs.connect(tab.id, { name: PICKER_PORT, frameId: 0 });
+    selectionPort.current = port;
+    port.onMessage.addListener((event: PickerEvent) => {
+      if (selectionPort.current !== port) return;
+      if (event.type === 'stopped') {
+        setStatus((current) => (current === 'picking' ? 'idle' : current));
+        return;
+      }
+      setSelection((current) => {
+        const items = current?.url === tab.url ? current.items : NO_PICKS;
+        if (items.some(({ selector }) => selector === event.result.selector)) return current;
+        return { url: tab.url, items: [...items, event.result].slice(0, MAX_PICKED_ELEMENTS) };
+      });
+    });
+    port.onDisconnect.addListener(() => {
+      void chrome.runtime.lastError;
+      if (selectionPort.current !== port) return;
+      selectionPort.current = null;
+      setStatus((current) => (current === 'picking' ? 'idle' : current));
+    });
+    return () => {
+      if (selectionPort.current === port) selectionPort.current = null;
+      port.disconnect();
+      setStatus((current) => (current === 'picking' ? 'idle' : current));
+    };
+  }, [active, tab.id, tab.url]);
 
-  async function startPick() {
-    if (status === 'picking') {
-      await callContent(tab.id, 'cancelPick', {}).catch(() => null);
+  useEffect(() => {
+    if (active) {
+      selectionPort.current?.postMessage({
+        type: 'highlight',
+        selectors: picked.map(({ selector }) => selector),
+      } satisfies PickerCommand);
+    }
+  }, [active, picked, tab.id, tab.url]);
+
+  function togglePicker() {
+    const port = selectionPort.current;
+    if (!port) {
+      setError('Le pointeur est indisponible. Rechargez la page pour réessayer.');
       return;
     }
-    setStatus('picking');
+    const stopping = status === 'picking';
     setError(null);
     setNotice(null);
     try {
-      const result = await callContent(tab.id, 'pick', {});
-      if (result) setPicked(result);
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
+      port.postMessage({ type: stopping ? 'stop' : 'start' } satisfies PickerCommand);
+      if (!stopping) setStatus('picking');
+    } catch (error) {
       setStatus('idle');
+      setError(errorMessage(error));
     }
   }
 
-  async function hidePicked() {
-    if (!picked) return;
+  function removePicked(selector: string) {
+    setSelection({ url: tab.url, items: picked.filter((item) => item.selector !== selector) });
+  }
+
+  async function hidePicked(item: PickResult) {
     setStatus('saving');
     setError(null);
     try {
-      await callBg('quickHide', { tabId: tab.id, pick: picked });
-      setPicked(null);
+      await callBg('quickHide', { tabId: tab.id, pick: item });
+      removePicked(item.selector);
       onSaved?.();
     } catch (e) {
       setError(errorMessage(e));
@@ -96,7 +145,7 @@ export function Chat({
         tabId: tab.id,
         prompt,
         previous: draft,
-        pick: picked?.selector ?? null,
+        pick: picked.map(({ selector }) => selector),
       });
       // Panel neuf + service worker resté à l'ancienne version (dist/ recompilé sans ↻).
       if (!Array.isArray(next?.changes)) {
@@ -121,7 +170,7 @@ export function Chat({
     try {
       await callBg('keep', { tabId: draftTab.current, draft });
       setDraft(null);
-      setPicked(null);
+      setSelection(null);
       const kept = draft.changes.filter((c) => c.enabled).length;
       setNotice(
         kept > 1
@@ -160,7 +209,16 @@ export function Chat({
   const busy = status !== 'idle';
 
   return (
-    <section className="editor" aria-label="Éditeur de page">
+    <section
+      className="editor"
+      aria-label="Éditeur de page"
+      onKeyDown={(event) => {
+        if (status === 'picking' && (event.key === 'Enter' || event.key === 'Escape')) {
+          event.preventDefault();
+          if (!event.repeat) togglePicker();
+        }
+      }}
+    >
       <div className="workspace-heading">
         <div>
           <p className="eyebrow">{draft ? 'Aperçu' : 'Ajustement'}</p>
@@ -263,26 +321,29 @@ export function Chat({
       <form onSubmit={submit} className="adjustment-form">
         <button
           type="button"
-          onClick={startPick}
-          disabled={status === 'generating' || status === 'saving'}
+          onClick={togglePicker}
+          disabled={
+            status === 'generating' || status === 'saving' || picked.length >= MAX_PICKED_ELEMENTS
+          }
           aria-pressed={status === 'picking'}
           className="pick-button"
         >
           <span className="pick-crosshair">
             <CrosshairSimpleIcon size={21} weight="light" aria-hidden="true" />
           </span>
-          <span>{status === 'picking' ? 'Annuler le pointage' : 'Pointer un élément'}</span>
+          <span>{status === 'picking' ? 'Terminer la sélection' : 'Pointer un élément'}</span>
           <span className="pick-indicator" aria-hidden="true">
             {status === 'picking' ? '−' : '+'}
           </span>
         </button>
         {status === 'picking' && (
           <p role="status" className="picking-instructions">
-            Cliquez sur un élément de la page. ↑ pour sélectionner son parent, Échap pour annuler.
+            Cliquez pour ajouter un élément. ↑ et ↓ ajustent la cible. Espace l’ajoute, Entrée
+            termine.
           </p>
         )}
         <AnimatePresence initial={false}>
-          {picked && (
+          {picked.length > 0 && (
             <motion.div
               key="picked"
               data-testid="picked"
@@ -293,24 +354,59 @@ export function Chat({
               transition={{ duration: 0.18 }}
             >
               <div className="target-heading">
-                <span className="eyebrow">Élément sélectionné</span>
-                <button
-                  type="button"
-                  className="icon-button"
-                  aria-label="Oublier l’élément pointé"
-                  onClick={() => setPicked(null)}
-                  disabled={busy}
-                >
-                  <XIcon size={16} aria-hidden="true" />
-                </button>
+                <span className="eyebrow">
+                  {picked.length === 1
+                    ? 'Élément sélectionné'
+                    : `${picked.length} éléments sélectionnés`}
+                </span>
+                {picked.length > 1 && (
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() => setSelection(null)}
+                    disabled={busy}
+                  >
+                    Tout retirer
+                  </button>
+                )}
               </div>
-              <p className="target-label" title={picked.selector}>
-                {picked.label}
-              </p>
-              <button type="button" onClick={hidePicked} disabled={busy} className="text-button">
-                <EyeSlashIcon size={16} aria-hidden="true" />
-                Cacher cet élément
-              </button>
+              <ol className="target-list">
+                {picked.map((item, index) => (
+                  <li className="target-row" key={item.selector}>
+                    <span className="target-index" aria-hidden="true">
+                      {index + 1}
+                    </span>
+                    <span className="target-label" title={item.selector}>
+                      {item.label}
+                    </span>
+                    <button
+                      type="button"
+                      className="icon-button"
+                      title="Cacher cet élément"
+                      aria-label={`Cacher cet élément : ${item.label}`}
+                      onClick={() => void hidePicked(item)}
+                      disabled={busy}
+                    >
+                      <EyeSlashIcon size={16} aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-button"
+                      title="Retirer de la sélection"
+                      aria-label={`Retirer de la sélection : ${item.label}`}
+                      onClick={() => removePicked(item.selector)}
+                      disabled={busy}
+                    >
+                      <XIcon size={16} aria-hidden="true" />
+                    </button>
+                  </li>
+                ))}
+              </ol>
+              {picked.length >= MAX_PICKED_ELEMENTS && (
+                <p className="picking-instructions">
+                  Limite de {MAX_PICKED_ELEMENTS} éléments atteinte.
+                </p>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

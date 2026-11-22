@@ -1,4 +1,6 @@
 import { Tabs } from '@base-ui/react/tabs';
+import { ArrowLeftIcon } from '@phosphor-icons/react/dist/csr/ArrowLeft';
+import { OptionsContent } from '../options/OptionsContent';
 import { GearSixIcon } from '@phosphor-icons/react/dist/csr/GearSix';
 import { MotionConfig } from 'motion/react';
 import { useEffect, useState } from 'react';
@@ -20,7 +22,7 @@ import { AssemblyDiagram, Segmented, Switch } from './ui';
 
 type View = 'edit' | 'rules' | 'catalogue' | 'shortcuts';
 
-function Site({ tab }: { tab: ActiveTab }) {
+function Site({ tab, active }: { tab: ActiveTab; active: boolean }) {
   const { site, paused } = useSite(tab.host);
   const [saveRequest, setSaveRequest] = useState(0);
   const shortcutCount = useShortcutCount(tab.host);
@@ -137,7 +139,12 @@ function Site({ tab }: { tab: ActiveTab }) {
           <Tabs.Indicator className="workspace-indicator" />
         </Tabs.List>
         <Tabs.Panel value="edit" keepMounted className="workspace-panel">
-          <Chat tab={tab} aiBlocked={sensitiveReason(tab.url)} onSaved={() => setView('rules')} />
+          <Chat
+            active={active && view === 'edit'}
+            tab={tab}
+            aiBlocked={sensitiveReason(tab.url)}
+            onSaved={() => setView('rules')}
+          />
         </Tabs.Panel>
         <Tabs.Panel value="rules" className="workspace-panel">
           <Rules
@@ -164,6 +171,7 @@ function Site({ tab }: { tab: ActiveTab }) {
 }
 
 export function App() {
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const tab = useActiveTab();
   const { appearance, toggleAppearance } = useAppearance();
   return (
@@ -187,24 +195,31 @@ export function App() {
             <button
               type="button"
               className="icon-button"
-              aria-label="Options"
-              title="Options"
-              onClick={() => chrome.runtime.openOptionsPage()}
+              aria-label={optionsOpen ? 'Retour au site' : 'Options'}
+              title={optionsOpen ? 'Retour au site' : 'Options'}
+              aria-expanded={optionsOpen}
+              aria-controls="panel-options"
+              onClick={() => setOptionsOpen(!optionsOpen)}
             >
-              <GearSixIcon size={19} weight="regular" />
+              {optionsOpen ? <ArrowLeftIcon size={19} /> : <GearSixIcon size={19} />}
             </button>
           </div>
         </header>
-        {tab?.host ? (
-          <Site key={`${tab.id}:${tab.host}`} tab={tab} />
-        ) : (
-          <section className="empty-page">
-            <AssemblyDiagram />
-            <p className="eyebrow">Prêt à ajuster</p>
-            <h1>Une page à votre mesure.</h1>
-            <p data-testid="host">Ouvrez une page web (http ou https) pour la modifier.</p>
-          </section>
-        )}
+        <div id="panel-options" hidden={!optionsOpen}>
+          {optionsOpen && <OptionsContent />}
+        </div>
+        <div className="panel-site" hidden={optionsOpen}>
+          {tab?.host ? (
+            <Site key={`${tab.id}:${tab.host}`} tab={tab} active={!optionsOpen} />
+          ) : (
+            <section className="empty-page">
+              <AssemblyDiagram />
+              <p className="eyebrow">Prêt à ajuster</p>
+              <h1>Une page à votre mesure.</h1>
+              <p data-testid="host">Ouvrez une page web (http ou https) pour la modifier.</p>
+            </section>
+          )}
+        </div>
       </main>
     </MotionConfig>
   );

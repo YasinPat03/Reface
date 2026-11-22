@@ -127,10 +127,16 @@ interface Candidate {
  * Parcourt le DOM et garde les régions utiles : landmarks, rôles ARIA, éléments custom,
  * gros conteneurs. Les éléments de `include` (picker, itération) et leurs ancêtres sont forcés.
  */
-export function distill(include: string[] = [], focus: string | null = null): DistillResult {
+export function distill(
+  include: string[] = [],
+  focus: string | string[] | null = null,
+): DistillResult {
   const viewportArea = Math.max(window.innerWidth * window.innerHeight, 1);
   repeatCache = new WeakMap(); // le DOM a pu changer depuis la dernière distillation
+  const focusSelectors = Array.isArray(focus) ? focus : focus ? [focus] : [];
+  include = [...new Set([...include, ...focusSelectors])];
   const forced = new Set<Element>();
+  const selected = new Set<Element>();
   const includedElements = new Map<string, Element>();
   for (const selector of include) {
     let element: Element | null = null;
@@ -145,29 +151,19 @@ export function distill(include: string[] = [], focus: string | null = null): Di
       forced.add(e);
   }
 
-  // Élément pointé : ses descendants visibles (les plus grands d'abord) sont forcés aussi.
-  if (focus) {
-    let focused: Element | null = null;
-    try {
-      focused = document.querySelector(focus);
-    } catch {
-      /* ignoré */
-    }
-    if (focused) {
-      if (!include.includes(focus)) {
-        include = [...include, focus];
-        includedElements.set(focus, focused);
-        for (let e: Element | null = focused; e && e !== document.body; e = e.parentElement)
-          forced.add(e);
-      }
-      [...focused.querySelectorAll('*')]
-        .filter((e) => !SKIP.has(e.tagName))
-        .map((e) => ({ e, rect: e.getBoundingClientRect() }))
-        .filter(({ e, rect }) => isVisible(e, rect))
-        .sort((a, b) => b.rect.width * b.rect.height - a.rect.width * a.rect.height)
-        .slice(0, MAX_FOCUS_DESCENDANTS)
-        .forEach(({ e }) => forced.add(e));
-    }
+  // Répartit le budget des descendants entre les éléments sélectionnés.
+  const perSelection = Math.max(1, Math.floor(MAX_FOCUS_DESCENDANTS / focusSelectors.length));
+  for (const selector of focusSelectors) {
+    const focused = includedElements.get(selector);
+    if (!focused) continue;
+    selected.add(focused);
+    [...focused.querySelectorAll('*')]
+      .filter((e) => !SKIP.has(e.tagName))
+      .map((e) => ({ e, rect: e.getBoundingClientRect() }))
+      .filter(({ e, rect }) => isVisible(e, rect))
+      .sort((a, b) => b.rect.width * b.rect.height - a.rect.width * a.rect.height)
+      .slice(0, perSelection)
+      .forEach(({ e }) => forced.add(e));
   }
 
   const candidates: Candidate[] = [];
@@ -199,6 +195,7 @@ export function distill(include: string[] = [], focus: string | null = null): Di
     if (!isForced && area < MIN_AREA && !LANDMARKS.has(tag) && !/^H[1-3]$/.test(tag)) continue;
     let score = 0;
     if (isForced) score += 100;
+    if (selected.has(element)) score += 200;
     if (LANDMARKS.has(tag)) score += 10;
     else if (SECTIONING.has(tag)) score += 3;
     if (element.hasAttribute('role')) score += 6;
