@@ -369,6 +369,7 @@ export function Chat({
           }
           aria-pressed={status === 'picking'}
           className="pick-button"
+          data-tour="pick"
         >
           <span className="pick-crosshair">
             <CrosshairSimpleIcon size={21} weight="light" aria-hidden="true" />
@@ -452,7 +453,7 @@ export function Chat({
             </motion.div>
           )}
         </AnimatePresence>
-        <div className="prompt-field">
+        <div className="prompt-field" data-tour="prompt">
           <label htmlFor="bp-prompt" className="sr-only">
             {draft ? 'Affiner la modification' : 'Que voulez-vous changer ?'}
           </label>

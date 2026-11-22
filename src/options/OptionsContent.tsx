@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { CheckIcon } from '@phosphor-icons/react/dist/csr/Check';
 import { WarningCircleIcon } from '@phosphor-icons/react/dist/csr/WarningCircle';
 import { callBg } from '../shared/messages';
+import { resetOnboarding } from '../shared/onboarding';
 import { getSettings, setSettings } from '../shared/storage';
 import type { Settings } from '../shared/types';
 import { AccessibilitySettings } from './AccessibilitySettings';
@@ -23,8 +24,10 @@ type Test =
   | { status: 'ok'; models: string[]; modelFound: boolean }
   | { status: 'error'; message: string };
 
-export function OptionsContent() {
+/** `onReplayOnboarding` : fourni par le panneau, qui ferme les options pour laisser place à la visite. */
+export function OptionsContent({ onReplayOnboarding }: { onReplayOnboarding?: () => void } = {}) {
   const [settings, setLocal] = useState<Settings | null>(null);
+  const [replayQueued, setReplayQueued] = useState(false);
   const [saved, setSaved] = useState(false);
   const [test, setTest] = useState<Test>({ status: 'idle' });
   const [showKey, setShowKey] = useState(false);
@@ -196,6 +199,30 @@ export function OptionsContent() {
           </p>
         )}
       </form>
+      <section className="settings-section" aria-label="Présentation">
+        <h2>Présentation</h2>
+        <p className="field-help">Revoyez la visite guidée du panneau, zone par zone.</p>
+        <div className="settings-actions">
+          <button
+            type="button"
+            className="button"
+            onClick={() => {
+              void resetOnboarding().then(() => {
+                if (onReplayOnboarding) onReplayOnboarding();
+                else setReplayQueued(true);
+              }, console.error);
+            }}
+          >
+            Revoir la présentation
+          </button>
+          {replayQueued && (
+            <span className="save-notice" role="status">
+              <CheckIcon size={16} aria-hidden="true" />
+              Elle se jouera à la prochaine ouverture du panneau.
+            </span>
+          )}
+        </div>
+      </section>
     </>
   );
 }

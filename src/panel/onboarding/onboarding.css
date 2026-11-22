@@ -1,0 +1,180 @@
+/* Présentation du premier lancement. Couleurs : variables de src/shared/ui.css (clair et sombre). */
+
+:root {
+  --tour-dim: rgb(12 12 15 / 56%);
+  --tour-intro: rgb(250 250 250 / 82%);
+}
+:root[data-appearance='dark'] {
+  --tour-dim: rgb(4 9 15 / 66%);
+  --tour-intro: rgb(13 21 32 / 84%);
+}
+
+/* Intro : le logo en grand au centre. */
+.onboarding-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  cursor: pointer;
+}
+.onboarding-intro-backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--tour-intro);
+  backdrop-filter: blur(10px);
+}
+.onboarding-intro-center {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 22px;
+  text-align: center;
+}
+.onboarding-logo {
+  transform-origin: center;
+}
+.brand-metallic.brand-intro {
+  width: min(260px, calc(100vw - 32px));
+  height: auto;
+  aspect-ratio: 170 / 46;
+  flex: none;
+}
+.onboarding-intro-text {
+  display: grid;
+  gap: 6px;
+}
+.onboarding-tagline {
+  font-size: 23px;
+  font-weight: 500;
+  letter-spacing: -0.7px;
+  line-height: 1.3;
+  color: var(--ink);
+}
+.onboarding-intro-skip {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  translate: -50% 0;
+}
+
+/* Visite : projecteur, curseur et bulle. */
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  outline: none;
+  cursor: pointer;
+}
+.tour-spotlight {
+  position: fixed;
+  top: 0;
+  left: 0;
+  border-radius: 12px;
+  box-shadow: 0 0 0 100vmax var(--tour-dim);
+  pointer-events: none;
+}
+.tour-cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  /* La pointe de la flèche est le coin haut gauche (x, y). */
+  margin: -2px 0 0 -2px;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 28%));
+  z-index: 2;
+}
+.tour-cursor svg {
+  display: block;
+}
+.tour-cursor-arrow {
+  fill: var(--ink);
+  stroke: var(--paper);
+}
+.tour-ripple {
+  position: absolute;
+  top: -12px;
+  left: -12px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.tour-bubble {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  padding: 14px 16px 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 22%);
+  cursor: default;
+}
+.tour-bubble[data-notch]::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--notch-x) - 6px);
+  width: 12px;
+  height: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  rotate: 45deg;
+}
+.tour-bubble[data-notch][data-side='below']::before {
+  top: -7px;
+  border-right: 0;
+  border-bottom: 0;
+}
+.tour-bubble[data-notch][data-side='above']::before {
+  bottom: -7px;
+  border-left: 0;
+  border-top: 0;
+}
+.tour-bubble-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.tour-bubble-text {
+  display: grid;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.tour-bubble-text > * {
+  grid-area: 1 / 1;
+}
+.tour-bubble-ghost {
+  visibility: hidden;
+}
+.tour-bubble-text .tour-bubble-typed {
+  display: inline;
+  line-height: inherit;
+  letter-spacing: normal;
+}
+.tour-bubble-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  min-height: 30px;
+}
+.tour-bubble-footer .button-primary {
+  margin-left: auto;
+}
+.tour-bubble-footer .text-button {
+  padding: 5px 8px;
+  margin-right: -8px;
+  border-radius: 6px;
+}
+.tour-progress {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}
