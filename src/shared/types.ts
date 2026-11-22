@@ -144,6 +144,10 @@ export interface Draft {
    * si le problème persiste après l'auto-correction, la preview est refusée avec cette explication.
    */
   broken?: string[];
+  /** Version retenue après l'affinage visuel (le LLM a vu sa preview et l'a corrigée). */
+  refined?: boolean;
+  /** Défauts vus par le LLM sur la capture de la v1 (et corrigés par la v2). */
+  review?: string[];
 }
 
 /** Changement résolu : sélecteurs robustes, CSS normalisé. */

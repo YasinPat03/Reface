@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseRecipe, toWire } from '../src/shared/schema';
+import { parseRecipe, parseReview, toWire } from '../src/shared/schema';
 
 const legacy = {
   ops: [
@@ -126,5 +126,17 @@ describe('parseRecipe', () => {
     expect(() => parseRecipe({ ops: [] })).toThrow();
     expect(() => parseRecipe({ changes: [{ title: 'x' }], explanation: '' })).toThrow();
     expect(() => parseRecipe('pas du json')).toThrow();
+  });
+});
+
+describe('parseReview (affinage visuel)', () => {
+  it('lit les défauts et le verdict, en ignorant le reste de la recette', () => {
+    expect(
+      parseReview({ review: { defects: ['cartes trop hautes', 3], clean: false }, changes: [] }),
+    ).toEqual({ defects: ['cartes trop hautes'], clean: false });
+  });
+  it('sans critique valide : pas de défaut, pas propre', () => {
+    expect(parseReview({ changes: [] })).toEqual({ defects: [], clean: false });
+    expect(parseReview(null)).toEqual({ defects: [], clean: false });
   });
 });

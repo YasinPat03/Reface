@@ -103,6 +103,8 @@ On choisit au fur et à mesure. Chacune s'appuie sur le MVP sans le casser.
   - [x] Le banc mesure aussi le goût : hiérarchie titre/méta, cohérence entre éléments, nombre de couleurs, articles déchirés
   - [x] Grille par jetons (`layout.columns` 1 à 4, `cardShape`) : l'extension construit la grille, y compris pour les listes en lignes de tableau (HN : titre, infos et espaceur dans la même colonne via `:nth-child(… of …)`)
   - [x] Garde-fou d'intégrité : article déchiré (titre séparé de ses infos), textes superposés, cartes vidées par la modif, débordement horizontal. Correction par le LLM, puis **refus expliqué** si le problème persiste
+  - [x] Affinage visuel, toujours actif : le LLM reçoit une capture de sa preview (v1), écrit d'abord sa critique, puis renvoie une v2. Elle n'est retenue que si elle passe les garde-fous, sans défaire un souhait explicite (`refine`, `tests/e2e/phase12.e2e.ts`)
+  - [x] Repli de `reasoning_effort` par modèle (`none` → la valeur acceptée la plus faible → paramètre omis) : corrige l'erreur 400 avec `gpt-6.2-astra`
 - [ ] **A. Raccourcis vers pages enfouies** (F7/F8)
   - [ ] Op `insertLink` + allow-list de liens (https, même domaine enregistrable, `textContent` seulement)
   - [ ] Inventaire des liens dans la distillation, pour pouvoir promouvoir un lien caché

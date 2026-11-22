@@ -48,6 +48,19 @@ Dernière mise à jour : 22 novembre 2026, sur la branche `feat/design-quality` 
       - le débordement horizontal (refus au-delà de 5 %).
 
       Si le problème persiste après l'auto-correction, `refuseIfBroken` (`agent.ts`) retire la preview et explique pourquoi, au lieu d'afficher un rendu cassé.
+
+  11. Même branche, **affinage visuel, toujours actif** (non commité). Le panel affiche la v1, puis appelle `refine` (BgApi) et affiche « Affinage : l’IA vérifie le rendu… ».
+
+      Le service worker :
+      - prend une capture de l'onglet (`background/capture.ts`, `captureVisibleTab`) ;
+      - envoie au LLM la conversation, la recette et la capture, avec le schéma `refineJsonSchema` : `review` (défauts, `clean`) **avant** la recette, ce qui l'oblige à regarder avant de répondre ;
+      - garde la v2 seulement si elle change le rendu, passe les garde-fous et n'a pas plus de problèmes mesurés.
+
+      La v1 reste si le rendu est jugé propre, en cas d'échec, en mode « Original », ou si le brouillon a été gardé, annulé ou révisé entre-temps (vérifié par `currentPreview`). Un seul tour.
+
+      Banc (17 prompts) : v1 en 3,1 s de médiane, version finale en 6,6 s ; v2 retenue dans 4 à 10 cas sur 17 selon les passages, sans régression mesurée. **Confidentialité :** la capture de l'écran visible est envoyée au fournisseur de l'utilisateur (BYOK), jamais sur un site sensible (la génération y est déjà bloquée).
+
+      Aussi : repli de `reasoning_effort` (`nextEffort`, `llm.ts`) pour les modèles qui refusent `none` (ex. `gpt-6.2-astra`, qui accepte `low`/`medium`/`high`/`xhigh`).
 - **Ce qui reste ouvert dans `plan.md` :**
   - 5.4 : refaire la répétition sur le réseau de la salle.
   - 5.6 : enregistrer la vidéo de secours.

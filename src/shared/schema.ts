@@ -260,6 +260,47 @@ export const recipeJsonSchema = {
   },
 } as const;
 
+/**
+ * Schéma de l'affinage visuel : la CRITIQUE d'abord (les défauts vus sur la capture, et si c'est
+ * propre), puis la recette. Les sorties structurées suivent l'ordre du schéma : le modèle regarde
+ * vraiment la capture avant de décider, au lieu de recopier sa recette.
+ */
+export const refineJsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['review', 'changes', 'explanation'],
+  properties: {
+    review: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['defects', 'clean'],
+      properties: {
+        defects: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Visible defects in the screenshot that matter for the request or for a clean design (short, in the language of the user request). Empty if none.',
+        },
+        clean: {
+          type: 'boolean',
+          description: 'true only if the result is faithful to the request and visually clean.',
+        },
+      },
+    },
+    changes: recipeJsonSchema.properties.changes,
+    explanation: recipeJsonSchema.properties.explanation,
+  },
+} as const;
+
+/** Critique de l'affinage visuel (le reste de la réponse est une recette normale). */
+export function parseReview(raw: unknown): { defects: string[]; clean: boolean } {
+  const review = (raw as { review?: { defects?: unknown; clean?: unknown } } | null)?.review;
+  const defects = Array.isArray(review?.defects)
+    ? review.defects.filter((d): d is string => typeof d === 'string').map((d) => d.slice(0, 160))
+    : [];
+  return { defects: defects.slice(0, 6), clean: review?.clean === true };
+}
+
 function parseChange(wire: WireChange, index: number): RecipeChange {
   const keys = new Set(wire.targets.map((t) => t.key));
   const ops: Op[] = wire.ops.map((op) => {

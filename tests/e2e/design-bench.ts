@@ -308,6 +308,8 @@ interface Result {
   warnings: string[];
   metrics: ReturnType<typeof measure> | null;
   taste?: ReturnType<typeof taste> | null;
+  firstMs?: number;
+  refined?: boolean;
   previewCss?: string;
 }
 const results: Result[] = [];
@@ -336,6 +338,21 @@ for (const site of SITES.filter((s) => !filter || s.name.includes(filter))) {
         error?: string;
         data?: { changes: { title: string }[]; warnings: string[]; previewCss: string };
       };
+      const firstMs = Date.now() - t0;
+      // v1 photographiée, puis affinage visuel (comme le fait le panel).
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${out}/${id}-v1.png` });
+      let refined = false;
+      if (reply.ok && reply.data) {
+        const next = (await panel.evaluate((m) => chrome.runtime.sendMessage(m), {
+          type: 'refine',
+          payload: { tabId, draft: reply.data },
+        })) as { ok: boolean; data?: typeof reply.data & { refined?: boolean } };
+        if (next.ok && next.data) {
+          refined = !!next.data.refined;
+          reply.data = next.data;
+        }
+      }
       const ms = Date.now() - t0;
       const calls = (await worker.evaluate(
         () => (globalThis as unknown as { __calls: Result['calls'] }).__calls,
@@ -355,12 +372,14 @@ for (const site of SITES.filter((s) => !filter || s.name.includes(filter))) {
         warnings: reply.data?.warnings ?? [],
         metrics,
         taste: flavour,
+        firstMs,
+        refined,
         previewCss: reply.data?.previewCss,
       };
       results.push(result);
       const m = metrics;
       console.log(
-        `${id} « ${prompt} »\n  ${ms} ms (${calls.map((c) => `${c.ms} ms, ${c.in}→${c.out} tok dont ${c.reasoning} raisonnement`).join(' + ')})` +
+        `${id} « ${prompt} »\n  v1 ${firstMs} ms, total ${ms} ms${refined ? ' · v2 RETENUE' : ' · v1 gardée'} (${calls.map((c) => `${c.ms} ms, ${c.in}→${c.out} tok dont ${c.reasoning} raisonnement`).join(' + ')})` +
           (reply.ok
             ? `\n  changements : ${result.changes.join(' | ')}` +
               `\n  sélecteurs morts : ${m!.deadCount}/${m!.ruleCount}${m!.deadCount ? ' ' + m!.dead.join(' ; ') : ''}` +
@@ -399,6 +418,9 @@ function totals(list: Result[]) {
     runs: list.length,
     errors: list.length - ok.length,
     medianMs: [...list.map((r) => r.ms)].sort((a, b) => a - b)[list.length >> 1] ?? 0,
+    medianFirstMs:
+      [...list.map((r) => r.firstMs ?? r.ms)].sort((a, b) => a - b)[list.length >> 1] ?? 0,
+    refined: list.filter((r) => r.refined).length,
     deadSelectors: sum((r) => r.metrics!.deadCount),
     lowContrast: sum((r) => r.metrics!.lowContrastCount),
     tinyTexts: sum((r) => r.metrics!.tiny),

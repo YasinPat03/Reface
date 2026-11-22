@@ -1,6 +1,6 @@
 // Service worker : agent core. Aucun état en mémoire globale (le SW s'endort après ~30 s).
 import { callContent, listen, type BgApi } from '../shared/messages';
-import { generate, keep, quickHide } from './agent';
+import { generate, keep, quickHide, refine } from './agent';
 import { listModels } from './llm';
 import { suggestAccessibility } from './accessibility';
 import './shortcutHotkey';
@@ -23,6 +23,7 @@ listen<BgApi>({
     }
   },
   generate: ({ tabId, prompt, previous, pick }) => generate(tabId, prompt, previous, pick),
+  refine: ({ tabId, draft }) => refine(tabId, draft),
   keep: ({ tabId, draft }) => keep(tabId, draft),
   async discard({ tabId }) {
     await callContent(tabId, 'clearPreview', {});

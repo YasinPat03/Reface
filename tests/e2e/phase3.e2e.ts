@@ -1,6 +1,14 @@
 // Phase 3 : Options, chat, règles, pause et Catalogue privé/public — via la vraie UI.
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { assert, check, done, launch, startServer } from './harness.ts';
+import {
+  assert,
+  check,
+  done,
+  launch,
+  startServer,
+  declineRefine,
+  isRefineRequest,
+} from './harness.ts';
 
 const PAGE = `<!doctype html><html><head><title>Démo</title></head><body>
   <header><h1 id="title">Titre</h1></header>
@@ -11,6 +19,7 @@ const PAGE = `<!doctype html><html><head><title>Démo</title></head><body>
 async function llm(req: IncomingMessage, res: ServerResponse) {
   let raw = '';
   for await (const chunk of req) raw += chunk;
+  if (isRefineRequest(raw)) return declineRefine(res);
   const user = (JSON.parse(raw) as { messages: { content: string }[] }).messages[1]!.content;
   const line = user.split('\n').find((l) => l.includes('id="comments"'));
   const regionIndex = Number(line?.match(/\[#(\d+)\]/)?.[1] ?? -1);

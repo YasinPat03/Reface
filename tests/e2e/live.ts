@@ -176,8 +176,16 @@ for (const s of SCENARIOS.filter((x) => !filter || x.name.includes(filter))) {
       await panel
         .getByRole('button', { name: 'Préparation de l’aperçu…' })
         .waitFor({ state: 'detached', timeout: 60_000 });
-      const outcome = (await panel.getByRole('alert').count()) ? 'error' : 'draft';
       const ms = Date.now() - t0;
+      // Affinage visuel (toujours actif) : on attend sa fin avant de vérifier le rendu.
+      const r0 = Date.now();
+      await panel
+        .getByTestId('refining')
+        .waitFor({ state: 'detached', timeout: 30_000 })
+        .catch(() => null);
+      const refineMs = Date.now() - r0;
+      const refined = (await panel.getByTestId('refined').count()) > 0;
+      const outcome = (await panel.getByRole('alert').count()) ? 'error' : 'draft';
       if (outcome === 'error')
         throw new Error(`erreur après ${ms} ms : ${await panel.getByRole('alert').textContent()}`);
       const explanation = await panel
@@ -186,7 +194,7 @@ for (const s of SCENARIOS.filter((x) => !filter || x.name.includes(filter))) {
         .textContent();
       const warnings = await panel.getByTestId('draft').locator('.draft-warning').allTextContents();
       console.log(
-        `  « ${prompt} » → ${ms} ms · ${explanation}${warnings.length ? ` · ⚠️ ${warnings.join(' ⚠️ ')}` : ''}`,
+        `  « ${prompt} » → ${ms} ms + affinage ${refineMs} ms${refined ? ' (v2 retenue)' : ''} · ${explanation}${warnings.length ? ` · ⚠️ ${warnings.join(' ⚠️ ')}` : ''}`,
       );
     }
     {

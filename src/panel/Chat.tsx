@@ -45,6 +45,9 @@ export function Chat({
   const picked = selection?.url === tab.url ? selection.items : NO_PICKS;
   const selectionPort = useRef<chrome.runtime.Port | null>(null);
   const draftTab = useRef<number | null>(null);
+  /** Affinage visuel en cours (le LLM regarde sa preview). Un nouveau numéro invalide l'ancien. */
+  const [refining, setRefining] = useState(false);
+  const refineRun = useRef(0);
 
   // Le composant est remonté à chaque changement de site (key={host}) :
   // au démontage, on retire une éventuelle preview restée sur l'ancien onglet.
@@ -137,6 +140,7 @@ export function Chat({
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!prompt.trim() || status !== 'idle') return;
+    stopRefining();
     setStatus('generating');
     setError(null);
     setNotice(null);
@@ -156,6 +160,7 @@ export function Chat({
       draftTab.current = tab.id;
       setDraft(next);
       setPrompt('');
+      void refineDraft(tab.id, next);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -163,8 +168,32 @@ export function Chat({
     }
   }
 
+  /**
+   * Affinage visuel, toujours actif : la v1 est déjà affichée ; le LLM la regarde et peut la
+   * corriger. Le résultat est ignoré si le brouillon a changé entre-temps (gardé, annulé, révisé).
+   */
+  async function refineDraft(tabId: number, first: Draft) {
+    const run = ++refineRun.current;
+    setRefining(true);
+    try {
+      const refined = await callBg('refine', { tabId, draft: first });
+      if (refineRun.current === run && refined.refined) setDraft(refined);
+    } catch {
+      /* l'affinage est un bonus : la v1 reste */
+    } finally {
+      if (refineRun.current === run) setRefining(false);
+    }
+  }
+
+  /** Abandonne l'affinage en cours (son résultat sera ignoré). */
+  function stopRefining() {
+    refineRun.current++;
+    setRefining(false);
+  }
+
   async function keepDraft() {
     if (!draft || draftTab.current === null) return;
+    stopRefining();
     setStatus('saving');
     setError(null);
     try {
@@ -188,6 +217,7 @@ export function Chat({
   /** Coche/décoche un changement : la preview est mise à jour en direct dans la page. */
   async function toggleChange(index: number, enabled: boolean) {
     if (!draft || draftTab.current === null) return;
+    stopRefining();
     const changes = draft.changes.map((c, i) => (i === index ? { ...c, enabled } : c));
     setDraft({ ...draft, changes });
     try {
@@ -199,6 +229,7 @@ export function Chat({
   }
 
   async function discardDraft() {
+    stopRefining();
     if (draftTab.current !== null) {
       await callBg('discard', { tabId: draftTab.current }).catch(() => null);
     }
@@ -268,6 +299,17 @@ export function Chat({
               <span className="draft-unsaved">Non enregistré</span>
             </div>
             <p className="draft-explanation">{draft.explanation || 'Modification prête.'}</p>
+            {refining && (
+              <p role="status" data-testid="refining" className="working-note">
+                Affinage : l’IA vérifie le rendu…
+              </p>
+            )}
+            {!refining && draft.refined && (
+              <p data-testid="refined" className="working-note">
+                Affiné après vérification visuelle
+                {draft.review?.length ? ` : ${draft.review.slice(0, 2).join(' ; ')}` : ''}.
+              </p>
+            )}
             {draft.changes.length > 1 && (
               <ul data-testid="draft-changes" className="draft-changes">
                 {draft.changes.map((change, i) => (

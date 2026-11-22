@@ -3,13 +3,14 @@ import { compileRule } from '../shared/compile';
 import { MAX_PICKED_ELEMENTS } from '../shared/picker';
 import { callContent } from '../shared/messages';
 import { addRule, addRules, newRuleId } from '../shared/rules';
-import { parseRecipe, toWire } from '../shared/schema';
+import { parseRecipe, parseReview, refineJsonSchema, toWire } from '../shared/schema';
 import { sectionOf } from '../shared/section';
 import { sensitiveReason } from '../shared/sensitive';
 import { getSettings, getSiteRules } from '../shared/storage';
 import type { DistillResult, Draft, PickResult, Recipe, RecipeChange, Rule } from '../shared/types';
 import { designGuide } from '../shared/designReferences';
 import { describeSite } from '../shared/siteContext';
+import { captureTab } from './capture';
 import { completeJson, type ChatMessage } from './llm';
 
 const SYSTEM_PROMPT = [
@@ -317,4 +318,91 @@ export async function quickHide(tabId: number, pick: PickResult): Promise<{ rule
   });
   await addRule(host, rule);
   return { ruleId: rule.id };
+}
+
+const REFINE_PROMPT = [
+  'This is a screenshot of the page with the current edit applied as a preview (what the user sees right now).',
+  'Look at it as a senior visual designer and check it against the user request:',
+  '- Does it really do what was asked (e.g. square cards look square, 3 per row, the requested colors)?',
+  '- Is it clean: balanced spacing, no large empty areas, clear hierarchy (titles > metadata), readable text, nothing overlapping or cut, consistent items?',
+  'First write your review: list every visible defect you see in the screenshot (be concrete: "cards are taller than wide", "big empty space under titles", "metadata too small"), and set clean=true only if there is none.',
+  'Then return the COMPLETE corrected recipe that fixes those defects: keep the same changes and titles, fix only what looks wrong. Prefer adjusting the theme tokens (cardShape, columns, density, sizes, colors) over hand-written css; never write display:grid/flex on the list by hand.',
+  'NEVER undo or contradict an explicit wish of the user request: if they asked for square cards, cards stay square; 3 per row stays 3; a requested color stays. Fix defects WITHIN those constraints (e.g. larger title, less padding, better spacing), not by dropping them.',
+  'Ignore that the screenshot is cut at the bottom edge of the window.',
+].join('\n');
+
+/**
+ * Affinage visuel (toujours actif) : le LLM voit une capture de sa preview et peut la corriger,
+ * en UN seul tour. La v2 n'est retenue que si elle change le rendu, passe les garde-fous et n'a pas
+ * plus de problèmes mesurés que la v1 ; sinon la v1 reste affichée, sans bruit.
+ */
+export async function refine(tabId: number, draft: Draft): Promise<Draft> {
+  const tab = await chrome.tabs.get(tabId);
+  if (!draft.changes.some((change) => change.enabled) || sensitiveReason(tab.url ?? ''))
+    return draft;
+  // Mode « Original » : la capture montrerait la page d'origine.
+  if ((await callContent(tabId, 'original', {}).catch(() => null))?.original) return draft;
+  const before = await callContent(tabId, 'currentPreview', {}).catch(() => null);
+  if (!before || before.css !== draft.previewCss) return draft; // brouillon déjà gardé ou remplacé
+  const screenshot = await captureTab(tabId);
+  if (!screenshot) return draft;
+
+  const settings = await getSettings();
+  const include = draft.changes
+    .filter((change) => change.enabled)
+    .flatMap((change) => Object.values(change.targets).map((t) => t.selectors[0]))
+    .filter((selector): selector is string => !!selector);
+  const page = await callContent(tabId, 'distill', { include, focus: null });
+  const saved = (await getSiteRules(page.host)).rules;
+  const current = reindex(draft, page.included);
+  const request = draft.prompts.join(' → ');
+  const messages: ChatMessage[] = [
+    ...buildMessages(request, page, current, saved, []),
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: REFINE_PROMPT },
+        { type: 'image_url', image_url: { url: screenshot, detail: 'high' } },
+      ],
+    },
+  ];
+  let recipe: Recipe;
+  let review: { defects: string[]; clean: boolean };
+  try {
+    const raw = await completeJson(settings, messages, {
+      name: 'refine',
+      schema: refineJsonSchema,
+    });
+    review = parseReview(raw);
+    // Jugé propre (ou rien à redire) : la v1 reste, sans réappliquer quoi que ce soit.
+    if (review.clean || !review.defects.length) return draft;
+    recipe = parseRecipe(raw);
+  } catch {
+    return draft; // l'affinage est un bonus : un échec laisse la v1
+  }
+  // Le brouillon a pu être gardé, annulé ou révisé pendant l'appel : on n'y touche plus.
+  const still = await callContent(tabId, 'currentPreview', {}).catch(() => null);
+  if (!still || still.css !== draft.previewCss) return draft;
+
+  const next = await callContent(tabId, 'preparePreview', { recipe, prompts: draft.prompts });
+  const better =
+    next.changes.length > 0 &&
+    !next.broken?.length &&
+    next.previewCss !== draft.previewCss &&
+    (next.layoutIssues?.length ?? 0) <= (draft.layoutIssues?.length ?? 0);
+  if (!better) {
+    await callContent(tabId, 'updatePreview', { changes: draft.changes });
+    return draft;
+  }
+  // Chaque changement garde le prompt qui l'a produit (appariement par titre).
+  const promptOf = new Map(draft.changes.map((change) => [change.title, change.prompt]));
+  return {
+    ...next,
+    refined: true,
+    review: review.defects,
+    changes: next.changes.map((change) => ({
+      ...change,
+      prompt: promptOf.get(change.title) ?? draft.changes[0]?.prompt ?? request,
+    })),
+  };
 }

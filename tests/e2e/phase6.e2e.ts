@@ -1,7 +1,15 @@
 // Phase 6 : un long prompt « X, Y et Z » donne des changements séparés, cochables en preview
 // et activables un par un dans la liste des règles — via la vraie UI du panel.
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { assert, check, done, launch, startServer } from './harness.ts';
+import {
+  assert,
+  check,
+  done,
+  launch,
+  startServer,
+  declineRefine,
+  isRefineRequest,
+} from './harness.ts';
 
 const PAGE = `<!doctype html><html><head><title>Démo</title>
 <style>body{font:16px sans-serif} main{min-height:300px} aside{min-height:200px}</style></head><body>
@@ -20,6 +28,7 @@ function regionOf(user: string, needle: string): number {
 async function llm(req: IncomingMessage, res: ServerResponse) {
   let raw = '';
   for await (const chunk of req) raw += chunk;
+  if (isRefineRequest(raw)) return declineRefine(res);
   const user = (JSON.parse(raw) as { messages: { content: string }[] }).messages[1]!.content;
   requests.push(user);
   const change = (title: string, op: string, needle: string, declarations: unknown[] = []) => ({
