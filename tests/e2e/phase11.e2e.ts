@@ -19,7 +19,14 @@ const THEME = {
   },
   typography: { fontFamily: 'Inter', baseSize: 14, scale: 0.8, titleWeight: 600 },
   shape: { radius: 10, shadow: '0 2px 5px rgba(50,50,93,.1)' },
-  layout: { cards: true, density: 'comfortable', maxWidth: 0, dividers: false },
+  layout: {
+    cards: true,
+    density: 'comfortable',
+    maxWidth: 0,
+    dividers: false,
+    columns: 1,
+    cardShape: 'auto',
+  },
   roleStyles: [
     {
       role: 'title',
@@ -31,12 +38,52 @@ const THEME = {
   ],
 };
 
-async function llm(req: IncomingMessage, res: ServerResponse) {
-  for await (const chunk of req) void chunk; // le corps de la requête n'est pas utilisé
-  const recipe = {
+const requests: string[] = [];
+
+/** Recette selon la demande : thème (défaut), grille par jetons, ou grille écrite à la main. */
+function recipeFor(request: string) {
+  if (request.includes('grille thème')) {
+    return {
+      changes: [
+        {
+          title: 'Grille de cartes',
+          ops: [],
+          targets: [],
+          css: '',
+          theme: { ...THEME, layout: { ...THEME.layout, columns: 3, cardShape: 'square' } },
+        },
+      ],
+      explanation: '3 cartes carrées par rangée.',
+    };
+  }
+  if (request.includes('grille à la main')) {
+    // Ce que le LLM a écrit sur HN : une grille sur le tbody, qui sépare titre et métadonnées.
+    return {
+      changes: [
+        {
+          title: 'Grille',
+          ops: [],
+          targets: [],
+          css: 'td > table > tbody{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px} tr.qx-entry{aspect-ratio:1/1}',
+          theme: null,
+        },
+      ],
+      explanation: 'Grille.',
+    };
+  }
+  return {
     changes: [{ title: 'Style Stripe', ops: [], targets: [], css: '', theme: THEME }],
     explanation: 'Un style inspiré de Stripe.',
   };
+}
+
+async function llm(req: IncomingMessage, res: ServerResponse) {
+  let raw = '';
+  for await (const chunk of req) raw += chunk;
+  const messages = (JSON.parse(raw) as { messages: { content: string }[] }).messages;
+  const user = messages[1]!.content;
+  requests.push(messages.at(-1)!.content);
+  const recipe = recipeFor(user.match(/^User request: (.*)$/m)?.[1] ?? '');
   res
     .writeHead(200, { 'Content-Type': 'application/json' })
     .end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(recipe) } }] }));
@@ -158,6 +205,77 @@ await check('Garder : le thème est rejoué tel quel au rechargement, sans IA', 
     `rendu différent après rechargement :\n${JSON.stringify(before)}\n${JSON.stringify(after)}`,
   );
 });
+
+/** Position de chaque sujet (titre) et de sa ligne d'infos, pour les 6 premiers. */
+const cards = () =>
+  page.evaluate(() =>
+    [...document.querySelectorAll('tr.qx-entry')].slice(0, 6).map((row) => {
+      const title = row.getBoundingClientRect();
+      const meta = row.nextElementSibling!.getBoundingClientRect();
+      return {
+        x: Math.round(title.left),
+        top: Math.round(title.top),
+        bottom: Math.round(title.bottom),
+        width: Math.round(title.width),
+        metaX: Math.round(meta.left),
+        metaTop: Math.round(meta.top),
+      };
+    }),
+  );
+
+const generate = async (prompt: string) =>
+  (await panel.evaluate((m) => chrome.runtime.sendMessage(m), {
+    type: 'generate',
+    payload: { tabId, prompt, previous: null, pick: null },
+  })) as { ok: boolean; data?: { warnings: string[] }; error?: string };
+
+await check(
+  '« 3 cartes carrées par rangée » : grille correcte, chaque carte d’un seul tenant',
+  async () => {
+    requests.length = 0;
+    const reply = await generate('grille thème : 3 cartes carrées par rangée');
+    assert(reply.ok, `generate : ${reply.error}`);
+    assert(
+      requests.length === 1,
+      `${requests.length} appels LLM : la grille par jetons doit passer du 1er coup`,
+    );
+    const c = await cards();
+    assert(
+      new Set(c.slice(0, 3).map((x) => x.x)).size === 3,
+      `3 colonnes attendues : ${JSON.stringify(c.slice(0, 3))}`,
+    );
+    assert(
+      c[3]!.x === c[0]!.x && c[3]!.top > c[0]!.bottom,
+      'le 4e sujet ne commence pas une nouvelle rangée',
+    );
+    for (const card of c) {
+      assert(card.metaX === card.x, `infos décalées de leur titre (${card.metaX} vs ${card.x})`);
+      assert(
+        card.metaTop >= card.bottom - 4 && card.metaTop - card.bottom < 48,
+        'infos détachées de leur titre',
+      );
+    }
+    assert(c[0]!.width > 200, `cartes trop étroites (${c[0]!.width}px)`);
+  },
+);
+
+await check(
+  'une grille écrite à la main qui déchire les sujets est refusée avec une explication',
+  async () => {
+    requests.length = 0;
+    const reply = await generate('grille à la main');
+    assert(requests.length === 2, `${requests.length} appel(s) LLM au lieu de 2 (auto-correction)`);
+    assert(/split apart/.test(requests[1]!), 'le problème n’est pas expliqué au LLM');
+    assert(
+      !reply.ok && /Je n’affiche pas cette mise en page/.test(reply.error ?? ''),
+      `pas de refus : ${reply.error}`,
+    );
+    const preview = await page.evaluate(
+      () => document.getElementById('bp-preview')?.textContent ?? '',
+    );
+    assert(!preview.includes('display: grid'), 'la grille cassée est restée affichée');
+  },
+);
 
 await context.close();
 server.close();

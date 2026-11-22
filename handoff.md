@@ -40,6 +40,14 @@ Dernière mise à jour : 22 novembre 2026, sur la branche `feat/design-quality` 
      Un indice (`LOOK_REQUEST`) rappelle au LLM d'utiliser le thème. Au Keep, le CSS du thème est fusionné dans `Rule.css` : l'injecteur et le format des règles ne changent pas.
 
      Banc HN : 0 sélecteur mort, 0 contraste dégradé, 0 hiérarchie cassée, 0 liste incohérente, 3,3 s de médiane. `live.ts` passe à 9/9.
+
+  10. Même branche, **grille et intégrité** (non commité). « 3 cartes carrées par rangée » se fait par jetons (`layout.columns`, `cardShape`, compilés par `gridBlocks` dans `theme.ts`) : sur HN, chaque article (3 lignes de tableau sœurs) reste dans sa colonne. Une grille écrite à la main par le LLM déchirait les articles. Désormais, `integrityProblems` (`qualityCheck.ts`) mesure après la preview :
+      - les articles déchirés (bloquant dès 2) ;
+      - les textes superposés (correction dès 3 paires, refus dès 5) ;
+      - les cartes **vidées par la modif** (comparées à leur état d'origine, car YouTube charge ses miniatures à la demande) ;
+      - le débordement horizontal (refus au-delà de 5 %).
+
+      Si le problème persiste après l'auto-correction, `refuseIfBroken` (`agent.ts`) retire la preview et explique pourquoi, au lieu d'afficher un rendu cassé.
 - **Ce qui reste ouvert dans `plan.md` :**
   - 5.4 : refaire la répétition sur le réseau de la salle.
   - 5.6 : enregistrer la vidéo de secours.

@@ -100,7 +100,9 @@ On choisit au fur et à mesure. Chacune s'appuie sur le MVP sans le casser.
   - [x] Consignes de design dans le prompt système (palette, contraste, cartes en tableau, héritage des couleurs, langue)
   - [x] Garde-fous (`src/content/qualityCheck.ts`) : masquage abusif, sélecteurs morts, changement sans effet, surfaces claires d'un thème sombre, contraste corrigé par calcul
   - [x] Thème par jetons : le LLM conçoit le goût (palette, typographie, formes, mise en page, styles par rôle), inspiré d'une bibliothèque de références (`src/shared/designReferences.ts`). L'extension l'exécute sur la carte des rôles (`roleMap`, `src/shared/theme.ts`) avec hiérarchie, contraste et cohérence garantis (`tests/e2e/phase11.e2e.ts`)
-  - [x] Le banc mesure aussi le goût : hiérarchie titre/méta, cohérence entre éléments, nombre de couleurs
+  - [x] Le banc mesure aussi le goût : hiérarchie titre/méta, cohérence entre éléments, nombre de couleurs, articles déchirés
+  - [x] Grille par jetons (`layout.columns` 1 à 4, `cardShape`) : l'extension construit la grille, y compris pour les listes en lignes de tableau (HN : titre, infos et espaceur dans la même colonne via `:nth-child(… of …)`)
+  - [x] Garde-fou d'intégrité : article déchiré (titre séparé de ses infos), textes superposés, cartes vidées par la modif, débordement horizontal. Correction par le LLM, puis **refus expliqué** si le problème persiste
 - [ ] **A. Raccourcis vers pages enfouies** (F7/F8)
   - [ ] Op `insertLink` + allow-list de liens (https, même domaine enregistrable, `textContent` seulement)
   - [ ] Inventaire des liens dans la distillation, pour pouvoir promouvoir un lien caché

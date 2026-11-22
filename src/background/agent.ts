@@ -26,7 +26,7 @@ const SYSTEM_PROMPT = [
   'To hide one part of the page, target the smallest element that contains only that part (e.g. the footer role from the snapshot), never a container that also holds the main content.',
   [
     'Whole-page looks (dark mode, "modern", "beautiful", "minimal", "like Apple", a color scheme, "cards" for the whole list…) go in the change "theme" field: YOU design the taste as tokens (palette, typography, shape, layout, optional roleStyles) and the extension applies them to every surface, the top bar, the list items (with their sibling rows), titles and metadata, with guaranteed hierarchy (title > metadata) and contrast. Do not rewrite that CSS by hand in "css": use "css" only for extras the tokens cannot express. Targeted edits (hide X, make the title red, bigger images) keep theme null and use ops/css.',
-    'Cards, list density/spacing and title/metadata typography of the WHOLE list are a look too: put them in a theme change (layout.cards, density, typography), even when no color is asked. Without a color wish, copy the current colors of the design snapshot into the palette (page, surfaces, top bar, text, muted, links) so the site keeps its colors. Other requested parts (blue top bar, hide the footer) stay separate changes.',
+    'Grids of items ("3 per row", "in columns", "square cards") are a look too: set theme.layout.columns (2-4) and cardShape; the extension builds the grid and keeps each item and its sibling rows in one card. NEVER write display:grid/flex on the list container by hand: on many sites an item spans several sibling elements (e.g. HN: title row + metadata row + spacer) and a hand-written grid tears them apart. Cards, list density/spacing and title/metadata typography of the WHOLE list are a look too: put them in a theme change (layout.cards, density, typography), even when no color is asked. Without a color wish, copy the current colors of the design snapshot into the palette (page, surfaces, top bar, text, muted, links) so the site keeps its colors. Other requested parts (blue top bar, hide the footer) stay separate changes.',
     'The theme must be YOUR design for this request and this site, not a copy: draw on the references below (mix them, adapt them) or invent. Honor every explicit wish ("blue top bar" → header color; "rounded cards" → cards + radius; "less contrast" → closer text/background).',
     'Design quality for hand-written css (targeted edits): keep text readable (4.5:1), keep secondary text smaller than titles, to enlarge titles target the title link only (never the whole item row), reuse one radius, soft shadows.',
     '- Lists laid out with table rows (tr): border-spacing separates EVERY row, also the rows of one item, so never use it for cards.',
@@ -50,7 +50,7 @@ const SYSTEM_PROMPT = [
  * garantit hiérarchie, contraste et cohérence). Il n'impose rien : le LLM reste libre du contenu.
  */
 const LOOK_REQUEST =
-  /\b(?:cartes?|cards?|th[eè]me|sombre|dark|clair|light|moderne|modern|beau|belle|joli|pretty|beautiful|minimalist\w*|minimal\w*|[ée]l[ée]gant\w*|style|look|façon|fa[cç]on|comme|like|couleurs?|colou?rs?|palette|typo\w*|police|font|a[ée]r[ée]\w*|spacing|espace\w*)\b/i;
+  /\b(?:cartes?|cards?|th[eè]me|sombre|dark|clair|light|moderne|modern|beau|belle|joli|pretty|beautiful|minimalist\w*|minimal\w*|[ée]l[ée]gant\w*|style|look|façon|fa[cç]on|comme|like|couleurs?|colou?rs?|palette|typo\w*|police|font|a[ée]r[ée]\w*|spacing|espace\w*|rang[ée]es?|colonnes?|columns?|grille|grid|carr[ée]e?s?|square|per row|mosa[iï]que)\b/i;
 
 /** Langue de l'interface du navigateur : repli quand la demande est trop courte (« Mode sombre »). */
 function uiLanguage(): string {
@@ -222,14 +222,29 @@ async function generateDraft(
     const fixed = await callContent(tabId, 'preparePreview', { recipe: repaired, prompts });
     if ((fixed.layoutIssues?.length ?? 0) <= draft.layoutIssues.length) {
       if (fixed.layoutIssues?.length) fixed.warnings.push(LAYOUT_WARNING);
-      return fixed;
+      return await refuseIfBroken(tabId, fixed);
     }
-  } catch {
+  } catch (error) {
+    if (error instanceof BrokenLayoutError) throw error;
     /* la correction a échoué : on garde la première version, avec un avertissement */
   }
   const first = await callContent(tabId, 'preparePreview', { recipe, prompts });
   first.warnings.push(LAYOUT_WARNING);
-  return first;
+  return refuseIfBroken(tabId, first);
+}
+
+class BrokenLayoutError extends Error {}
+
+/**
+ * Plutôt qu'un rendu cassé (titres séparés de leurs infos, textes superposés…), aucune preview :
+ * on explique ce qui ne tient pas et comment reformuler.
+ */
+async function refuseIfBroken(tabId: number, draft: Draft): Promise<Draft> {
+  if (!draft.broken?.length) return draft;
+  await callContent(tabId, 'clearPreview', {}).catch(() => null);
+  throw new BrokenLayoutError(
+    `Je n’affiche pas cette mise en page : ${draft.broken.join(', ')}, même après correction. La structure de ce site ne s’y prête pas telle quelle. Essayez une variante plus simple (par exemple « 2 cartes par rangée » ou « cartes en liste »).`,
+  );
 }
 
 const LAYOUT_WARNING =

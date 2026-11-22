@@ -418,6 +418,10 @@ export function roleMap(): RoleMap {
       .map((p) => p.selector);
     list = {
       container: uniqueSelector(main.container),
+      containerTable:
+        main.container.tagName === 'TBODY' && main.container.parentElement
+          ? uniqueSelector(main.container.parentElement)
+          : null,
       item: main.itemSelector,
       table: main.items[0]!.tagName === 'TR',
       companions: rows,

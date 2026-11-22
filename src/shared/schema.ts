@@ -38,6 +38,7 @@ const THEME_ROLES = [
   'input',
 ] as const satisfies readonly ThemeRole[];
 const DENSITIES = ['compact', 'comfortable', 'airy'] as const;
+const CARD_SHAPES = ['auto', 'square', 'landscape'] as const;
 const PALETTE_KEYS = [
   'background',
   'surface',
@@ -70,6 +71,8 @@ const wireTheme = z.object({
     density: z.enum(DENSITIES),
     maxWidth: z.number(),
     dividers: z.boolean(),
+    columns: z.number().default(1),
+    cardShape: z.enum(CARD_SHAPES).default('auto'),
   }),
   roleStyles: z
     .array(z.object({ role: z.enum(THEME_ROLES), declarations: z.array(declaration).max(20) }))
@@ -195,6 +198,16 @@ const themeSchema = {
           dividers: {
             type: 'boolean',
             description: 'Hairline rules between list items (without cards).',
+          },
+          columns: {
+            type: 'number',
+            description:
+              'Items per row: 1 = vertical list, 2-4 = grid of cards ("3 per row"). The extension builds the grid and keeps each item (with its sibling rows) in one card.',
+          },
+          cardShape: {
+            type: 'string',
+            enum: CARD_SHAPES,
+            description: 'Card proportions in a grid: square, landscape, or auto (content height).',
           },
         }),
         roleStyles: {

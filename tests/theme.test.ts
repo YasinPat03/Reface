@@ -26,7 +26,14 @@ const tokens = (over: Partial<ThemeTokens> = {}): ThemeTokens => ({
   },
   typography: { fontFamily: 'system-ui, sans-serif', baseSize: 14, scale: 1.25, titleWeight: 600 },
   shape: { radius: 8, shadow: '0 1px 3px rgba(0,0,0,.12)' },
-  layout: { cards: true, density: 'comfortable', maxWidth: 0, dividers: false },
+  layout: {
+    cards: true,
+    density: 'comfortable',
+    maxWidth: 0,
+    dividers: false,
+    columns: 1,
+    cardShape: 'auto',
+  },
   roleStyles: [],
   ...over,
 });
@@ -41,6 +48,7 @@ const HN: RoleMap = {
   present: { headings: false, inputs: true },
   list: {
     container: '#hnmain > tbody > tr:nth-of-type(3) > td > table > tbody',
+    containerTable: '#hnmain > tbody > tr:nth-of-type(3) > td > table',
     item: 'tr.athing.submission',
     table: true,
     companions: ['tr.athing.submission + tr'],
@@ -172,6 +180,48 @@ describe('compileTheme', () => {
     });
     expect(article).toContain(':where(a,a:visited){color:');
     expect(article).toContain(':where(h1,h2,h3,h4){color:');
+  });
+});
+
+describe('compileTheme : grille de cartes', () => {
+  const grid = (cardShape: 'auto' | 'square' | 'landscape', list = HN.list!) =>
+    compileTheme(
+      tokens({
+        layout: { ...tokens().layout, columns: 3, cardShape },
+      }),
+      { ...HN, list },
+    );
+  it('liste en tableau : chaque ligne d’un article reçoit la colonne de son article', () => {
+    const css = grid('square');
+    expect(css).toContain('display:grid');
+    expect(css).toContain('grid-template-columns:repeat(3, minmax(0, 1fr))');
+    expect(css).toContain('grid-auto-flow:row dense');
+    // Article n°2 de chaque rangée : titre, ligne de métadonnées ET espaceur en colonne 2.
+    const n2 = 'tr.athing.submission:nth-child(3n+2 of tr.athing.submission)';
+    expect(css).toContain(`:where(${n2},${n2} + tr,${n2} + tr + tr){grid-column:2}`);
+    // La table prend toute la largeur, la carte carrée est portée par la ligne du titre.
+    expect(css).toContain('tbody > tr:nth-of-type(3) > td > table){display:block;width:100%}');
+    expect(css).toContain('aspect-ratio:5 / 4');
+    expect(css).not.toContain('border-spacing');
+  });
+  it('en 3 colonnes, le titre reste mesuré (pas de titres géants dans des cartes étroites)', () => {
+    expect(grid('auto')).toMatch(/span\.titleline > a\)\{font-size:16px/);
+  });
+  it('liste en blocs : grille sur le conteneur, cartes sur les éléments', () => {
+    const css = grid('landscape', {
+      ...HN.list!,
+      table: false,
+      item: 'ul.posts > li',
+      companions: [],
+      spacer: null,
+      container: 'ul.posts',
+      containerTable: null,
+    });
+    expect(css).toContain(
+      ':where(ul.posts){display:grid;grid-template-columns:repeat(3, minmax(0, 1fr))',
+    );
+    expect(css).toContain('aspect-ratio:4 / 3');
+    expect(css).not.toContain('nth-child');
   });
 });
 

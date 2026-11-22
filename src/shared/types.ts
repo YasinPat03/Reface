@@ -139,6 +139,11 @@ export interface Draft {
   warnings: string[];
   /** Régressions de mise en page détectées après la preview (en anglais, pour le LLM). */
   layoutIssues?: string[];
+  /**
+   * Mise en page cassée (titres séparés de leurs infos, textes qui se chevauchent…), en français :
+   * si le problème persiste après l'auto-correction, la preview est refusée avec cette explication.
+   */
+  broken?: string[];
 }
 
 /** Changement résolu : sélecteurs robustes, CSS normalisé. */

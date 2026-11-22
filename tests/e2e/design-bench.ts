@@ -34,12 +34,14 @@ interface Site {
   url: string;
   prompts: string[];
   /** Titre et métadonnées des éléments de liste, pour mesurer hiérarchie et cohérence. */
-  taste?: { title: string; meta: string };
+  taste?: { title: string; meta: string; item: string };
 }
 
 const LIST_PROMPTS = [
   // Le prompt du test à deux mains dans le Chrome de l'utilisateur.
   'Transforme chaque article en carte avec une ombre et des coins arrondis, mets la barre orange en bleu, agrandis les titres et cache le pied de page',
+  // La demande qui avait donné un rendu cassé (grille écrite à la main).
+  'Organise les articles en cards carrées et place-les 3 par rangée',
   'Mode sombre',
   'Transforme chaque élément de la liste en carte avec une ombre et des coins arrondis',
   'Rends le site plus moderne et beau',
@@ -53,13 +55,13 @@ const SITES: Site[] = [
     name: 'hn',
     url: 'https://news.ycombinator.com/',
     prompts: LIST_PROMPTS,
-    taste: { title: '.titleline > a', meta: '.sitebit, .subline, .score' },
+    taste: { title: '.titleline > a', meta: '.sitebit, .subline, .score', item: 'tr.athing' },
   },
   {
     name: 'inconnu',
     url: `${origin}/`,
     prompts: LIST_PROMPTS,
-    taste: { title: '.qx-head > a', meta: '.qx-src, .qx-info' },
+    taste: { title: '.qx-head > a', meta: '.qx-src, .qx-info', item: 'tr.qx-entry' },
   },
   {
     name: 'wiki',
@@ -200,7 +202,7 @@ function measure([dark, mark]: [boolean, boolean]) {
  * Goût : hiérarchie (titre nettement plus grand que ses métadonnées), cohérence (même style pour
  * tous les éléments de la liste) et sobriété de la palette (couleurs de texte distinctes).
  */
-function taste(config: { title: string; meta: string } | null) {
+function taste(config: { title: string; meta: string; item: string } | null) {
   const visible = (e: Element) => {
     const r = e.getBoundingClientRect();
     return (
@@ -214,7 +216,24 @@ function taste(config: { title: string; meta: string } | null) {
     colors.add(getComputedStyle(e).color);
   }
   if (!config)
-    return { textColors: colors.size, hierarchyBroken: 0, titleVariants: 0, metaVariants: 0 };
+    return {
+      textColors: colors.size,
+      hierarchyBroken: 0,
+      titleVariants: 0,
+      metaVariants: 0,
+      split: 0,
+    };
+  // Intégrité : chaque élément garde sa ligne suivante (infos) juste en dessous, alignée.
+  let split = 0;
+  for (const item of [...document.querySelectorAll(config.item)].slice(0, 6)) {
+    const a = item.getBoundingClientRect();
+    const b = item.nextElementSibling?.getBoundingClientRect();
+    if (!b || a.height < 2 || b.height < 2) continue;
+    const below = b.top >= a.bottom - 4 && b.top - a.bottom < 48;
+    const aligned =
+      Math.min(a.right, b.right) - Math.max(a.left, b.left) >= Math.min(a.width, b.width) * 0.5;
+    if (!below || !aligned) split++;
+  }
   const titles = [...document.querySelectorAll(config.title)].filter(visible).slice(0, 20);
   const metas = [...document.querySelectorAll(config.meta)].filter(visible).slice(0, 40);
   const key = (e: Element) => {
@@ -224,6 +243,7 @@ function taste(config: { title: string; meta: string } | null) {
   const titleSize = Math.min(...titles.map((t) => parseFloat(getComputedStyle(t).fontSize)));
   const metaSize = Math.max(...metas.map((m) => parseFloat(getComputedStyle(m).fontSize)));
   return {
+    split,
     textColors: colors.size,
     hierarchyBroken: titles.length && metas.length && titleSize < metaSize + 2 ? 1 : 0,
     titleVariants: new Set(titles.map(key)).size,
@@ -345,7 +365,7 @@ for (const site of SITES.filter((s) => !filter || s.name.includes(filter))) {
             ? `\n  changements : ${result.changes.join(' | ')}` +
               `\n  sélecteurs morts : ${m!.deadCount}/${m!.ruleCount}${m!.deadCount ? ' ' + m!.dead.join(' ; ') : ''}` +
               `\n  contraste dégradé : ${m!.lowContrastCount}/${m!.texts}${m!.lowContrastCount ? ' ' + m!.lowContrast.join(' ; ') : ''} · nouveaux textes < 11 px : ${m!.tiny}` +
-              `\n  goût : ${flavour!.textColors} couleurs de texte · hiérarchie ${flavour!.hierarchyBroken ? 'CASSÉE' : 'ok'} · variantes titre/méta ${flavour!.titleVariants}/${flavour!.metaVariants}` +
+              `\n  goût : ${flavour!.textColors} couleurs de texte · hiérarchie ${flavour!.hierarchyBroken ? 'CASSÉE' : 'ok'} · variantes titre/méta ${flavour!.titleVariants}/${flavour!.metaVariants} · articles déchirés ${flavour!.split}` +
               (m!.lightSurfaces.length
                 ? `\n  surfaces claires (sombre) : ${m!.lightSurfaces.join(' ; ')}`
                 : '') +
@@ -385,6 +405,7 @@ function totals(list: Result[]) {
     lightSurfaces: sum((r) => r.metrics!.lightSurfaces.length),
     warnings: sum((r) => r.warnings.length),
     hierarchyBroken: sum((r) => r.taste?.hierarchyBroken ?? 0),
+    splitItems: sum((r) => r.taste?.split ?? 0),
     inconsistentLists: sum((r) =>
       r.taste && (r.taste.titleVariants > 1 || r.taste.metaVariants > 1) ? 1 : 0,
     ),

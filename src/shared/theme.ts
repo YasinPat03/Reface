@@ -57,6 +57,10 @@ export interface ThemeTokens {
     /** Largeur maximale du contenu en px, 0 = inchangée. */
     maxWidth: number;
     dividers: boolean;
+    /** Éléments de la liste par rangée (1 = liste, 2 à 4 = grille). */
+    columns: number;
+    /** Forme des cartes en grille. */
+    cardShape: 'auto' | 'square' | 'landscape';
   };
   /** Liberté créative au-delà des jetons : déclarations par rôle. */
   roleStyles: { role: ThemeRole; declarations: Record<string, string> }[];
@@ -75,6 +79,8 @@ export interface RoleMap {
   list: {
     /** Conteneur direct des éléments (porte l'ombre des cartes en tableau, sans couture). */
     container: string | null;
+    /** Table qui contient le conteneur (tbody) : elle doit prendre toute la largeur en grille. */
+    containerTable: string | null;
     item: string;
     /** Éléments en lignes de tableau (tr) : les cartes se font cellule par cellule. */
     table: boolean;
@@ -284,6 +290,154 @@ const px = (n: number) => `${Math.round(n)}px`;
 /** Propriétés réservées aux jetons : un style par rôle ne peut pas casser hiérarchie et contraste. */
 const TOKEN_OWNED = new Set(['color', 'font-size']);
 
+type List = NonNullable<RoleMap['list']>;
+
+/** Liste verticale (une colonne) : cartes en tableau cellule par cellule, ou blocs. */
+function listBlocks(tokens: ThemeTokens, t: ResolvedTheme, list: List, cards: boolean): Block[] {
+  const p = t.palette;
+  const blocks: Block[] = [];
+  const last = list.companions.at(-1) ?? list.item;
+  const rows = [list.item, ...list.companions];
+  if (list.table) {
+    const cells = (selector: string) => `${selector} > td`;
+    if (cards) {
+      blocks.push([rows.map(cells).join(', '), { 'background-color': p.surface }]);
+      blocks.push([cells(list.item), { 'padding-top': px(t.unit * 1.5) }]);
+      blocks.push([cells(last), { 'padding-bottom': px(t.unit * 1.5) }]);
+      const r = px(t.radius);
+      blocks.push([`${cells(list.item)}:first-child`, { 'border-top-left-radius': r }]);
+      blocks.push([`${cells(list.item)}:last-child`, { 'border-top-right-radius': r }]);
+      blocks.push([`${cells(last)}:first-child`, { 'border-bottom-left-radius': r }]);
+      blocks.push([`${cells(last)}:last-child`, { 'border-bottom-right-radius': r }]);
+      // L'ombre sur le conteneur entoure chaque carte d'un seul tenant (une ombre par ligne
+      // laisserait une couture entre le titre et sa ligne de métadonnées).
+      const drop = toDropShadow(t.shadow);
+      if (drop && list.container) blocks.push([list.container, { filter: drop }]);
+      if (list.spacer) blocks.push([list.spacer, { height: px(t.unit * 2) }]);
+    } else {
+      blocks.push([cells(list.item), { 'padding-top': px(t.unit) }]);
+      blocks.push([cells(last), { 'padding-bottom': px(t.unit) }]);
+      if (tokens.layout.dividers)
+        blocks.push([cells(last), { 'border-bottom': `1px solid ${p.border}` }]);
+    }
+  } else if (cards) {
+    blocks.push([
+      list.item,
+      {
+        'background-color': p.surface,
+        'border-radius': px(t.radius),
+        padding: `${px(t.unit * 1.5)} ${px(t.unit * 2)}`,
+        'margin-bottom': px(t.unit * 1.5),
+        'box-shadow': t.shadow,
+        border: `1px solid ${p.border}`,
+      },
+    ]);
+  } else {
+    blocks.push([list.item, { 'padding-top': px(t.unit), 'padding-bottom': px(t.unit) }]);
+    if (tokens.layout.dividers)
+      blocks.push([list.item, { 'border-bottom': `1px solid ${p.border}` }]);
+  }
+  return blocks;
+}
+
+/**
+ * Grille de N cartes par rangée. Un élément peut s'étaler sur plusieurs frères (HN : titre,
+ * ligne de métadonnées, espaceur) : chacun reçoit la colonne de SON élément (nth-child … of),
+ * et le placement « dense » les empile dans la même colonne. La carte reste d'un seul tenant.
+ */
+function gridBlocks(tokens: ThemeTokens, t: ResolvedTheme, list: List, columns: number): Block[] {
+  const p = t.palette;
+  const blocks: Block[] = [];
+  const gap = px(t.unit * 2);
+  const container = list.container!;
+  const shape = tokens.layout.cardShape;
+  const cardDecl = {
+    'background-color': p.surface,
+    'box-sizing': 'border-box',
+  };
+  if (list.containerTable) blocks.push([list.containerTable, { display: 'block', width: '100%' }]);
+  if (!list.table) {
+    blocks.push([
+      container,
+      {
+        display: 'grid',
+        'grid-template-columns': `repeat(${columns}, minmax(0, 1fr))`,
+        gap,
+        'align-items': 'stretch',
+      },
+    ]);
+    blocks.push([
+      list.item,
+      {
+        ...cardDecl,
+        margin: '0',
+        width: 'auto',
+        'border-radius': px(t.radius),
+        padding: `${px(t.unit * 2)} ${px(t.unit * 2)}`,
+        'box-shadow': t.shadow,
+        border: `1px solid ${p.border}`,
+        'aspect-ratio': shape === 'square' ? '1 / 1' : shape === 'landscape' ? '4 / 3' : null,
+      },
+    ]);
+    return blocks;
+  }
+
+  // Liste en lignes de tableau : chaque ligne devient une case ; les lignes d'un même élément
+  // partagent sa colonne et s'empilent.
+  const suffix = (selector: string) =>
+    selector.startsWith(list.item) ? selector.slice(list.item.length) : null;
+  const companions = list.companions.map(suffix).filter((x): x is string => x !== null);
+  const spacer = list.spacer ? suffix(list.spacer) : null;
+  const last = list.companions.at(-1) ?? list.item;
+  blocks.push([
+    container,
+    {
+      display: 'grid',
+      'grid-template-columns': `repeat(${columns}, minmax(0, 1fr))`,
+      'grid-auto-flow': 'row dense',
+      'column-gap': gap,
+      'row-gap': '0',
+      width: '100%',
+    },
+  ]);
+  // Lignes hors liste (« More », pied) : toute la largeur, après la grille.
+  blocks.push([`${container} > *`, { 'grid-column': '1 / -1' }]);
+  for (let column = 1; column <= columns; column++) {
+    const nth = `${list.item}:nth-child(${columns}n+${column} of ${list.item})`;
+    const members = [nth, ...companions.map((c) => `${nth}${c}`)];
+    if (spacer) members.push(`${nth}${spacer}`);
+    blocks.push([members.join(', '), { 'grid-column': String(column) }]);
+  }
+  const rows = [list.item, ...list.companions];
+  blocks.push([
+    rows.join(', '),
+    { ...cardDecl, display: 'block', padding: `0 ${px(t.unit * 2)}`, margin: '0' },
+  ]);
+  blocks.push([
+    list.item,
+    {
+      'padding-top': px(t.unit * 2),
+      'border-top-left-radius': px(t.radius),
+      'border-top-right-radius': px(t.radius),
+      // Carte carrée/paysage : le titre occupe la hauteur, la ligne de métadonnées la complète.
+      'aspect-ratio': shape === 'square' ? '5 / 4' : shape === 'landscape' ? '2 / 1' : null,
+    },
+  ]);
+  blocks.push([
+    last,
+    {
+      'padding-bottom': px(t.unit * 2),
+      'border-bottom-left-radius': px(t.radius),
+      'border-bottom-right-radius': px(t.radius),
+    },
+  ]);
+  blocks.push([rows.map((r) => `${r} > td`).join(', '), { 'background-color': 'transparent' }]);
+  if (list.spacer) blocks.push([list.spacer, { display: 'block', height: gap }]);
+  const drop = toDropShadow(t.shadow);
+  if (drop) blocks.push([container, { filter: drop }]);
+  return blocks;
+}
+
 /** Jetons × rôles → CSS (à normaliser ensuite comme le CSS libre : `!important`, allow-list). */
 export function compileTheme(tokens: ThemeTokens, roles: RoleMap): string {
   const t = resolveTheme(tokens);
@@ -362,8 +516,10 @@ export function compileTheme(tokens: ThemeTokens, roles: RoleMap): string {
 
   // Liste principale : chaque élément est traité à l'identique.
   if (list) {
-    const last = list.companions.at(-1) ?? list.item;
-    const rows = [list.item, ...list.companions];
+    const columns = Math.round(clamp(tokens.layout.columns ?? 1, 1, 4));
+    // En grille étroite, un titre trop grand ferait des cartes illisibles.
+    const titleSize =
+      columns >= 3 ? Math.max(t.meta + 3, Math.min(t.title, Math.round(t.base * 1.15))) : t.title;
     if (list.meta.length) {
       const meta = list.meta.join(', ');
       blocks.push([meta, { 'font-size': px(t.meta), color: p.muted, 'line-height': '1.5' }]);
@@ -373,7 +529,7 @@ export function compileTheme(tokens: ThemeTokens, roles: RoleMap): string {
       blocks.push([
         list.title,
         {
-          'font-size': px(t.title),
+          'font-size': px(titleSize),
           'font-weight': String(t.weight),
           color: p.text,
           'line-height': '1.35',
@@ -382,45 +538,8 @@ export function compileTheme(tokens: ThemeTokens, roles: RoleMap): string {
       ]);
       blocks.push([`${list.title}:visited`, { color: p.muted }]);
     }
-    if (list.table) {
-      const cells = (selector: string) => `${selector} > td`;
-      if (cards) {
-        blocks.push([rows.map(cells).join(', '), { 'background-color': p.surface }]);
-        blocks.push([cells(list.item), { 'padding-top': px(t.unit * 1.5) }]);
-        blocks.push([cells(last), { 'padding-bottom': px(t.unit * 1.5) }]);
-        const r = px(t.radius);
-        blocks.push([`${cells(list.item)}:first-child`, { 'border-top-left-radius': r }]);
-        blocks.push([`${cells(list.item)}:last-child`, { 'border-top-right-radius': r }]);
-        blocks.push([`${cells(last)}:first-child`, { 'border-bottom-left-radius': r }]);
-        blocks.push([`${cells(last)}:last-child`, { 'border-bottom-right-radius': r }]);
-        // L'ombre sur le conteneur entoure chaque carte d'un seul tenant (une ombre par ligne
-        // laisserait une couture entre le titre et sa ligne de métadonnées).
-        const drop = toDropShadow(t.shadow);
-        if (drop && list.container) blocks.push([list.container, { filter: drop }]);
-        if (list.spacer) blocks.push([list.spacer, { height: px(t.unit * 2) }]);
-      } else {
-        blocks.push([cells(list.item), { 'padding-top': px(t.unit) }]);
-        blocks.push([cells(last), { 'padding-bottom': px(t.unit) }]);
-        if (tokens.layout.dividers)
-          blocks.push([cells(last), { 'border-bottom': `1px solid ${p.border}` }]);
-      }
-    } else if (cards) {
-      blocks.push([
-        list.item,
-        {
-          'background-color': p.surface,
-          'border-radius': px(t.radius),
-          padding: `${px(t.unit * 1.5)} ${px(t.unit * 2)}`,
-          'margin-bottom': px(t.unit * 1.5),
-          'box-shadow': t.shadow,
-          border: `1px solid ${p.border}`,
-        },
-      ]);
-    } else {
-      blocks.push([list.item, { 'padding-top': px(t.unit), 'padding-bottom': px(t.unit) }]);
-      if (tokens.layout.dividers)
-        blocks.push([list.item, { 'border-bottom': `1px solid ${p.border}` }]);
-    }
+    if (columns > 1 && list.container) blocks.push(...gridBlocks(tokens, t, list, columns));
+    else blocks.push(...listBlocks(tokens, t, list, cards));
   }
 
   // Styles par rôle du LLM (liberté créative), sans toucher aux propriétés tenues par les jetons.

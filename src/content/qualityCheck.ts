@@ -413,3 +413,192 @@ export function surfaceFixes(luminanceBefore: number, changesCss: string[]): Fix
   }
   return fixes;
 }
+
+// --- Intégrité de la mise en page ---------------------------------------------------------------
+
+interface ListShape {
+  item: string;
+  companions: string[];
+}
+
+const visibleBox = (element: Element | null): DOMRect | null => {
+  if (!element) return null;
+  if (!(element.checkVisibility?.({ visibilityProperty: true, opacityProperty: true }) ?? true))
+    return null;
+  const rect = element.getBoundingClientRect();
+  return rect.width > 1 && rect.height > 1 ? rect : null;
+};
+
+const overlapArea = (a: DOMRect, b: DOMRect) =>
+  Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) *
+  Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+
+/**
+ * Paires de textes qui se chevauchent (sans que l'un contienne l'autre), 2 premiers écrans.
+ * On compare les boîtes LIGNE PAR LIGNE : la boîte englobante d'un lien sur 2 lignes couvre
+ * aussi le texte qui le suit sur la 2e ligne, sans qu'il y ait de vrai chevauchement.
+ */
+function textOverlaps(): { count: number; sample: string[] } {
+  const items = textElements()
+    .filter((element) => !!visibleBox(element))
+    .map((element) => ({
+      element,
+      lines: [...element.getClientRects()].filter((r) => r.width > 1 && r.height > 1),
+    }));
+  let count = 0;
+  const sample: string[] = [];
+  for (let i = 0; i < items.length; i++) {
+    for (let j = i + 1; j < items.length; j++) {
+      const a = items[i]!;
+      const b = items[j]!;
+      if (a.element.contains(b.element) || b.element.contains(a.element)) continue;
+      const overlapping = a.lines.some((ra) =>
+        b.lines.some(
+          (rb) => overlapArea(ra, rb) > Math.min(ra.width * ra.height, rb.width * rb.height) * 0.5,
+        ),
+      );
+      if (overlapping) {
+        count++;
+        if (sample.length < 3)
+          sample.push(`"${(a.element.textContent ?? '').trim().slice(0, 25)}"`);
+      }
+    }
+  }
+  return { count, sample };
+}
+
+/** Les `count` frères qui suivent un élément (ses lignes compagnes). */
+function siblingsOf(element: Element, count: number): Element[] {
+  const out: Element[] = [];
+  for (let e = element.nextElementSibling; e && out.length < count; e = e.nextElementSibling)
+    out.push(e);
+  return out;
+}
+
+/** Mesures de référence AVANT la modif : on ne juge que ce qu'elle a cassé. */
+export interface IntegrityBefore {
+  overlaps: number;
+  overflow: boolean;
+  /** Remplissage des 8 premiers éléments de la liste (contenu / surface de la carte). */
+  fill: number[];
+}
+
+/** Part de la carte (élément + lignes compagnes) occupée par du texte ou des médias. */
+function fillRatio(item: Element, companions: number): { ratio: number; area: number } | null {
+  const rects = [item, ...siblingsOf(item, companions)]
+    .map(visibleBox)
+    .filter((r): r is DOMRect => !!r);
+  if (!rects.length) return null;
+  const width = Math.max(...rects.map((r) => r.right)) - Math.min(...rects.map((r) => r.left));
+  const height = Math.max(...rects.map((r) => r.bottom)) - Math.min(...rects.map((r) => r.top));
+  const area = width * height;
+  let content = 0;
+  for (const root of [item, ...siblingsOf(item, companions)]) {
+    for (const media of root.querySelectorAll('img, video, picture, canvas')) {
+      const r = visibleBox(media);
+      if (r) content += r.width * r.height;
+    }
+    // Textes : à partir des nœuds de texte (les sites imbriquent très profondément).
+    const seen = new Set<Element>();
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n && seen.size < 200; n = walker.nextNode()) {
+      const parent = n.parentElement;
+      if (!parent || seen.has(parent) || !n.nodeValue?.trim()) continue;
+      seen.add(parent);
+      const r = visibleBox(parent);
+      if (r) content += r.width * r.height;
+    }
+  }
+  return { ratio: area ? content / area : 1, area };
+}
+
+export function integrityBefore(list: ListShape | null): IntegrityBefore {
+  return {
+    overlaps: textOverlaps().count,
+    overflow: document.documentElement.scrollWidth > innerWidth + 8,
+    fill: list
+      ? [...document.querySelectorAll(list.item)]
+          .slice(0, 8)
+          .map((item) => fillRatio(item, list.companions.length)?.ratio ?? 1)
+      : [],
+  };
+}
+
+/**
+ * Intégrité de la mise en page avec la preview appliquée. Les problèmes sont renvoyés au LLM
+ * (anglais) et, s'ils persistent, la preview est refusée avec l'explication (français).
+ */
+export function integrityProblems(
+  list: ListShape | null,
+  before: IntegrityBefore,
+): { issues: string[]; user: string[] } {
+  const issues: string[] = [];
+  const user: string[] = [];
+
+  // 1. Chaque élément reste d'un seul tenant : ses lignes compagnes juste en dessous, alignées.
+  if (list) {
+    let split = 0;
+    let empty = 0;
+    let checked = 0;
+    for (const [index, item] of [...document.querySelectorAll(list.item)].slice(0, 8).entries()) {
+      const box = visibleBox(item);
+      if (!box || box.top > innerHeight * 3) continue;
+      checked++;
+      let sibling: Element | null = item;
+      let previous = box;
+      const parts: DOMRect[] = [box];
+      for (let k = 0; k < list.companions.length; k++) {
+        sibling = sibling?.nextElementSibling ?? null;
+        const rect = visibleBox(sibling);
+        if (!rect) continue; // ligne cachée exprès (ex. « cache les votes »)
+        const below = rect.top >= previous.bottom - 4 && rect.top - previous.bottom < 48;
+        const aligned =
+          Math.max(0, Math.min(rect.right, previous.right) - Math.max(rect.left, previous.left)) >=
+          Math.min(rect.width, previous.width) * 0.5;
+        if (!below || !aligned) split++;
+        parts.push(rect);
+        previous = rect;
+      }
+      // Carte presque vide PAR la modif (pas une carte déjà vide, ex. miniature chargée plus tard).
+      const fill = fillRatio(item, list.companions.length);
+      const was = before.fill[index];
+      if (fill && fill.area > 60_000 && fill.ratio < 0.08 && (was === undefined || was >= 0.15))
+        empty++;
+    }
+    if (split >= 2) {
+      issues.push(
+        `${split} list items are split apart: an item and its sibling row(s) (e.g. the title and its metadata line) are no longer stacked together in the same place. Keep each item and its sibling rows in one block (for a grid of items, use theme.layout.columns instead of hand-written grid CSS).`,
+      );
+      user.push('les titres sont séparés de leurs informations');
+    }
+    if (checked >= 3 && empty >= 3) {
+      issues.push(
+        `${empty} list items became mostly empty boxes (content fills under 8% of each card). Use less height (cardShape auto) or larger text.`,
+      );
+      user.push('les cartes sont presque vides');
+    }
+  }
+
+  // 2. Textes qui se chevauchent (titre sous une barre, lignes empilées l'une sur l'autre).
+  // Quelques recouvrements partiels viennent d'un simple changement de police (formules,
+  // exposants) : on demande une correction à partir de 3, on refuse l'affichage à partir de 5.
+  const overlaps = textOverlaps();
+  const added = overlaps.count - before.overlaps;
+  if (added >= 3) {
+    issues.push(
+      `${added} pairs of texts now overlap each other, e.g. ${overlaps.sample.join(', ')}. Every text must stay readable and separate.`,
+    );
+    if (added >= 5) user.push('des textes se chevauchent');
+  }
+
+  // 3. Débordement horizontal (barre de défilement latérale).
+  if (!before.overflow && document.documentElement.scrollWidth > innerWidth + 8) {
+    issues.push(
+      `The page now overflows horizontally (${document.documentElement.scrollWidth}px wide for a ${innerWidth}px window). Use widths relative to the container (minmax(0, 1fr), max-width:100%).`,
+    );
+    // Quelques pixels : correction demandée ; un vrai défilement latéral : affichage refusé.
+    if (document.documentElement.scrollWidth > innerWidth * 1.05)
+      user.push('la page déborde sur le côté');
+  }
+  return { issues, user };
+}

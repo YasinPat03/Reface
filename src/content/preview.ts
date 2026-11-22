@@ -10,6 +10,8 @@ import {
   contrastFixes,
   deadSelectors,
   hasVisibleEffect,
+  integrityBefore,
+  integrityProblems,
   introducedLowContrast,
   lowContrastBefore,
   pageLuminance,
@@ -229,9 +231,14 @@ function applyFixes(changes: DraftChange[], fixes: Fix[]): void {
  * - repeint les surfaces restées claires d'un thème sombre et corrige le contraste dégradé.
  * Retourne les problèmes à renvoyer au LLM (en anglais) pour une auto-correction.
  */
-function enforceQuality(changes: DraftChange[], warnings: string[]): string[] {
+function enforceQuality(
+  changes: DraftChange[],
+  warnings: string[],
+): { issues: string[]; broken: string[] } {
   const issues: string[] = [];
   setPreview('');
+  const list = withoutOurStyles(() => roleMap()).list;
+  const integrity = integrityBefore(list);
   const textBefore = Math.max(1, visibleTextLength());
   const lowBefore = lowContrastBefore();
   const luminanceBefore = pageLuminance();
@@ -305,8 +312,12 @@ function enforceQuality(changes: DraftChange[], warnings: string[]): string[] {
     else change.css = previous;
     if (!lowCount) break;
   }
+  // Intégrité de la mise en page, sur le résultat final (corrections comprises).
+  setPreview(compileChanges(changes));
+  const integrityCheck = integrityProblems(list, integrity);
+  issues.push(...integrityCheck.issues);
   setPreview('');
-  return issues;
+  return { issues, broken: integrityCheck.user };
 }
 
 /** Construit le brouillon complet et l'applique en preview. */
@@ -315,7 +326,7 @@ export function prepareDraft(recipe: Recipe, prompts: string[]): Draft {
   const changes = recipe.changes
     .map((change) => resolveChange(change, warnings))
     .filter((c): c is DraftChange => !!c);
-  const qualityIssues = enforceQuality(changes, warnings);
+  const { issues: qualityIssues, broken } = enforceQuality(changes, warnings);
   const previewCss = compileChanges(changes);
   if (!previewCss.trim() && !warnings.length) {
     warnings.push('Cette modification ne produit aucun changement visible.');
@@ -348,6 +359,7 @@ export function prepareDraft(recipe: Recipe, prompts: string[]): Draft {
     previewCss,
     warnings,
     layoutIssues,
+    broken,
   };
 }
 
