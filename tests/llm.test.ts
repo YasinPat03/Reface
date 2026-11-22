@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { completeJson, listModels, nextEffort } from '../src/background/llm';
+import { completeJson, listModels, nextEffort, wellFormedMessages } from '../src/background/llm';
 
 const settings = { apiKey: 'sk-test', baseUrl: 'https://api.test/v1/', model: 'm' };
 const messages = [{ role: 'user' as const, content: 'x' }];
@@ -11,6 +11,31 @@ const ok = (content: unknown) =>
   reply(200, { choices: [{ message: { content: JSON.stringify(content) } }] });
 
 afterEach(() => vi.unstubAllGlobals());
+
+describe('wellFormedMessages', () => {
+  it('remplace un emoji coupé en deux (sinon le fournisseur refuse tout le JSON)', () => {
+    const cut = 'lofi hip hop radio ' + '📚'.slice(0, 1);
+    const [text, multi] = wellFormedMessages([
+      { role: 'user', content: `${cut} beats` },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: '📚'.slice(1) + ' ok 📚' },
+          { type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } },
+        ],
+      },
+    ]);
+    expect(text!.content).toBe('lofi hip hop radio \ufffd beats');
+    expect(multi!.content).toEqual([
+      { type: 'text', text: '\ufffd ok 📚' },
+      { type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } },
+    ]);
+    // Le corps envoyé est du JSON bien formé (aucune moitié d'emoji ne survit).
+    expect(JSON.stringify(wellFormedMessages([{ role: 'user', content: cut }]))).not.toMatch(
+      /\\ud83d/,
+    );
+  });
+});
 
 describe('completeJson : gestion des erreurs (5.3)', () => {
   it('renvoie le JSON du message et appelle /chat/completions en json_schema strict', async () => {

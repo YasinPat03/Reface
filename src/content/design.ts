@@ -71,6 +71,41 @@ const MIN_ITEM_HEIGHT = 10;
 /** Un chemin positionnel profond casse dès que le site réordonne ses blocs (étagères, pubs). */
 const positional = (selector: string) => (selector.match(/:nth-/g)?.length ?? 0) > 1;
 
+/**
+ * Sélecteur commun aux conteneurs d'une liste répartie en plusieurs blocs (résultats YouTube
+ * coupés par une pub : « ytd-item-section-renderer > div#contents »). Il peut aussi viser des
+ * conteneurs du même type sans élément de la liste : la grille les laisse intacts (leurs enfants
+ * y prennent toute la largeur).
+ */
+function sharedContainerSelector(containers: Element[]): string | null {
+  const first = containers[0]!;
+  const tag = first.tagName.toLowerCase();
+  const id =
+    first.id && isStableId(first.id) && containers.every((c) => c.id === first.id)
+      ? `#${first.id}`
+      : '';
+  const own = signatureSelector(first);
+  const parent = first.parentElement ? signatureSelector(first.parentElement) : null;
+  const kind = (e: Element) =>
+    `${signature(e)}|${e.parentElement ? signature(e.parentElement) : ''}`;
+  const candidates = [
+    parent && id ? `${parent} > ${tag}${id}` : null,
+    parent && own ? `${parent} > ${own}` : null,
+    own,
+  ];
+  for (const candidate of candidates) {
+    if (!candidate || !isSafeSelector(candidate)) continue;
+    const matches = [...document.querySelectorAll(candidate)];
+    if (
+      containers.every((c) => matches.includes(c)) &&
+      matches.length <= containers.length * 3 &&
+      matches.every((m) => kind(m) === kind(first))
+    )
+      return candidate;
+  }
+  return null;
+}
+
 /** Listes répétées : au moins 4 frères de même signature, visibles. Les plus grandes d'abord. */
 function findLists(): List[] {
   const lists: List[] = [];
@@ -95,26 +130,24 @@ function findLists(): List[] {
       // plutôt qu'un chemin positionnel par conteneur.
       if (own && isSafeSelector(own) && count(own) > items.length) {
         const all = [...document.querySelectorAll(own)];
-        const containers = [...new Set(all.map((e) => e.parentElement))];
+        const containers = [...new Set(all.map((e) => e.parentElement))].filter(
+          (c): c is HTMLElement => !!c,
+        );
         if (
           all.length <= 200 &&
           containers.length <= 6 &&
-          all.every((e) => signature(e) === signature(first)) &&
-          containers.every((c) => c && [...c.children].filter((e) => all.includes(e)).length >= 2)
+          all.every((e) => signature(e) === signature(first))
         ) {
           all.forEach((item) => seen.add(item));
-          const shared = signatureSelector(container);
           lists.push({
             container,
             items: all,
             itemSelector: own,
             groups: containers.length,
             containerSelector:
-              shared && count(shared) === containers.length
-                ? shared
-                : containers.length === 1
-                  ? uniqueSelector(container)
-                  : null,
+              containers.length === 1
+                ? uniqueSelector(container)
+                : sharedContainerSelector(containers),
           });
           continue;
         }
@@ -132,6 +165,18 @@ function findLists(): List[] {
       lists.push({ container, items, itemSelector, groups: 1, containerSelector: parent });
     }
   }
+  // Une liste dont chaque élément contient une liste plus fine (sections de résultats YouTube qui
+  // contiennent les vidéos) passe après celle-ci : c'est la plus fine que l'on veut styler.
+  const outer = new Set(
+    lists.filter((list) =>
+      lists.some(
+        (inner) =>
+          inner !== list &&
+          inner.items.length >= list.items.length &&
+          list.items.some((item) => item !== inner.items[0] && item.contains(inner.items[0]!)),
+      ),
+    ),
+  );
   // Aire mesurée une fois par liste (le tri la redemandait à chaque comparaison).
   const areas = new Map(
     lists.map((list) => [
@@ -142,7 +187,9 @@ function findLists(): List[] {
       }, 0),
     ]),
   );
-  return lists.sort((a, b) => areas.get(b)! - areas.get(a)!).slice(0, MAX_LISTS);
+  return lists
+    .sort((a, b) => Number(outer.has(a)) - Number(outer.has(b)) || areas.get(b)! - areas.get(a)!)
+    .slice(0, MAX_LISTS);
 }
 
 /**
@@ -272,7 +319,9 @@ function collectSurfaces(): Surface[] {
       : null;
     if (parentColor === color) continue;
     const selector = uniqueSelector(element);
-    if (!selector) continue;
+    // Un chemin positionnel profond désigne une carte au hasard (la 3e vidéo) et casse au
+    // rechargement : ce n'est pas une surface à repeindre.
+    if (!selector || positional(selector)) continue;
     const attribute = element.getAttribute('bgcolor') ? ' (HTML bgcolor attribute)' : '';
     const r = (n: number) => Math.round(n * 100);
     found.push({
@@ -546,6 +595,9 @@ export function roleMap(): RoleMap {
       title: title?.selector ?? null,
       meta,
       horizontal: horizontalLayout(main),
+      media: [...main.items[0]!.querySelectorAll('img, video')].some(
+        (m) => m.getBoundingClientRect().width >= 80,
+      ),
     };
   }
 

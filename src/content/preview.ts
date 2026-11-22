@@ -176,6 +176,8 @@ function resolveChange(
   const css = normalizeFreeCss(change.css, local);
   // Thème : les jetons du LLM sont appliqués aux rôles de la page d'origine (sans nos styles).
   const themeCss = change.theme ? normalizeFreeCss(compileTheme(change.theme, roles), local) : '';
+  if (change.theme && change.theme.layout.columns > 1 && !roles.list?.container)
+    local.push('no list was found to lay out in columns on this page: shown as a list.');
   // Barre de menu : calculée et vérifiée par l'extension sur la page d'origine.
   let menuCss = '';
   if (change.menuBar) {

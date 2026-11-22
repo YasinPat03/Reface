@@ -347,6 +347,15 @@ const REFINE_PROMPT = [
 ].join('\n');
 
 /**
+ * La capture montre le contenu du site, souvent en plusieurs langues : sans ancrage, l'affinage
+ * répondait parfois en espagnol, en thaï ou en russe. L'explication de la v1, écrite sans capture,
+ * est dans la bonne langue : elle sert de référence.
+ */
+function refineLanguage(draft: Draft): string {
+  return `Write the defects, every "title" and the "explanation" in the language of the user request, the same language as the current explanation: ${JSON.stringify(draft.explanation.slice(0, 200))}. Never use the language of the page content visible in the screenshot.`;
+}
+
+/**
  * Affinage visuel (toujours actif) : le LLM voit une capture de sa preview et peut la corriger,
  * en UN seul tour. La v2 n'est retenue que si elle change le rendu, passe les garde-fous et n'a pas
  * plus de problèmes mesurés que la v1 ; sinon la v1 reste affichée, sans bruit.
@@ -386,7 +395,7 @@ export async function refine(tabId: number, draft: Draft): Promise<Draft> {
     {
       role: 'user',
       content: [
-        { type: 'text', text: REFINE_PROMPT },
+        { type: 'text', text: `${REFINE_PROMPT}\n${refineLanguage(draft)}` },
         { type: 'image_url', image_url: { url: screenshot, detail: 'high' } },
       ],
     },

@@ -30,6 +30,16 @@ const short = (i: number) =>
   `<div class="ytGridShelfViewModelGridShelfItem"><img class="ytCoreImageHost" src="${THUMB}" alt=""><h3 class="shortsLockupViewModelHostMetadataTitle">Short number ${i}</h3></div>`;
 const shelf = `<grid-shelf-view-model class="ytGridShelfViewModelHost"><h2>Shorts</h2><div class="ytGridShelfViewModelGridShelfRow">${[1, 2, 3, 4, 5].map(short).join('')}</div></grid-shelf-view-model>`;
 
+// Les résultats sont répartis en sections (vidéos coupées en deux par une section de recherches
+// associées) : la liste des sections englobe celle des vidéos et la dépasse en surface, mais c'est
+// la liste des vidéos qu'il faut mettre en grille, dans chacune de ses sections.
+const section = (content: string) =>
+  `<ytd-item-section-renderer class="style-scope ytd-section-list-renderer"><div id="header" class="style-scope ytd-item-section-renderer"></div><div id="contents" class="style-scope ytd-item-section-renderer">${content}</div></ytd-item-section-renderer>`;
+const related = (i: number) =>
+  section(
+    `<div class="related">Related search ${i}: <a href="/results?q=${i}">lofi ${i}</a></div>`,
+  );
+
 const items = Array.from({ length: 12 }, (_, i) => video(i + 1));
 items.splice(2, 0, playlist);
 items.splice(8, 0, shelf);
@@ -60,5 +70,7 @@ grid-shelf-view-model{display:block;margin-top:24px}
 .ytGridShelfViewModelGridShelfItem img{width:200px;aspect-ratio:9/16;display:block}
 </style></head><body>
 <header id="masthead" role="banner"><a href="/">Tube</a><input aria-label="Search" value="lofi music"></header>
-<ytd-item-section-renderer class="style-scope ytd-section-list-renderer"><div id="contents" class="style-scope ytd-item-section-renderer">${items.join('')}</div></ytd-item-section-renderer>
+<ytd-section-list-renderer><div id="contents" class="style-scope ytd-section-list-renderer">
+${section(items.slice(0, 6).join(''))}${related(1)}${section(items.slice(6).join(''))}${related(2)}${related(3)}
+</div></ytd-section-list-renderer>
 </body></html>`;

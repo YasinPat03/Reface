@@ -96,6 +96,8 @@ export interface RoleMap {
      * boîte du média. En grille, la carte s'empile, sinon la miniature déborde sur la voisine.
      */
     horizontal?: { row: string; media: string } | null;
+    /** Les éléments portent un média (miniature, photo) : il fixe leurs proportions. */
+    media?: boolean;
   } | null;
 }
 
@@ -271,11 +273,20 @@ export function splitSelectors(list: string): string[] {
   return out;
 }
 
-type Block = [selector: string, declarations: Record<string, string | null | undefined>];
+/**
+ * `structural` : règle de structure de la grille (média contenu dans sa carte, carte empilée,
+ * enfants hors liste en pleine largeur), rendue SANS :where() pour qu'une règle de taille déjà
+ * gardée (« miniatures plus grosses », 580 px) ne fasse pas déborder les cartes.
+ */
+type Block = [
+  selector: string,
+  declarations: Record<string, string | null | undefined>,
+  structural?: boolean,
+];
 
 function render(blocks: Block[]): string {
   return blocks
-    .map(([selector, declarations]) => {
+    .map(([selector, declarations, structural]) => {
       const parts = splitSelectors(selector).filter((s) => s && isSafeSelector(s));
       const body = Object.entries(declarations)
         .filter((entry): entry is [string, string] => !!entry[1])
@@ -284,7 +295,8 @@ function render(blocks: Block[]): string {
       // :where() → spécificité nulle : le thème est une COUCHE DE BASE. Les changements ciblés
       // (« barre en bleu ») et les corrections de contraste, plus spécifiques, l'affinent toujours ;
       // entre règles du thème, c'est l'ordre d'écriture qui décide.
-      return parts.length && body ? `:where(${parts.join(',')}){${body}}` : '';
+      if (!parts.length || !body) return '';
+      return structural ? `${parts.join(',')}{${body}}` : `:where(${parts.join(',')}){${body}}`;
     })
     .filter(Boolean)
     .join('\n');
@@ -383,19 +395,33 @@ function gridBlocks(tokens: ThemeTokens, t: ResolvedTheme, list: List, columns: 
         padding: `${px(t.unit * 2)} ${px(t.unit * 2)}`,
         'box-shadow': t.shadow,
         border: `1px solid ${p.border}`,
-        'aspect-ratio': shape === 'square' ? '1 / 1' : shape === 'landscape' ? '4 / 3' : null,
+        // Une carte avec un média (miniature) prend les proportions du média : une hauteur
+        // imposée par le format couperait le titre et les infos, qui passeraient sous la rangée
+        // suivante.
+        'aspect-ratio': list.media
+          ? null
+          : shape === 'square'
+            ? '1 / 1'
+            : shape === 'landscape'
+              ? '4 / 3'
+              : null,
       },
     ]);
     // Les autres enfants du conteneur (étagères, sections, « voir plus ») : toute la largeur,
     // sinon chacun est écrasé dans une case.
-    blocks.push([`${container} > :not(${list.item})`, { 'grid-column': '1 / -1' }]);
+    blocks.push([`${container} > :not(${list.item})`, { 'grid-column': '1 / -1' }, true]);
     if (list.horizontal) {
       // Média à côté du texte : la carte s'empile (média au-dessus), rien n'est plus large qu'elle.
-      blocks.push([list.horizontal.row, { 'flex-direction': 'column', 'align-items': 'stretch' }]);
-      blocks.push([`${list.horizontal.row} > *`, { 'min-width': '0', 'max-width': '100%' }]);
+      blocks.push([
+        list.horizontal.row,
+        { 'flex-direction': 'column', 'align-items': 'stretch' },
+        true,
+      ]);
+      blocks.push([`${list.horizontal.row} > *`, { 'min-width': '0', 'max-width': '100%' }, true]);
       blocks.push([
         list.horizontal.media,
         { width: '100%', 'max-width': '100%', 'min-width': '0', flex: 'none', margin: '0' },
+        true,
       ]);
     }
     return blocks;

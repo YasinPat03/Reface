@@ -268,7 +268,7 @@ await check(
     const m = await results.evaluate(() => {
       const box = (e: Element | null) => e!.getBoundingClientRect();
       const cards = [...document.querySelectorAll('ytd-video-renderer')].slice(0, 6);
-      const container = box(document.querySelector('#contents'));
+      const container = box(document.querySelector('ytd-item-section-renderer > #contents'));
       return {
         lefts: new Set(cards.slice(0, 3).map((c) => Math.round(box(c).left))).size,
         stacked: cards.every(
