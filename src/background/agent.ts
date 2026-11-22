@@ -20,7 +20,8 @@ const SYSTEM_PROMPT = [
   'Split the request into "changes": ONE change per distinct thing the user asks for, so they can toggle each one separately. "Hide the sidebar, bigger text and a dark background" = 3 changes. A request about a single thing = 1 change (do not split it, e.g. a dark mode touching many elements stays one change). Each change has a short title (2-6 words, in the language of the user request) and its own ops, targets and css: never put the CSS of one change in another.',
   'Interpret the request in the context of THIS website: users name things by what they look like here, often indirectly (on YouTube, "make the images bigger" means the video thumbnails; on a shop, "the photos" are product images). Use the website context and vocabulary given below.',
   'Targets point to page regions by their index [#n] from the page outline (regionIndex). Add 0-2 selectorHints you are confident about. Only declare a target if an op uses it.',
-  'The design snapshot lists the real surfaces, colors, fonts, repeated lists and layout roles of the page, with VERIFIED selectors. Use those selectors in "css" (they match the page); never invent class names that are not in the snapshot or the outline (e.g. no ".votes", "footer", ".card" unless listed).',
+  'The design snapshot lists the real surfaces, colors, fonts, repeated lists, layout roles and collapsed menus of the page, with VERIFIED selectors. Use those selectors in "css" (they match the page); never invent class names that are not in the snapshot or the outline (e.g. no ".votes", "footer", ".card" unless listed).',
+  'Collapsed menus (hamburger, dropdown menus) are listed under "Collapsed menus": their links are hidden until opened. To show one permanently as a horizontal bar or navbar ("turn the hamburger menu into a navbar"), set "menuBar" to its number in a change: the extension builds and verifies that layout (bar under its row, links in a line, toggle hidden). Never hand-write that reveal (visibility, opacity, position) in "css"; use "css" only for extra styling of the bar (colors, font, spacing) with its panel selector. "menuBar" is 0 in every other change.',
   'Outline lines with similar=×N stand for N identical siblings (cards, rows): to change all of them, use the "css" field with the list selector from the design snapshot. When an item continues on sibling rows (e.g. "item + tr"), style the item and its sibling rows together.',
   'When the request names a part listed under "Layout roles" or "Surfaces" (top bar, header, footer, sidebar), style it with that exact selector in "css" (not with an outline region that contains it): a parent background is painted UNDER the child and stays invisible.',
   'Inherited properties (color, font-*) set on a container do NOT reach children that set their own value (headings, links, buttons usually do): to recolor or resize a title, a link or a button, target that element itself (e.g. "#firstHeading", "header h1", "nav a"), not its container.',
@@ -118,6 +119,7 @@ function reindex(previous: Draft, included: Record<string, number>): Recipe {
         targets,
         css: change.css,
         ...(change.theme ? { theme: change.theme } : {}),
+        ...(change.menuBar ? { menuBar: change.menuBar } : {}),
       };
     });
   return { changes, explanation: previous.explanation };
@@ -294,7 +296,7 @@ export async function keep(tabId: number, draft: Draft): Promise<{ ruleIds: stri
       ops: change.ops,
       targets: change.targets,
       // Le thème compilé est fusionné : la règle enregistrée reste du CSS (injecteur inchangé).
-      css: [change.themeCss, change.css].filter((part) => part?.trim()).join('\n'),
+      css: [change.themeCss, change.menuCss, change.css].filter((part) => part?.trim()).join('\n'),
       explanation: draft.changes.length > 1 ? change.title : draft.explanation,
     }),
   );

@@ -126,6 +126,23 @@ const SCENARIOS: Scenario[] = [
     verify: `!document.querySelector('#mw-panel-toc')?.checkVisibility()`,
   },
   {
+    // Le menu principal est replié derrière un hamburger (case à cocher, panneau caché).
+    name: 'wiki-navbar',
+    url: 'https://en.wikipedia.org/wiki/Golden_ratio',
+    prompts: ['Turn the hamburger menu into a navbar'],
+    verify: `(() => {
+      const links = [...document.querySelectorAll('#vector-main-menu li a')]
+        .filter((a) => a.checkVisibility({ visibilityProperty: true, opacityProperty: true }));
+      return links.length >= 8 && new Set(links.map((a) => Math.round(a.getBoundingClientRect().top))).size <= 2;
+    })()`,
+    layout: `(() => {
+      const links = [...document.querySelectorAll('#vector-main-menu li a')].map((a) => a.getBoundingClientRect());
+      const bottom = Math.max(...links.map((r) => r.bottom));
+      const title = document.querySelector('#firstHeading').getBoundingClientRect().top;
+      return title >= bottom - 1 || 'la barre recouvre le titre (' + Math.round(bottom) + ' > ' + Math.round(title) + ')';
+    })()`,
+  },
+  {
     name: 'hn-dark',
     url: 'https://news.ycombinator.com/',
     prompts: ['Mode sombre', 'un peu moins contrasté'],

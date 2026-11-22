@@ -96,7 +96,12 @@ export function deadSelectors(css: string): string[] {
   return dead;
 }
 
-/** Propriétés qui rendent une modif visible (au repos, sans survol). */
+/**
+ * Propriétés qui rendent une modif visible (au repos, sans survol). Pas `display` : un changement
+ * de `display` ne se voit que s'il déplace ou redimensionne quelque chose, ce que les rectangles
+ * mesurés (l'élément et ses descendants) captent déjà. Sinon `display:flex` sur un bouton de
+ * 32 px passait pour un succès alors que rien ne bougeait à l'écran.
+ */
 const VISIBLE_PROPERTIES = [
   'color',
   'background-color',
@@ -109,7 +114,6 @@ const VISIBLE_PROPERTIES = [
   'letter-spacing',
   'text-transform',
   'text-decoration-line',
-  'display',
   'visibility',
   'opacity',
   'padding-top',

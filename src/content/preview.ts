@@ -5,6 +5,7 @@ import type { Draft, DraftChange, Recipe, RecipeChange, Target } from '../shared
 import { regionAt } from './distill';
 import { compileTheme } from '../shared/theme';
 import { roleMap } from './design';
+import { menuBarCss } from './menus';
 import { detectLayoutRegressions } from './layoutCheck';
 import {
   contrastFixes,
@@ -177,6 +178,13 @@ function resolveChange(change: RecipeChange, warnings: string[]): DraftChange | 
         local,
       )
     : '';
+  // Barre de menu : calculée et vérifiée par l'extension sur la page d'origine.
+  let menuCss = '';
+  if (change.menuBar) {
+    const bar = withoutOurStyles(() => menuBarCss(change.menuBar!));
+    if (bar) menuCss = normalizeFreeCss(bar, local);
+    else local.push(`menu ${change.menuBar} can’t be shown as a bar on this page.`);
+  }
   warnings.push(...local.map((w) => `${change.title}: ${w}`));
   const resolved: DraftChange = {
     title: change.title,
@@ -185,6 +193,7 @@ function resolveChange(change: RecipeChange, warnings: string[]): DraftChange | 
     css,
     enabled: true,
     ...(change.theme ? { theme: change.theme, themeCss } : {}),
+    ...(change.menuBar ? { menuBar: change.menuBar, menuCss } : {}),
   };
   if (!compileRule(resolved).trim()) {
     warnings.push(`"${change.title}" produces no visible change: ignored.`);
@@ -258,8 +267,9 @@ function enforceQuality(
 
   for (const change of changes) {
     if (!change.enabled) continue;
-    // Le thème compilé vise des rôles vérifiés : seul le CSS écrit par le LLM peut viser à côté.
-    const css = compileRule({ ...change, themeCss: undefined });
+    // Le thème et la barre de menu visent des éléments vérifiés : seul le CSS écrit par le LLM
+    // peut viser à côté.
+    const css = compileRule({ ...change, themeCss: undefined, menuCss: undefined });
     const total = css.split('{').length - 1;
     const dead = deadSelectors(css);
     if (total && dead.length * 2 >= total) {

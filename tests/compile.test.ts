@@ -47,6 +47,29 @@ describe('compileRule', () => {
     expect(css).toBe('html,body{background:#111!important}');
   });
 
+  it('ordre : thème, barre de menu, ops, puis CSS libre (qui peut tout affiner)', () => {
+    const css = compileRule({
+      ...rule({
+        ops: [{ op: 'hide', target: 't1' }],
+        targets: { t1: { selectors: ['#ad'], minMatches: 1 } },
+        css: 'nav a{color:red!important}',
+      }),
+      themeCss: ':where(body){background:#111!important}',
+      menuCss: '#menu{display:block!important}',
+    });
+    expect(css.split('\n')).toEqual([
+      ':where(body){background:#111!important}',
+      '#menu{display:block!important}',
+      '#ad{display:none!important}',
+      'nav a{color:red!important}',
+    ]);
+  });
+
+  it('écarte une barre de menu dangereuse', () => {
+    const css = compileRule({ ...rule({}), menuCss: '#menu{background:url(x)}' });
+    expect(css).toBe('');
+  });
+
   it('ignore les déclarations et sélecteurs dangereux', () => {
     const css = compileRule(
       rule({

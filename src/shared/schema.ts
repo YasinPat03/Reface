@@ -86,6 +86,8 @@ const wireChange = z.object({
   targets: z.array(wireTarget).max(20),
   css: z.string().max(16_000),
   theme: wireTheme.nullable().optional(),
+  /** Menu replié à montrer en barre (« [menu n] » de l'instantané), 0 = aucun. */
+  menuBar: z.number().int().min(0).max(10).default(0),
 });
 
 export const wireRecipe = z.object({
@@ -238,7 +240,7 @@ export const recipeJsonSchema = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['title', 'ops', 'targets', 'css', 'theme'],
+        required: ['title', 'ops', 'targets', 'css', 'theme', 'menuBar'],
         properties: {
           title: {
             type: 'string',
@@ -253,6 +255,11 @@ export const recipeJsonSchema = {
               'Optional extra plain CSS for THIS change only. Empty string if not needed.',
           },
           theme: themeSchema,
+          menuBar: {
+            type: 'integer',
+            description:
+              'n to show the collapsed menu [menu n] of the design snapshot as a permanent horizontal bar (navbar); the extension builds and verifies that layout. 0 otherwise.',
+          },
         },
       },
     },
@@ -340,6 +347,7 @@ function parseChange(wire: WireChange, index: number): RecipeChange {
     targets,
     css: wire.css,
     ...(theme ? { theme } : {}),
+    ...(wire.menuBar ? { menuBar: wire.menuBar } : {}),
   };
 }
 
@@ -390,7 +398,7 @@ export function parseRecipe(input: unknown): Recipe {
   if (result.success) {
     const changes = result.data.changes
       .map(parseChange)
-      .filter((c) => c.ops.length || c.css.trim() || c.theme);
+      .filter((c) => c.ops.length || c.css.trim() || c.theme || c.menuBar);
     return { changes, explanation: result.data.explanation };
   }
   const legacy = legacyRecipe.safeParse(raw);
@@ -435,6 +443,7 @@ export function toWire(recipe: Recipe): WireRecipe {
             })),
           }
         : null,
+      menuBar: change.menuBar ?? 0,
     })),
     explanation: recipe.explanation,
   };

@@ -4,6 +4,7 @@
 import { isSafeSelector } from '../shared/cssSafety';
 import type { RoleMap } from '../shared/theme';
 import { textSample } from './distill';
+import { describeMenus } from './menus';
 import { buildSelectors, isStableId, repeatSignature, stableClasses } from './selectors';
 
 const SKIP = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'svg', 'SVG', 'BR', 'HR']);
@@ -343,18 +344,22 @@ function roles(): string {
   return out.join('\n');
 }
 
-/** Instantané complet, dans la limite d'environ 1 200 tokens. */
+/** Instantané complet, dans la limite d'environ 1 500 tokens. */
 export function designSnapshot(): string {
   const lists = findLists();
+  const menus = describeMenus();
   const sections = [
     `Surfaces:\n${surfaces()}`,
     `Palette:\n${palette()}`,
+    `Layout roles:\n${roles()}`,
+    menus
+      ? `Collapsed menus (links hidden until the user opens them, so not in the outline; "menuBar": n shows menu n as a permanent horizontal bar):\n${menus}`
+      : '',
     lists.length
       ? `Repeated lists (verified selectors, use them in "css"):\n${describeLists(lists)}`
       : '',
-    `Layout roles:\n${roles()}`,
   ].filter((s) => s.trim() && !s.endsWith(':\n'));
-  return sections.join('\n\n').slice(0, 5000);
+  return sections.join('\n\n').slice(0, 6000);
 }
 
 /** Ligne vide qui suit un élément et ses compagnes (espaceur entre deux éléments). */
