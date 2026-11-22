@@ -72,6 +72,8 @@ async function llm(req: IncomingMessage, res: ServerResponse) {
   const user = messages[1]!.content;
   const last = messages.at(-1)!.content;
   requests.push(last);
+  // L'auto-correction prend du temps, comme avec un vrai LLM : la page a le temps de peindre.
+  if (last.startsWith('Your recipe was applied')) await new Promise((ok) => setTimeout(ok, 300));
   res.writeHead(200, { 'Content-Type': 'application/json' }).end(
     JSON.stringify({
       choices: [{ message: { content: JSON.stringify(recipeFor(user, last)) } }],
@@ -204,6 +206,38 @@ await check('styler le seul bouton n’est plus un succès : le LLM est relancé
   assert(/NO visible effect/.test(requests[1]!), 'le « sans effet » n’est pas expliqué au LLM');
   const m = await layout();
   assert(m.visible === MENU_LINK_COUNT && m.rows === 1, 'la correction n’a pas donné la barre');
+});
+
+await check('un seul restylage visible : la v1 rejetée n’est jamais peinte', async () => {
+  await page.reload();
+  // À chaque frame peinte, la preview affichée.
+  await page.evaluate(() => {
+    const w = window as unknown as { __painted: Set<string> };
+    w.__painted = new Set();
+    const loop = () => {
+      w.__painted.add(document.getElementById('bp-preview')?.textContent ?? '');
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  });
+  const reply = await send('generate', {
+    tabId,
+    prompt: 'bouton seul : turn the hamburger menu into a navbar',
+    previous: null,
+    pick: null,
+  });
+  assert(reply.ok, `generate : ${reply.error}`);
+  await page.waitForTimeout(200);
+  const { painted, final } = await page.evaluate(() => ({
+    painted: [...(window as unknown as { __painted: Set<string> }).__painted],
+    final: document.getElementById('bp-preview')?.textContent ?? '',
+  }));
+  const others = painted.filter((css) => css !== '' && css !== final);
+  assert(/position: ?absolute/.test(final), 'la barre finale n’est pas appliquée');
+  assert(
+    !others.length,
+    `version intermédiaire peinte : ${others.map((c) => c.slice(0, 80)).join(' | ')}`,
+  );
 });
 
 console.log('Phase 14 : pages à composants (YouTube)');

@@ -233,7 +233,17 @@ function degraded(element: Element, before: ContrastBefore): boolean {
 
 /** Nombre de textes rendus peu contrastés par la modif en cours. */
 export function introducedLowContrast(before: ContrastBefore): number {
-  return textElements().filter((e) => degraded(e, before)).length;
+  return degradedTexts(before).length;
+}
+
+/** Textes rendus peu contrastés par la modif en cours. */
+export function degradedTexts(before: ContrastBefore): Element[] {
+  return textElements().filter((e) => degraded(e, before));
+}
+
+/** Parmi `texts`, ceux qui restent peu contrastés (après une correction). */
+export function stillDegraded(texts: Element[], before: ContrastBefore): Element[] {
+  return texts.filter((e) => degraded(e, before));
 }
 
 /** Luminance du fond de page (html/body). */
@@ -309,9 +319,8 @@ function fixSelector(element: Element): string | null {
 }
 
 /** Index du changement qui a donné son fond (sinon sa couleur) à l'élément ; -1 si aucun. */
-function owningChange(element: Element, changesCss: string[]): number {
+function owningChange(element: Element, rulesPerChange: StyleRule[][]): number {
   const owner = backgroundOwner(element) ?? document.body;
-  const rulesPerChange = changesCss.map(styleRules);
   const matches = (e: Element, rule: StyleRule) =>
     rule.selectors.some((s) => {
       const base = restingSelector(s);
@@ -371,14 +380,20 @@ export interface Fix {
  * prise dans la palette de la modif si possible. Une règle par sélecteur, rattachée au changement
  * qui a posé le fond (pour qu'elle s'active et se désactive avec lui).
  */
-export function contrastFixes(before: ContrastBefore, changesCss: string[]): Fix[] {
+export function contrastFixes(
+  before: ContrastBefore,
+  changesCss: string[],
+  texts: Element[] = degradedTexts(before),
+): Fix[] {
   const palette = paletteColors(changesCss.join('\n'));
+  // CSS des changements analysé une fois (et non une fois par texte : le thème fait plusieurs Ko).
+  const rulesPerChange = changesCss.map(styleRules);
   const fixes = new Map<string, Fix>();
-  for (const element of textElements()) {
+  for (const element of texts) {
     if (!degraded(element, before)) continue;
     const selector = fixSelector(element);
     if (!selector || fixes.has(selector)) continue;
-    const change = owningChange(element, changesCss);
+    const change = owningChange(element, rulesPerChange);
     if (change < 0) continue;
     const current = parseColor(getComputedStyle(element).color)?.rgb ?? [0, 0, 0];
     const color = readableColor(current, backgroundOf(element), threshold(element), palette);
@@ -398,7 +413,7 @@ export function contrastFixes(before: ContrastBefore, changesCss: string[]): Fix
 export function surfaceFixes(luminanceBefore: number, changesCss: string[]): Fix[] {
   if (luminanceBefore < 0.4 || pageLuminance() > 0.2) return [];
   const background = pageBackground();
-  const change = owningChange(document.body, changesCss);
+  const change = owningChange(document.body, changesCss.map(styleRules));
   if (change < 0) return [];
   const area = innerWidth * innerHeight;
   const fixes: Fix[] = [];

@@ -3,19 +3,20 @@ import { compileRule } from '../shared/compile';
 import { cssViolation, isAllowedProperty, isSafeSelector } from '../shared/cssSafety';
 import type { Draft, DraftChange, Recipe, RecipeChange, Target } from '../shared/types';
 import { regionAt } from './distill';
-import { compileTheme } from '../shared/theme';
+import { compileTheme, type RoleMap } from '../shared/theme';
 import { roleMap } from './design';
 import { menuBarCss } from './menus';
-import { detectLayoutRegressions } from './layoutCheck';
+import { layoutBefore, layoutRegressions } from './layoutCheck';
 import {
   contrastFixes,
   deadSelectors,
+  degradedTexts,
   hasVisibleEffect,
   integrityBefore,
   integrityProblems,
-  introducedLowContrast,
   lowContrastBefore,
   pageLuminance,
+  stillDegraded,
   surfaceFixes,
   visibleTextLength,
   type Fix,
@@ -143,7 +144,8 @@ function previewElement(): HTMLStyleElement {
 
 export function setPreview(css: string): void {
   const style = previewElement();
-  style.textContent = css;
+  // Même texte : on n'y touche pas (le remplacer relancerait le calcul des styles de la page).
+  if (style.textContent !== css) style.textContent = css;
   style.disabled = original;
 }
 
@@ -163,21 +165,17 @@ export function compileChanges(
 }
 
 /** Résout un changement de la recette ; null s'il ne produit rien sur cette page. */
-function resolveChange(change: RecipeChange, warnings: string[]): DraftChange | null {
+function resolveChange(
+  change: RecipeChange,
+  roles: RoleMap,
+  warnings: string[],
+): DraftChange | null {
   const local: string[] = [];
   const targets = resolveTargets(change, local);
   const ops = change.ops.filter((op) => !op.target || op.target in targets);
   const css = normalizeFreeCss(change.css, local);
   // Thème : les jetons du LLM sont appliqués aux rôles de la page d'origine (sans nos styles).
-  const themeCss = change.theme
-    ? normalizeFreeCss(
-        compileTheme(
-          change.theme,
-          withoutOurStyles(() => roleMap()),
-        ),
-        local,
-      )
-    : '';
+  const themeCss = change.theme ? normalizeFreeCss(compileTheme(change.theme, roles), local) : '';
   // Barre de menu : calculée et vérifiée par l'extension sur la page d'origine.
   let menuCss = '';
   if (change.menuBar) {
@@ -234,6 +232,52 @@ function applyFixes(changes: DraftChange[], fixes: Fix[]): void {
 }
 
 /**
+ * Corrections de contraste, toutes appliquées d'un coup (un seul recalcul de la page, au lieu d'un
+ * par correction) ; chacune n'est gardée que si elle rend lisibles plus de textes qu'elle n'en
+ * laisse illisibles parmi ceux qu'elle touche (le texte visé et ce qui hérite de sa couleur).
+ */
+function keepHelpfulContrastFixes(
+  changes: DraftChange[],
+  lowBefore: ReturnType<typeof lowContrastBefore>,
+  changesCss: string[],
+): void {
+  const unreadable = degradedTexts(lowBefore);
+  if (!unreadable.length) return;
+  const fixes = contrastFixes(lowBefore, changesCss, unreadable)
+    .map((fix) => {
+      try {
+        return { ...fix, css: normalizeFreeCss(fix.css, []) };
+      } catch {
+        return null; // correction refusée par la validation CSS
+      }
+    })
+    .filter((fix): fix is Fix => !!fix?.css && !!changes[fix.change]);
+  if (!fixes.length) return;
+  const original = changes.map((change) => change.css);
+  const withFixes = (kept: Fix[]) =>
+    changes.forEach((change, i) => {
+      const extra = kept.filter((fix) => fix.change === i).map((fix) => fix.css);
+      change.css = [original[i]!, ...extra].filter((s) => s.trim()).join('\n');
+    });
+  withFixes(fixes);
+  setPreview(compileChanges(changes));
+  const touched = (fix: Fix) =>
+    unreadable.filter((element) => {
+      try {
+        return !!element.closest(fix.note);
+      } catch {
+        return false;
+      }
+    });
+  withFixes(
+    fixes.filter((fix) => {
+      const texts = touched(fix);
+      return texts.length > 0 && stillDegraded(texts, lowBefore).length < texts.length;
+    }),
+  );
+}
+
+/**
  * Garde-fous de qualité (`qualityCheck.ts`). Modifie `changes` en place :
  * - désactive un changement qui masque la majeure partie de la page ;
  * - signale les changements dont la plupart des règles ne visent rien (demande ignorée) ;
@@ -242,11 +286,12 @@ function applyFixes(changes: DraftChange[], fixes: Fix[]): void {
  */
 function enforceQuality(
   changes: DraftChange[],
+  list: RoleMap['list'],
   warnings: string[],
-): { issues: string[]; broken: string[] } {
+): { issues: string[]; broken: string[]; regressions: string[] } {
   const issues: string[] = [];
   setPreview('');
-  const list = withoutOurStyles(() => roleMap()).list;
+  const layout = layoutBefore();
   const integrity = integrityBefore(list);
   const textBefore = Math.max(1, visibleTextLength());
   const lowBefore = lowContrastBefore();
@@ -283,7 +328,8 @@ function enforceQuality(
   }
 
   for (const change of changes) {
-    if (!change.enabled) continue;
+    // Thème et barre de menu : calculés par l'extension sur des rôles vérifiés, ils se voient.
+    if (!change.enabled || change.themeCss?.trim() || change.menuCss?.trim()) continue;
     const css = compileRule(change);
     const effect = () =>
       hasVisibleEffect(
@@ -307,56 +353,60 @@ function enforceQuality(
   setPreview(compileChanges(changes));
   applyFixes(changes, surfaceFixes(luminanceBefore, compiled()));
   setPreview(compileChanges(changes));
-  // Une à une : chaque correction n'est gardée que si elle réduit les textes illisibles.
-  let lowCount = introducedLowContrast(lowBefore);
-  for (const fix of lowCount ? contrastFixes(lowBefore, compiled()) : []) {
-    const change = changes[fix.change];
-    if (!change) continue;
-    const previous = change.css;
-    applyFixes(changes, [fix]);
-    setPreview(compileChanges(changes));
-    const now = introducedLowContrast(lowBefore);
-    if (now < lowCount) lowCount = now;
-    else change.css = previous;
-    if (!lowCount) break;
-  }
-  // Intégrité de la mise en page, sur le résultat final (corrections comprises).
+  keepHelpfulContrastFixes(changes, lowBefore, compiled());
+  // Intégrité et régressions de mise en page, sur le résultat final (corrections comprises),
+  // qui reste appliqué : c'est la preview.
   setPreview(compileChanges(changes));
   const integrityCheck = integrityProblems(list, integrity);
   issues.push(...integrityCheck.issues);
-  setPreview('');
-  return { issues, broken: integrityCheck.user };
+  const regressions = layoutRegressions(layout, intendedlyHidden(changes));
+  return { issues, broken: integrityCheck.user, regressions };
 }
 
-/** Construit le brouillon complet et l'applique en preview. */
-export function prepareDraft(recipe: Recipe, prompts: string[]): Draft {
+/** Éléments cachés exprès (op hide, ou display:none demandé) : leur disparition n'est pas une régression. */
+function intendedlyHidden(changes: DraftChange[]): (element: Element) => boolean {
+  const hidden = changes
+    .filter((change) => change.enabled)
+    .flatMap((change) =>
+      Object.entries(change.targets)
+        .filter(([key]) => change.ops.some((op) => op.op === 'hide' && op.target === key))
+        .flatMap(([, t]) => t.selectors),
+    );
+  return (element) =>
+    hidden.some((selector) => {
+      try {
+        return !!element.closest(selector);
+      } catch {
+        return false;
+      }
+    }) || getComputedStyle(element).display === 'none';
+}
+
+/**
+ * Construit le brouillon complet et l'applique en preview. `apply: false` : la preview affichée
+ * avant reste en place (tout est synchrone, la version mesurée n'est jamais peinte).
+ */
+export function prepareDraft(recipe: Recipe, prompts: string[], apply = true): Draft {
+  const shown = document.getElementById(PREVIEW_ID)?.textContent ?? null;
   const warnings: string[] = [];
+  // Rôles de la page d'origine (sans nos styles), calculés une fois pour toute la preview.
+  const roles = withoutOurStyles(() => roleMap());
   const changes = recipe.changes
-    .map((change) => resolveChange(change, warnings))
+    .map((change) => resolveChange(change, roles, warnings))
     .filter((c): c is DraftChange => !!c);
-  const { issues: qualityIssues, broken } = enforceQuality(changes, warnings);
+  const {
+    issues: qualityIssues,
+    broken,
+    regressions,
+  } = enforceQuality(changes, roles.list, warnings);
   const previewCss = compileChanges(changes);
   if (!previewCss.trim() && !warnings.length) {
     warnings.push('This change produces no visible change.');
   }
-  // Mesure avant/après la nouvelle preview (synchrone : rien n'est peint entre les deux).
-  const hidden = changes.flatMap((change) =>
-    Object.entries(change.targets)
-      .filter(([key]) => change.ops.some((op) => op.op === 'hide' && op.target === key))
-      .flatMap(([, t]) => t.selectors),
-  );
-  const regressions = detectLayoutRegressions(
-    () => setPreview(previewCss),
-    () => setPreview(''),
-    (element) =>
-      hidden.some((selector) => {
-        try {
-          return !!element.closest(selector);
-        } catch {
-          return false;
-        }
-      }) || getComputedStyle(element).display === 'none',
-  );
+  if (!apply) {
+    if (shown === null) clearPreview();
+    else setPreview(shown);
+  }
   const layoutIssues = [...qualityIssues, ...regressions];
   return {
     host: location.hostname,

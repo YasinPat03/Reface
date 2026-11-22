@@ -199,13 +199,17 @@ async function generateDraft(
   const messages = buildMessages(text, page, current, saved, picked);
   const recipe = parseRecipe(await completeJson(settings, messages));
   const prompts = [...(previous?.prompts ?? []), text];
-  const draft = await callContent(tabId, 'preparePreview', { recipe, prompts });
+  // Mesurée sans être affichée : une v1 cassée ne s'affiche pas pendant l'auto-correction,
+  // et la page n'est restylée qu'une fois, avec la version retenue.
+  const measured = await callContent(tabId, 'preparePreview', { recipe, prompts, apply: false });
   // Content script resté à l'ancienne version (onglet ouvert avant la mise à jour).
-  if (!Array.isArray(draft?.changes)) {
+  if (!Array.isArray(measured?.changes)) {
     await callContent(tabId, 'clearPreview', {}).catch(() => null);
     throw new Error('ReFace was updated: reload the tab.');
   }
-  if (!draft.layoutIssues?.length) return draft;
+  // L'affinage réutilise cette distillation (pas de 2e passage sur la page).
+  const draft: Draft = { ...measured, page };
+  if (!draft.layoutIssues?.length) return show(tabId, draft);
 
   // Auto-correction (une seule fois) : on renvoie au LLM ce que sa modif a cassé.
   const repairMessages: ChatMessage[] = [
@@ -222,18 +226,27 @@ async function generateDraft(
   ];
   try {
     const repaired = parseRecipe(await completeJson(settings, repairMessages));
-    const fixed = await callContent(tabId, 'preparePreview', { recipe: repaired, prompts });
+    const fixed = await callContent(tabId, 'preparePreview', {
+      recipe: repaired,
+      prompts,
+      apply: false,
+    });
     if ((fixed.layoutIssues?.length ?? 0) <= draft.layoutIssues.length) {
       if (fixed.layoutIssues?.length) fixed.warnings.push(LAYOUT_WARNING);
-      return await refuseIfBroken(tabId, fixed);
+      return await show(tabId, await refuseIfBroken(tabId, { ...fixed, page }));
     }
   } catch (error) {
     if (error instanceof BrokenLayoutError) throw error;
     /* la correction a échoué : on garde la première version, avec un avertissement */
   }
-  const first = await callContent(tabId, 'preparePreview', { recipe, prompts });
-  first.warnings.push(LAYOUT_WARNING);
-  return refuseIfBroken(tabId, first);
+  draft.warnings.push(LAYOUT_WARNING);
+  return show(tabId, await refuseIfBroken(tabId, draft));
+}
+
+/** Affiche la version retenue (déjà résolue et vérifiée : un simple remplacement du CSS). */
+async function show(tabId: number, draft: Draft): Promise<Draft> {
+  await callContent(tabId, 'updatePreview', { changes: draft.changes });
+  return draft;
 }
 
 class BrokenLayoutError extends Error {}
@@ -354,9 +367,19 @@ export async function refine(tabId: number, draft: Draft): Promise<Draft> {
     .filter((change) => change.enabled)
     .flatMap((change) => Object.values(change.targets).map((t) => t.selectors[0]))
     .filter((selector): selector is string => !!selector);
-  const page = await callContent(tabId, 'distill', { include, focus: null });
+  // La distillation de la génération sert encore (même page, quelques secondes plus tard) : on
+  // évite un 2e passage complet sur la page, qui la gèle sur les gros sites.
+  let page: DistillResult;
+  let included: Record<string, number>;
+  if (draft.page) {
+    page = draft.page;
+    included = await callContent(tabId, 'locate', { selectors: include }).catch(() => ({}));
+  } else {
+    page = await callContent(tabId, 'distill', { include, focus: null });
+    included = page.included;
+  }
   const saved = (await getSiteRules(page.host)).rules;
-  const current = reindex(draft, page.included);
+  const current = reindex(draft, included);
   const request = draft.prompts.join(' → ');
   const messages: ChatMessage[] = [
     ...buildMessages(request, page, current, saved, []),
@@ -386,20 +409,24 @@ export async function refine(tabId: number, draft: Draft): Promise<Draft> {
   const still = await callContent(tabId, 'currentPreview', {}).catch(() => null);
   if (!still || still.css !== draft.previewCss) return draft;
 
-  const next = await callContent(tabId, 'preparePreview', { recipe, prompts: draft.prompts });
+  // Mesurée sans être affichée : la v1 reste à l'écran tant que la v2 n'est pas retenue.
+  const next = await callContent(tabId, 'preparePreview', {
+    recipe,
+    prompts: draft.prompts,
+    apply: false,
+  });
   const better =
     next.changes.length > 0 &&
     !next.broken?.length &&
     next.previewCss !== draft.previewCss &&
     (next.layoutIssues?.length ?? 0) <= (draft.layoutIssues?.length ?? 0);
-  if (!better) {
-    await callContent(tabId, 'updatePreview', { changes: draft.changes });
-    return draft;
-  }
+  if (!better) return draft;
+  await callContent(tabId, 'updatePreview', { changes: next.changes });
   // Chaque changement garde le prompt qui l'a produit (appariement par titre).
   const promptOf = new Map(draft.changes.map((change) => [change.title, change.prompt]));
   return {
     ...next,
+    page,
     refined: true,
     review: review.defects,
     changes: next.changes.map((change) => ({

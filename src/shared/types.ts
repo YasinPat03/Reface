@@ -150,6 +150,8 @@ export interface Draft {
   refined?: boolean;
   /** Défauts vus par le LLM sur la capture de la v1 (et corrigés par la v2). */
   review?: string[];
+  /** Page distillée pour ce brouillon : l'affinage la réutilise au lieu de redistiller. */
+  page?: DistillResult;
 }
 
 /** Changement résolu : sélecteurs robustes, CSS normalisé. */

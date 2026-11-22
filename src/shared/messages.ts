@@ -36,7 +36,13 @@ export interface ContentApi {
   ping: Def<Record<string, never>, { host: string }>;
   /** `focus` : éléments pointés, inclus avec leurs ancêtres et descendants. */
   distill: Def<{ include: string[]; focus: string | string[] | null }, DistillResult>;
-  preparePreview: Def<{ recipe: Recipe; prompts: string[] }, Draft>;
+  /**
+   * Résout la recette, passe les garde-fous et applique la preview. `apply: false` : mesure
+   * seulement, la preview affichée reste celle d'avant (auto-correction, affinage).
+   */
+  preparePreview: Def<{ recipe: Recipe; prompts: string[]; apply?: boolean }, Draft>;
+  /** Index de région (dernière distillation) de l'élément visé par chaque sélecteur, ou -1. */
+  locate: Def<{ selectors: string[] }, Record<string, number>>;
   /** Cases cochées/décochées dans la preview : ne prévisualise que les changements `enabled`. */
   updatePreview: Def<{ changes: DraftChange[] }, { previewCss: string }>;
   clearPreview: Def<Record<string, never>, null>;

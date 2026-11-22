@@ -39,6 +39,21 @@ export function regionAt(index: number): Element | undefined {
   return index >= 0 ? regions[index] : undefined;
 }
 
+/** Index de région (dernière distillation) de l'élément visé par chaque sélecteur, ou -1. */
+export function locate(selectors: string[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const selector of selectors) {
+    let element: Element | null = null;
+    try {
+      element = document.querySelector(selector);
+    } catch {
+      /* sélecteur invalide */
+    }
+    out[selector] = element ? regions.indexOf(element) : -1;
+  }
+  return out;
+}
+
 export function redact(text: string): string {
   return text.replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '[email]').replace(/\d[\d\s-]{3,}\d/g, '#');
 }

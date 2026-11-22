@@ -69,20 +69,31 @@ function mediaRects(): DOMRect[] {
     .filter((r) => r.width > 40 && r.height > 30 && r.top < innerHeight * 2);
 }
 
+/** Mesure de référence, page SANS la preview. */
+export interface LayoutBefore {
+  elements: Element[];
+  snapshot: Snapshot[];
+  media: DOMRect[];
+}
+
+export function layoutBefore(): LayoutBefore {
+  const elements = textElements();
+  return { elements, snapshot: snapshot(elements), media: mediaRects() };
+}
+
 /**
- * Applique `apply` (la preview) et retourne les régressions observées, en anglais pour le LLM.
+ * Régressions observées avec la preview actuellement appliquée, par rapport à `reference`
+ * (mesurée sans elle), en anglais pour le LLM. Les deux mesures se font dans des états que les
+ * garde-fous traversent déjà : aucun recalcul de la page en plus.
  * `isIntended(el)` : vrai si l'élément est caché exprès (op hide / display:none demandé).
  */
-export function detectLayoutRegressions(
-  apply: () => void,
-  restore: () => void,
+export function layoutRegressions(
+  reference: LayoutBefore,
   isIntended: (element: Element) => boolean,
 ): string[] {
-  restore();
-  const elements = textElements();
-  const before = snapshot(elements);
-  const mediaBefore = mediaRects();
-  apply();
+  const elements = reference.elements;
+  const before = reference.snapshot;
+  const mediaBefore = reference.media;
   const after = snapshot(elements);
   const mediaAfter = mediaRects();
 
