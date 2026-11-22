@@ -2,6 +2,7 @@
 // ↑ ↓ (en boucle), Début, Fin ; Entrée ou clic : ouvrir ; avec ⌘/Ctrl : nouvel onglet.
 // Échap, clic à côté ou ⌘⇧X : fermer. Un <dialog> modal la place au-dessus de tout le site (top layer).
 // Shadow root ouvert (testable) ; seuls les événements isTrusted comptent ; rien ne remonte au site.
+import { bindShortcutAppearance, shortcutAppearance } from './shortcutAppearance';
 import {
   shortcutKeys,
   shortcutPath,
@@ -27,35 +28,29 @@ const ISOLATED_EVENTS = [
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform);
 
 const STYLE = `
-  [hidden]{display:none !important}
-  dialog{padding:0;border:0;margin:12vh auto auto;width:min(520px,calc(100vw - 32px));
-    max-height:min(70vh,560px);border-radius:14px;background:#fff;color:#18181b;overflow:hidden;
-    box-shadow:0 24px 64px rgba(0,0,0,.35);
-    font:14px/1.4 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+  ${shortcutAppearance}
+  dialog{box-sizing:border-box;padding:0;margin:12vh auto auto;width:min(520px,calc(100vw - 32px));
+    max-height:min(70vh,560px);border:1px solid var(--line);border-radius:4px;
+    background:var(--surface);color:var(--ink);overflow:hidden;
+    box-shadow:0 20px 48px rgb(0 0 0 / .28);font:14px/1.5 var(--sans)}
   dialog[open]{display:flex;flex-direction:column}
   dialog:focus,dialog:focus-visible{outline:none}
-  dialog::backdrop{background:rgba(9,9,11,.45)}
-  header{display:flex;align-items:baseline;gap:8px;padding:14px 16px 10px;border-bottom:1px solid #f4f4f5}
+  dialog::backdrop{background:rgb(14 18 24 / .48)}
+  header{display:flex;align-items:baseline;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line)}
   .title{font-weight:600;flex:none}
-  .site{color:#71717a;font-size:12px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  ul{list-style:none;margin:0;padding:6px;overflow:auto;flex:1;min-height:0;outline:none}
-  li{display:flex;flex-direction:column;gap:1px;padding:8px 10px;border-radius:8px;cursor:pointer}
-  li[aria-selected=true]{background:#7c3aed;color:#fff}
+  .site{color:var(--muted);font:11px/1.5 var(--mono);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  ul{list-style:none;margin:0;padding:6px 16px;overflow:auto;flex:1;min-height:0;outline:none}
+  li{display:flex;flex-direction:column;gap:2px;padding:9px 10px;border-left:2px solid transparent;
+    border-bottom:1px solid var(--line);cursor:pointer}
+  li:last-child{border-bottom-color:transparent}
+  li[aria-selected=true]{background:var(--accent-soft);border-left-color:var(--accent);color:var(--ink)}
   .label{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .path{font:11px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;color:#71717a;
+  .path{font:11px/1.4 var(--mono);color:var(--muted);
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  li[aria-selected=true] .path{color:#ede9fe}
-  .empty{margin:0;padding:18px 16px;color:#52525b}
-  footer{display:flex;flex-wrap:wrap;gap:4px 14px;padding:8px 16px;border-top:1px solid #f4f4f5;
-    color:#71717a;font-size:11px}
-  kbd{font:inherit;padding:0 4px;border:1px solid #d4d4d8;border-radius:4px;white-space:nowrap}
-  @media (prefers-color-scheme: dark){
-    dialog{background:#18181b;color:#fafafa}
-    header,footer{border-color:#27272a}
-    .site,.path,footer{color:#a1a1aa}
-    .empty{color:#d4d4d8}
-    kbd{border-color:#52525b}
-  }`;
+  .empty{margin:0;padding:18px 16px;color:var(--muted)}
+  footer{display:flex;flex-wrap:wrap;gap:6px 14px;padding:10px 16px;border-top:1px solid var(--line);
+    color:var(--muted);font-size:11px}
+`;
 
 type Hotkeys = ShortcutPaletteToggle['hotkeys'];
 
@@ -100,6 +95,7 @@ function open(host: string, shortcuts: Shortcut[], hotkeys: Hotkeys): { close: (
   const container = document.createElement('div');
   container.setAttribute('data-bp-palette', '');
   container.style.cssText = 'all:initial';
+  const unbindAppearance = bindShortcutAppearance(container);
   const root = container.attachShadow({ mode: 'open' });
   root.innerHTML = `<style>${STYLE}</style><dialog aria-label="Raccourcis du site">
     <header><span class="title">Raccourcis</span><span class="site"></span></header>
@@ -119,6 +115,7 @@ function open(host: string, shortcuts: Shortcut[], hotkeys: Hotkeys): { close: (
     closed = true;
     if (current === handle) current = null;
     if (dialog.open) dialog.close();
+    unbindAppearance();
     container.remove();
     if (previous?.isConnected && previous !== document.body)
       previous.focus({ preventScroll: true });

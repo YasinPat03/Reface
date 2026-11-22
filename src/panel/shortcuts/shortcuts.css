@@ -21,6 +21,10 @@
 }
 
 /* ---------- Liste ---------- */
+.shortcut-link:hover .shortcut-label {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .shortcut-link {
   display: flex;
   flex-direction: column;
@@ -80,7 +84,10 @@
   display: grid;
   gap: 10px;
   margin: 0 0 22px;
-  padding: 14px 0 14px 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--surface);
   border-left: 2px solid var(--accent);
   font-size: 13px;
   line-height: 1.6;
@@ -116,7 +123,7 @@
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 3px;
-  background: var(--surface);
+  background: var(--paper);
 }
 .shortcut-page-title {
   font-weight: 500;
@@ -133,6 +140,9 @@
 .shortcut-recording .message {
   margin-top: 0;
   padding: 4px 0 4px 10px;
+}
+.shortcut-recording-actions .button {
+  flex: 1 1 auto;
 }
 .shortcut-recording-actions {
   display: flex;
