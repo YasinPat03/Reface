@@ -569,13 +569,13 @@ export function integrityProblems(
       issues.push(
         `${split} list items are split apart: an item and its sibling row(s) (e.g. the title and its metadata line) are no longer stacked together in the same place. Keep each item and its sibling rows in one block (for a grid of items, use theme.layout.columns instead of hand-written grid CSS).`,
       );
-      user.push('les titres sont séparés de leurs informations');
+      user.push('titles are separated from their details');
     }
     if (checked >= 3 && empty >= 3) {
       issues.push(
         `${empty} list items became mostly empty boxes (content fills under 8% of each card). Use less height (cardShape auto) or larger text.`,
       );
-      user.push('les cartes sont presque vides');
+      user.push('cards are nearly empty');
     }
   }
 
@@ -588,7 +588,7 @@ export function integrityProblems(
     issues.push(
       `${added} pairs of texts now overlap each other, e.g. ${overlaps.sample.join(', ')}. Every text must stay readable and separate.`,
     );
-    if (added >= 5) user.push('des textes se chevauchent');
+    if (added >= 5) user.push('texts overlap');
   }
 
   // 3. Débordement horizontal (barre de défilement latérale).
@@ -598,7 +598,7 @@ export function integrityProblems(
     );
     // Quelques pixels : correction demandée ; un vrai défilement latéral : affichage refusé.
     if (document.documentElement.scrollWidth > innerWidth * 1.05)
-      user.push('la page déborde sur le côté');
+      user.push('the page overflows sideways');
   }
   return { issues, user };
 }

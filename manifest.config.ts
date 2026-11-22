@@ -5,8 +5,7 @@ export default defineManifest({
   manifest_version: 3,
   name: 'ReFace',
   version: pkg.version,
-  description:
-    'Modifie n’importe quel site avec un prompt. Les modifs sont rejouées instantanément.',
+  description: 'Change any website with a prompt. Your changes are replayed instantly.',
   minimum_chrome_version: '116',
   icons: {
     16: 'icons/icon16.png',
@@ -15,7 +14,7 @@ export default defineManifest({
     128: 'icons/icon128.png',
   },
   action: {
-    default_title: 'Ouvrir ReFace',
+    default_title: 'Open ReFace',
     default_icon: { 16: 'icons/icon16.png', 32: 'icons/icon32.png' },
   },
   permissions: ['storage', 'unlimitedStorage', 'sidePanel', 'scripting', 'activeTab'],
@@ -28,12 +27,12 @@ export default defineManifest({
     // chrome://extensions/shortcuts. Voir src/background/shortcutHotkey.ts.
     'record-shortcut': {
       suggested_key: { default: 'Ctrl+Shift+E', mac: 'Command+Shift+E' },
-      description: 'Raccourci : démarrer l’enregistrement, puis enregistrer la page atteinte',
+      description: 'Shortcut: start recording, then save the page reached',
     },
     // ⌘⇧X : l'autre lettre libre à la fois dans Chrome et macOS.
     'open-shortcuts': {
       suggested_key: { default: 'Ctrl+Shift+X', mac: 'Command+Shift+X' },
-      description: 'Raccourcis : afficher ou fermer la liste des raccourcis du site',
+      description: 'Shortcuts: show or close the list of the site’s shortcuts',
     },
   },
   content_scripts: [

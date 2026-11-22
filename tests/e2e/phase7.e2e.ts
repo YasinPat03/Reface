@@ -41,10 +41,10 @@ const openPanel = async () => {
 };
 let panel = await openPanel();
 const bar = () => panel.getByTestId('recording-bar');
-const shortcutsTab = () => panel.getByRole('tab', { name: /^Raccourcis \(/ });
-const createButton = () => panel.getByRole('button', { name: 'Créer un raccourci' });
-const thisPage = () => panel.getByRole('button', { name: 'C’est cette page' });
-const emptyState = () => panel.getByText('Aucun raccourci sur ce site.', { exact: false });
+const shortcutsTab = () => panel.getByRole('tab', { name: /^Shortcuts \(/ });
+const createButton = () => panel.getByRole('button', { name: 'Create a shortcut' });
+const thisPage = () => panel.getByRole('button', { name: 'This is the page' });
+const emptyState = () => panel.getByText('No shortcuts on this site.', { exact: false });
 
 await check('7.1 « Créer un raccourci » lance l’enregistrement', async () => {
   await panel.getByTestId('host').filter({ hasText: HOST }).waitFor();
@@ -62,7 +62,7 @@ await check('7.1 « Créer un raccourci » lance l’enregistrement', async () =
 
 await check('7.2 naviguer, puis « C’est cette page » enregistre la page', async () => {
   // On quitte l'onglet Raccourcis : l'enregistrement doit y ramener tout seul.
-  await panel.getByRole('tab', { name: 'Modifier', exact: true }).click();
+  await panel.getByRole('tab', { name: 'Edit', exact: true }).click();
   await site.click('#next');
   await site.waitForURL(`${origin}/docs`);
   await site.click('#next');
@@ -81,7 +81,7 @@ await check('7.2 naviguer, puis « C’est cette page » enregistre la page', as
   );
   assert(!(await recording()), 'l’enregistrement doit être vidé');
   await panel.getByTestId('shortcut').filter({ hasText: 'Page enfouie' }).waitFor();
-  await panel.getByRole('tab', { name: 'Raccourcis (1)' }).waitFor();
+  await panel.getByRole('tab', { name: 'Shortcuts (1)' }).waitFor();
 });
 
 await check('7.3 un clic sur le raccourci ramène à la page', async () => {
@@ -89,25 +89,25 @@ await check('7.3 un clic sur le raccourci ramène à la page', async () => {
   await panel.getByTestId('shortcut').getByRole('link').click();
   await site.waitForURL(`${origin}/docs/deep`, { timeout: 3000 });
   // Limité au raccourci : le panel ReFace affiche aussi « Page actuelle » en en-tête.
-  await panel.getByTestId('shortcut').getByText('page actuelle').waitFor({ timeout: 3000 });
+  await panel.getByTestId('shortcut').getByText('current page').waitFor({ timeout: 3000 });
 });
 
 await check('7.4 un doublon est signalé et rien n’est ajouté', async () => {
   await createButton().click();
-  await bar().getByText('Ce raccourci existe déjà.').waitFor({ timeout: 3000 });
+  await bar().getByText('This shortcut already exists.').waitFor({ timeout: 3000 });
   assert(await thisPage().isDisabled(), '« C’est cette page » doit être désactivé');
-  await bar().getByRole('button', { name: 'Annuler' }).click();
+  await bar().getByRole('button', { name: 'Cancel' }).click();
   await bar().waitFor({ state: 'detached' });
   assert((await stored())?.shortcuts.length === 1, 'doublon enregistré');
 });
 
 await check('7.5 renommer puis supprimer', async () => {
-  await panel.getByRole('button', { name: 'Renommer ce raccourci' }).click();
-  await panel.getByLabel('Nom du raccourci').fill('Mon raccourci');
-  await panel.getByLabel('Nom du raccourci').press('Enter');
+  await panel.getByRole('button', { name: 'Rename this shortcut' }).click();
+  await panel.getByLabel('Shortcut name').fill('Mon raccourci');
+  await panel.getByLabel('Shortcut name').press('Enter');
   await panel.getByTestId('shortcut').filter({ hasText: 'Mon raccourci' }).waitFor();
   assert((await stored())?.shortcuts[0]?.label === 'Mon raccourci', 'nom non enregistré');
-  await panel.getByRole('button', { name: 'Supprimer ce raccourci' }).click();
+  await panel.getByRole('button', { name: 'Delete this shortcut' }).click();
   await emptyState().waitFor();
   assert(!(await stored()), 'la clé du site doit disparaître');
 });
@@ -118,7 +118,7 @@ await check('7.6 annuler n’enregistre rien', async () => {
   await bar().waitFor();
   await site.click('#next');
   await site.waitForURL(`${origin}/docs`);
-  await bar().getByRole('button', { name: 'Annuler' }).click();
+  await bar().getByRole('button', { name: 'Cancel' }).click();
   await bar().waitFor({ state: 'detached' });
   assert(!(await stored()) && !(await recording()), 'rien ne doit être enregistré');
 });
@@ -140,10 +140,10 @@ await check('7.8 les raccourcis sont propres à chaque site', async () => {
   await panel.getByTestId('host').filter({ hasText: OTHER }).waitFor({ timeout: 3000 });
   await shortcutsTab().click();
   await emptyState().waitFor();
-  await panel.getByRole('tab', { name: 'Raccourcis (0)' }).waitFor();
+  await panel.getByRole('tab', { name: 'Shortcuts (0)' }).waitFor();
   await site.goto(origin);
   await panel.getByTestId('host').filter({ hasText: HOST }).waitFor({ timeout: 3000 });
-  await panel.getByRole('tab', { name: 'Raccourcis (1)' }).waitFor();
+  await panel.getByRole('tab', { name: 'Shortcuts (1)' }).waitFor();
 });
 
 await context.close();

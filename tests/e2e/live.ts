@@ -164,17 +164,17 @@ for (const s of SCENARIOS.filter((x) => !filter || x.name.includes(filter))) {
     await panel.goto(`chrome-extension://${extensionId}/src/panel/index.html?tabId=${tabId}`);
     for (const [i, prompt] of s.prompts.entries()) {
       await panel
-        .getByLabel(i === 0 ? 'Que voulez-vous changer ?' : 'Affiner la modification')
+        .getByLabel(i === 0 ? 'What do you want to change?' : 'Refine the change')
         .fill(prompt);
       const t0 = Date.now();
-      await panel.getByRole('button', { name: i === 0 ? 'Prévisualiser' : 'Réviser' }).click();
+      await panel.getByRole('button', { name: i === 0 ? 'Preview' : 'Revise' }).click();
       // Attendre la vraie fin de la génération (le brouillon précédent est déjà affiché en itération).
       await panel
-        .getByRole('button', { name: 'Préparation de l’aperçu…' })
+        .getByRole('button', { name: 'Preparing preview…' })
         .waitFor({ timeout: 2000 })
         .catch(() => null);
       await panel
-        .getByRole('button', { name: 'Préparation de l’aperçu…' })
+        .getByRole('button', { name: 'Preparing preview…' })
         .waitFor({ state: 'detached', timeout: 60_000 });
       const ms = Date.now() - t0;
       // Affinage visuel (toujours actif) : on attend sa fin avant de vérifier le rendu.
@@ -226,7 +226,7 @@ for (const s of SCENARIOS.filter((x) => !filter || x.name.includes(filter))) {
       return after >= before * (s.grow ?? 1.1);
     };
     const previewOk = await check();
-    await panel.getByRole('button', { name: 'Garder' }).click();
+    await panel.getByRole('button', { name: 'Keep' }).click();
     await panel.getByTestId('rules').waitFor({ timeout: 5000 });
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(800);

@@ -49,18 +49,15 @@ await check('5.1 site sensible : generate refusé, AUCUN appel au LLM', async ()
     previous: null,
     pick: null,
   });
-  assert(
-    !reply.ok && /aucun contenu de cette page n’est envoyé/.test(reply.error),
-    JSON.stringify(reply),
-  );
+  assert(!reply.ok && /no content from this page is sent/.test(reply.error), JSON.stringify(reply));
   assert(llmCalls === 0, `appels LLM : ${llmCalls}`);
 });
 
 await check('5.1 site sensible : bannière dans le panel, prompt désactivé', async () => {
   await panel.getByTestId('ai-blocked').waitFor({ timeout: 3000 });
-  assert(await panel.getByLabel('Que voulez-vous changer ?').isDisabled(), 'prompt actif');
+  assert(await panel.getByLabel('What do you want to change?').isDisabled(), 'prompt actif');
   assert(
-    await panel.getByRole('button', { name: 'Pointer un élément' }).isEnabled(),
+    await panel.getByRole('button', { name: 'Pick an element' }).isEnabled(),
     'picker désactivé',
   );
 });
@@ -137,8 +134,8 @@ await check('5.2 le badge de règle cassée apparaît dans le panel', async () =
   const tabId = await tabIdOf(origin + '/');
   const p = await context.newPage();
   await p.goto(`chrome-extension://${extensionId}/src/panel/index.html?tabId=${tabId}`);
-  await p.getByRole('tab', { name: /Modifications \(/ }).click();
-  const badge = p.getByTestId('rules').getByText('cassée', { exact: true });
+  await p.getByRole('tab', { name: /Changes \(/ }).click();
+  const badge = p.getByTestId('rules').getByText('broken', { exact: true });
   await badge.waitFor({ timeout: 3000 });
   assert((await badge.count()) === 1, 'un seul badge attendu');
   await p.close();
@@ -163,7 +160,7 @@ await check('5.3 erreur 500 persistante : message clair après un retry', async 
   const tabId = await tabIdOf(origin + '/');
   const before = llmCalls;
   const reply = await bg('generate', { tabId, prompt: 'x', previous: null, pick: null });
-  assert(!reply.ok && /répondu 500/.test(reply.error), JSON.stringify(reply));
+  assert(!reply.ok && /responded 500/.test(reply.error), JSON.stringify(reply));
   assert(llmCalls - before === 2, `appels : ${llmCalls - before}`);
 });
 
@@ -174,7 +171,7 @@ await check('5.3 page sans content script : message « rechargez l’onglet »',
   );
   assert(id !== undefined, 'onglet about:blank non créé');
   const reply = await bg('discard', { tabId: id });
-  assert(!reply.ok && /rechargez l’onglet/.test(reply.error), JSON.stringify(reply));
+  assert(!reply.ok && /reload the tab/.test(reply.error), JSON.stringify(reply));
   await worker.evaluate((tabId) => chrome.tabs.remove(tabId!), id);
 });
 

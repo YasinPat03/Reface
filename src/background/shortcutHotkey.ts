@@ -74,11 +74,11 @@ async function saveCurrentPage(recording: ShortcutRecording, tab: chrome.tabs.Ta
   if (!shortcutUrl(tab.url ?? '')) return flashRefused(tab.id);
   const { added, shortcut } = await addShortcut(recording.host, tab.url ?? '', tab.title ?? '');
   if (!added) {
-    await toast(tab.id, 'Ce raccourci existe déjà : naviguez vers une autre page.', 'warn');
+    await toast(tab.id, 'This shortcut already exists: navigate to another page.', 'warn');
     return;
   }
   await stopRecording();
-  await toast(tab.id, `✓ Raccourci « ${shortcut.label} » enregistré`, 'ok');
+  await toast(tab.id, `✓ Shortcut "${shortcut.label}" saved`, 'ok');
 }
 
 /** Même logique pour la touche, les boutons de la pastille et les tests. */

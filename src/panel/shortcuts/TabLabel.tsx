@@ -6,9 +6,9 @@ import { BookmarkSimpleIcon } from '@phosphor-icons/react/dist/csr/BookmarkSimpl
  */
 export function ShortcutsTabLabel({ count }: { count: number }) {
   return (
-    <span className="shortcut-tab-label" title="Raccourcis">
+    <span className="shortcut-tab-label" title="Shortcuts">
       <BookmarkSimpleIcon className="shortcut-tab-icon" size={16} aria-hidden="true" />
-      <span className="shortcut-tab-text">Raccourcis</span>
+      <span className="shortcut-tab-text">Shortcuts</span>
       <span className="tab-count">{count}</span>
     </span>
   );

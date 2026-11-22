@@ -32,7 +32,7 @@ export function normalizeFreeCss(css: string, warnings: string[]): string {
   const source = css.trim();
   if (!source) return '';
   const violation = cssViolation(source);
-  if (violation) throw new Error(`Le CSS proposé par l’IA a été refusé : ${violation}`);
+  if (violation) throw new Error(`The CSS proposed by the AI was rejected: ${violation}`);
   const sheet = new CSSStyleSheet();
   sheet.replaceSync(source);
   const dropped = new Set<string>();
@@ -70,10 +70,10 @@ export function normalizeFreeCss(css: string, warnings: string[]): string {
   };
 
   const result = clean(sheet.cssRules).join('\n');
-  if (dropped.size) warnings.push(`Éléments CSS ignorés : ${[...dropped].slice(0, 5).join(', ')}.`);
+  if (dropped.size) warnings.push(`Ignored CSS items: ${[...dropped].slice(0, 5).join(', ')}.`);
   // Revérification après sérialisation par le navigateur.
   const after = cssViolation(result);
-  if (after) throw new Error(`Le CSS proposé par l’IA a été refusé : ${after}`);
+  if (after) throw new Error(`The CSS proposed by the AI was rejected: ${after}`);
   return result;
 }
 
@@ -104,7 +104,7 @@ export function resolveTargets(
           : null;
       if (ref.scope === 'all_similar' && !group) {
         warnings.push(
-          `Cible ${key} : impossible de viser tous les éléments similaires, seul le premier sera modifié.`,
+          `Target ${key}: can’t target all similar elements, only the first one will be changed.`,
         );
       }
       const selectors = group ? [group] : buildSelectors(element, ref.selectorHints);
@@ -123,7 +123,7 @@ export function resolveTargets(
         minMatches: 1,
       };
     } else {
-      warnings.push(`Cible ${key} introuvable sur la page : ignorée.`);
+      warnings.push(`Target ${key} not found on the page: ignored.`);
     }
   }
   return targets;
@@ -177,7 +177,7 @@ function resolveChange(change: RecipeChange, warnings: string[]): DraftChange | 
         local,
       )
     : '';
-  warnings.push(...local.map((w) => `${change.title} : ${w}`));
+  warnings.push(...local.map((w) => `${change.title}: ${w}`));
   const resolved: DraftChange = {
     title: change.title,
     ops,
@@ -187,7 +187,7 @@ function resolveChange(change: RecipeChange, warnings: string[]): DraftChange | 
     ...(change.theme ? { theme: change.theme, themeCss } : {}),
   };
   if (!compileRule(resolved).trim()) {
-    warnings.push(`« ${change.title} » ne produit aucun changement visible : ignoré.`);
+    warnings.push(`"${change.title}" produces no visible change: ignored.`);
     return null;
   }
   return resolved;
@@ -249,9 +249,7 @@ function enforceQuality(
     const lost = 1 - visibleTextLength() / textBefore;
     if (lost > 0.5) {
       change.enabled = false;
-      warnings.push(
-        `« ${change.title} » masquait ${Math.round(lost * 100)} % du texte de la page : désactivé.`,
-      );
+      warnings.push(`"${change.title}" hid ${Math.round(lost * 100)}% of the page text: disabled.`);
       issues.push(
         `The change "${change.title}" hid ${Math.round(lost * 100)}% of the page text: it targets a container that also holds the main content. Target only the smallest element that contains what the user wants hidden (see the layout roles in the design snapshot).`,
       );
@@ -266,7 +264,7 @@ function enforceQuality(
     const dead = deadSelectors(css);
     if (total && dead.length * 2 >= total) {
       warnings.push(
-        `« ${change.title} » : ${dead.length} règle(s) sur ${total} ne visent aucun élément de la page.`,
+        `"${change.title}": ${dead.length} of ${total} rule(s) target no element on the page.`,
       );
       issues.push(
         `In the change "${change.title}", these selectors match nothing on this page: ${dead.slice(0, 4).join(' ; ')}. Use the verified selectors from the design snapshot instead.`,
@@ -286,10 +284,10 @@ function enforceQuality(
     if (effect()) continue;
     // Sans effet parce qu'une règle déjà enregistrée fait la même chose : on prévient seulement.
     if (withoutSavedStyles(effect)) {
-      warnings.push(`« ${change.title} » est déjà appliqué par une modification enregistrée.`);
+      warnings.push(`"${change.title}" is already applied by a saved change.`);
       continue;
     }
-    warnings.push(`« ${change.title} » ne change rien de visible sur la page.`);
+    warnings.push(`"${change.title}" changes nothing visible on the page.`);
     issues.push(
       `The change "${change.title}" has NO visible effect: its selectors match, but the computed styles do not change (the elements probably set their own value, e.g. a heading with its own color inside the styled container). Apply the declarations to the elements that actually display the text or surface (e.g. the h1 itself, or "container *").`,
     );
@@ -329,7 +327,7 @@ export function prepareDraft(recipe: Recipe, prompts: string[]): Draft {
   const { issues: qualityIssues, broken } = enforceQuality(changes, warnings);
   const previewCss = compileChanges(changes);
   if (!previewCss.trim() && !warnings.length) {
-    warnings.push('Cette modification ne produit aucun changement visible.');
+    warnings.push('This change produces no visible change.');
   }
   // Mesure avant/après la nouvelle preview (synchrone : rien n'est peint entre les deux).
   const hidden = changes.flatMap((change) =>

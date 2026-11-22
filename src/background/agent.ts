@@ -56,9 +56,9 @@ const LOOK_REQUEST =
 /** Langue de l'interface du navigateur : repli quand la demande est trop courte (« Mode sombre »). */
 function uiLanguage(): string {
   try {
-    return chrome.i18n.getUILanguage() || 'fr';
+    return chrome.i18n.getUILanguage() || 'en';
   } catch {
-    return 'fr';
+    return 'en';
   }
 }
 
@@ -167,11 +167,11 @@ async function generateDraft(
   pick: string | string[] | null,
 ): Promise<Draft> {
   const text = prompt.trim();
-  if (!text) throw new Error('Décrivez la modification souhaitée.');
+  if (!text) throw new Error('Describe the change you want.');
   const tab = await chrome.tabs.get(tabId);
   const blocked = sensitiveReason(tab.url ?? '');
   if (blocked) {
-    throw new Error(`${blocked} Par sécurité, aucun contenu de cette page n’est envoyé à l’IA.`);
+    throw new Error(`${blocked} For your safety, no content from this page is sent to the AI.`);
   }
   const settings = await getSettings();
 
@@ -192,7 +192,7 @@ async function generateDraft(
   const picked = focus.map((selector) => page.included[selector] ?? -1);
 
   if (picked.includes(-1)) {
-    throw new Error('Un élément sélectionné est introuvable. Retirez-le ou pointez-le à nouveau.');
+    throw new Error('A selected element can’t be found. Remove it or pick it again.');
   }
   const messages = buildMessages(text, page, current, saved, picked);
   const recipe = parseRecipe(await completeJson(settings, messages));
@@ -201,7 +201,7 @@ async function generateDraft(
   // Content script resté à l'ancienne version (onglet ouvert avant la mise à jour).
   if (!Array.isArray(draft?.changes)) {
     await callContent(tabId, 'clearPreview', {}).catch(() => null);
-    throw new Error('Browser Paint a été mis à jour : rechargez l’onglet.');
+    throw new Error('ReFace was updated: reload the tab.');
   }
   if (!draft.layoutIssues?.length) return draft;
 
@@ -244,16 +244,16 @@ async function refuseIfBroken(tabId: number, draft: Draft): Promise<Draft> {
   if (!draft.broken?.length) return draft;
   await callContent(tabId, 'clearPreview', {}).catch(() => null);
   throw new BrokenLayoutError(
-    `Je n’affiche pas cette mise en page : ${draft.broken.join(', ')}, même après correction. La structure de ce site ne s’y prête pas telle quelle. Essayez une variante plus simple (par exemple « 2 cartes par rangée » ou « cartes en liste »).`,
+    `I’m not showing this layout: ${draft.broken.join(', ')}, even after correction. This site’s structure doesn’t lend itself to it as is. Try a simpler variant (for example "2 cards per row" or "cards in a list").`,
   );
 }
 
 const LAYOUT_WARNING =
-  'La modification garde des défauts après correction automatique (mise en page abîmée ou éléments introuvables). Précisez la demande, par exemple « garde les titres lisibles ».';
+  'The change still has defects after automatic correction (damaged layout or elements not found). Make the request more specific, for example "keep the titles readable".';
 
 async function tabOrigin(tabId: number): Promise<{ host: string; origin: string; path: string }> {
   const tab = await chrome.tabs.get(tabId);
-  if (!tab.url) throw new Error('Onglet introuvable.');
+  if (!tab.url) throw new Error('Tab not found.');
   const url = new URL(tab.url);
   return { host: url.hostname, origin: url.origin, path: url.pathname };
 }
@@ -282,9 +282,9 @@ function newRule(
 /** Keep : une règle par changement coché, pour pouvoir les activer/désactiver séparément. */
 export async function keep(tabId: number, draft: Draft): Promise<{ ruleIds: string[] }> {
   const { host, origin, path } = await tabOrigin(tabId);
-  if (host !== draft.host) throw new Error('L’onglet a changé de site depuis la preview.');
+  if (host !== draft.host) throw new Error('The tab moved to a different site since the preview.');
   const kept = draft.changes.filter((change) => change.enabled);
-  if (!kept.length) throw new Error('Cochez au moins un changement à garder.');
+  if (!kept.length) throw new Error('Check at least one change to keep.');
   const joined = draft.prompts.join(' → ');
   const rules = kept.map((change) =>
     newRule(origin, path, {
@@ -308,13 +308,13 @@ export async function keep(tabId: number, draft: Draft): Promise<{ ruleIds: stri
 export async function quickHide(tabId: number, pick: PickResult): Promise<{ ruleId: string }> {
   const { host, origin, path } = await tabOrigin(tabId);
   const rule = newRule(origin, path, {
-    prompt: `Cacher « ${pick.label} »`,
+    prompt: `Hide "${pick.label}"`,
     ops: [{ op: 'hide', target: 't1' }],
     targets: {
       t1: { selectors: pick.selectors.slice(0, 3), fingerprint: pick.fingerprint, minMatches: 1 },
     },
     css: '',
-    explanation: 'Élément caché depuis le picker.',
+    explanation: 'Element hidden with the picker.',
   });
   await addRule(host, rule);
   return { ruleId: rule.id };

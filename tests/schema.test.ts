@@ -106,20 +106,20 @@ describe('parseRecipe', () => {
   it('rejette une cible inconnue, y compris celle d’un autre changement', () => {
     expect(() =>
       parseRecipe({ ...legacy, ops: [{ op: 'hide', target: 'zz', declarations: [] }] }),
-    ).toThrow(/inconnue/);
+    ).toThrow(/unknown/);
     const [first, second] = multi.changes;
     expect(() =>
       parseRecipe({
         ...multi,
         changes: [first, { ...second!, ops: [{ op: 'hide', target: 't2', declarations: [] }] }],
       }),
-    ).toThrow(/inconnue/);
+    ).toThrow(/unknown/);
   });
 
   it('rejette hide sans cible', () => {
     expect(() =>
       parseRecipe({ ...legacy, ops: [{ op: 'hide', target: '', declarations: [] }] }),
-    ).toThrow(/cible/);
+    ).toThrow(/target/);
   });
 
   it('rejette des champs en trop ou manquants', () => {

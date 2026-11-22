@@ -305,10 +305,10 @@ function parseChange(wire: WireChange, index: number): RecipeChange {
   const keys = new Set(wire.targets.map((t) => t.key));
   const ops: Op[] = wire.ops.map((op) => {
     if (op.target && !keys.has(op.target)) {
-      throw new Error(`La réponse de l’IA référence une cible inconnue (${op.target}).`);
+      throw new Error(`The AI response references an unknown target (${op.target}).`);
     }
     if (op.op !== 'theme' && !op.target) {
-      throw new Error(`L’opération « ${op.op} » doit viser une cible.`);
+      throw new Error(`The "${op.op}" operation must target an element.`);
     }
     const css: CssDeclarations = Object.fromEntries(
       op.declarations.map((d) => [d.property, d.value]),
@@ -335,7 +335,7 @@ function parseChange(wire: WireChange, index: number): RecipeChange {
       }
     : null;
   return {
-    title: wire.title.trim() || `Changement ${index + 1}`,
+    title: wire.title.trim() || `Change ${index + 1}`,
     ops,
     targets,
     css: wire.css,
@@ -400,7 +400,7 @@ export function parseRecipe(input: unknown): Recipe {
     return { changes: parsed.ops.length || parsed.css.trim() ? [parsed] : [], explanation };
   }
   throw new Error(
-    `La réponse de l’IA ne respecte pas le format attendu (${result.error.issues[0]?.message ?? 'invalide'}).`,
+    `The AI response doesn’t match the expected format (${result.error.issues[0]?.message ?? 'invalid'}).`,
   );
 }
 

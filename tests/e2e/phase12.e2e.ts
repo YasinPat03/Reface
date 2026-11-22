@@ -101,15 +101,15 @@ const columns = () =>
   );
 
 async function preview(prompt: string) {
-  await panel.getByLabel('Que voulez-vous changer ?').fill(prompt);
-  await panel.getByRole('button', { name: 'Prévisualiser' }).click();
+  await panel.getByLabel('What do you want to change?').fill(prompt);
+  await panel.getByRole('button', { name: 'Preview' }).click();
   await panel.getByTestId('draft').waitFor({ timeout: 10_000 });
 }
 const refineDone = () =>
   panel.getByTestId('refining').waitFor({ state: 'detached', timeout: 15_000 });
 async function discard() {
   await panel
-    .getByRole('button', { name: /Annuler|Ignorer/ })
+    .getByRole('button', { name: /Discard|Ignore/ })
     .first()
     .click();
   await panel.getByTestId('draft').waitFor({ state: 'detached', timeout: 5000 });
@@ -160,7 +160,7 @@ await check(
   async () => {
     await preview('cartes lent');
     await panel.getByTestId('refining').waitFor({ timeout: 2000 });
-    await panel.getByRole('button', { name: 'Garder' }).click();
+    await panel.getByRole('button', { name: 'Keep' }).click();
     await panel.getByTestId('rules').waitFor({ timeout: 5000 });
     await page.waitForTimeout(3500); // la v2 (3 colonnes) revient pendant ce temps
     const shown = await page.evaluate(

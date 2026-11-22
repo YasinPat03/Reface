@@ -38,7 +38,7 @@ const waitGone = () => overlay().waitFor({ state: 'detached', timeout: 3000 });
 await check('13.1 profil neuf : le logo se joue en grand, au centre', async () => {
   await panel.locator('[data-testid=onboarding][data-phase=intro]').waitFor({ timeout: 3000 });
   await panel.locator('.brand-intro').waitFor();
-  await panel.getByText('Une page à votre mesure.').waitFor();
+  await panel.getByText('A page made to measure.').waitFor();
   const logo = (await panel.locator('.onboarding-logo').boundingBox())!;
   const center = logo.x + logo.width / 2;
   assert(Math.abs(center - 180) < 4, `logo pas centré (${center})`);
@@ -86,9 +86,9 @@ await check(
 
 await check('13.4 la bulle de fin ferme la visite et la marque comme vue', async () => {
   await panel.keyboard.press('ArrowRight');
-  await bubble().getByText('C’est parti').waitFor();
+  await bubble().getByText('You’re all set').waitFor();
   assert(!(await seen()), 'clé écrite trop tôt');
-  await panel.getByRole('button', { name: 'Commencer' }).click();
+  await panel.getByRole('button', { name: 'Get started' }).click();
   await waitGone();
   assert((await seen())?.seenAt, 'clé non écrite');
   assert((await panel.locator('main.app-shell').getAttribute('inert')) === null, 'panneau inerte');
@@ -103,7 +103,7 @@ await check('13.5 elle ne revient pas à la réouverture du panneau', async () =
 
 await check('13.6 « Revoir la présentation » (Options) la relance', async () => {
   await panel.getByRole('button', { name: 'Options' }).click();
-  await panel.getByRole('button', { name: 'Revoir la présentation' }).click();
+  await panel.getByRole('button', { name: 'Replay the tour' }).click();
   await panel.locator('[data-testid=onboarding][data-phase=intro]').waitFor({ timeout: 3000 });
   assert(!(await panel.locator('#panel-options').isVisible()), 'les options restent ouvertes');
 });
@@ -124,7 +124,7 @@ await check('13.7 la visite avance seule, puis Échap la ferme', async () => {
 await check('13.8 « Passer » ferme la visite', async () => {
   await reset();
   await waitTour();
-  await panel.getByRole('button', { name: 'Passer', exact: true }).click();
+  await panel.getByRole('button', { name: 'Skip', exact: true }).click();
   await waitGone();
   assert((await seen())?.seenAt, 'clé non écrite après Passer');
 });
@@ -136,10 +136,10 @@ await check(
     panel = await context.newPage();
     await panel.setViewportSize({ width: 360, height: 700 });
     await panel.goto(ext('src/panel/index.html')); // l'onglet actif est le panneau lui-même
-    await panel.getByTestId('host').filter({ hasText: 'exemple.com' }).waitFor({ timeout: 3000 });
-    await panel.getByRole('button', { name: 'Passer la présentation' }).click();
+    await panel.getByTestId('host').filter({ hasText: 'example.com' }).waitFor({ timeout: 3000 });
+    await panel.getByRole('button', { name: 'Skip the tour' }).click();
     await waitGone();
-    await panel.getByText('Ouvrez une page web (http ou https) pour la modifier.').waitFor();
+    await panel.getByText('Open a web page (http or https) to modify it.').waitFor();
   },
 );
 

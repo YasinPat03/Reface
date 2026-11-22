@@ -69,14 +69,14 @@ export function OptionsContent({ onReplayOnboarding }: { onReplayOnboarding?: ()
     <>
       <div className="options-heading">
         <p className="eyebrow">Configuration</p>
-        <h1>Réglages</h1>
+        <h1>Settings</h1>
       </div>
       <AccessibilitySettings />
       <form onSubmit={save}>
-        <section className="settings-section" aria-label="Fournisseur">
-          <h2>Fournisseur</h2>
+        <section className="settings-section" aria-label="Provider">
+          <h2>Provider</h2>
           <p className="field-help">
-            Votre clé reste sur cet appareil et n’est envoyée qu’au fournisseur choisi.
+            Your key stays on this device and is only sent to the chosen provider.
           </p>
           <div className="provider-options">
             {PROVIDERS.map((provider) => (
@@ -92,10 +92,10 @@ export function OptionsContent({ onReplayOnboarding }: { onReplayOnboarding?: ()
             ))}
           </div>
         </section>
-        <section className="settings-section settings-fields" aria-label="Connexion">
+        <section className="settings-section settings-fields" aria-label="Connection">
           <div>
             <label className="field-label" htmlFor="bp-api-key">
-              Clé API
+              API key
             </label>
             <div className="reveal-group">
               <input
@@ -114,13 +114,13 @@ export function OptionsContent({ onReplayOnboarding }: { onReplayOnboarding?: ()
                 aria-controls="bp-api-key"
                 aria-pressed={showKey}
               >
-                {showKey ? 'Masquer' : 'Afficher'}
+                {showKey ? 'Hide' : 'Show'}
               </button>
             </div>
           </div>
           <div>
             <label className="field-label" htmlFor="bp-base-url">
-              URL de base (API compatible OpenAI)
+              Base URL (OpenAI-compatible API)
             </label>
             <input
               id="bp-base-url"
@@ -133,7 +133,7 @@ export function OptionsContent({ onReplayOnboarding }: { onReplayOnboarding?: ()
           </div>
           <div>
             <label className="field-label" htmlFor="bp-model">
-              Modèle
+              Model
             </label>
             <input
               id="bp-model"
@@ -149,14 +149,14 @@ export function OptionsContent({ onReplayOnboarding }: { onReplayOnboarding?: ()
                 test.models.map((model) => <option key={model} value={model} />)}
             </datalist>
             <span id="bp-model-help" className="field-help">
-              Le modèle doit accepter les réponses JSON structurées. « Tester la connexion » liste
-              les modèles disponibles.
+              The model must support structured JSON responses. “Test connection” lists the
+              available models.
             </span>
           </div>
         </section>
         <div className="settings-actions">
           <button type="submit" className="button button-primary">
-            Enregistrer
+            Save
           </button>
           <button
             type="button"
@@ -164,12 +164,12 @@ export function OptionsContent({ onReplayOnboarding }: { onReplayOnboarding?: ()
             disabled={test.status === 'testing'}
             className="button"
           >
-            {test.status === 'testing' ? 'Test…' : 'Tester la connexion'}
+            {test.status === 'testing' ? 'Testing…' : 'Test connection'}
           </button>
           {saved && (
             <span className="save-notice" role="status">
               <CheckIcon size={16} aria-hidden="true" />
-              Enregistré.
+              Saved.
             </span>
           )}
         </div>
@@ -180,14 +180,11 @@ export function OptionsContent({ onReplayOnboarding }: { onReplayOnboarding?: ()
           >
             <CheckIcon size={18} aria-hidden="true" />
             <span>
-              Connexion réussie ({test.models.length} modèles).{' '}
+              Connection successful ({test.models.length} models).{' '}
               {test.modelFound ? (
-                <>Le modèle « {settings.model} » est disponible.</>
+                <>The model “{settings.model}” is available.</>
               ) : (
-                <>
-                  « {settings.model} » n’apparaît pas dans la liste : choisissez-en un dans le champ
-                  Modèle.
-                </>
+                <>“{settings.model}” isn’t in the list: pick one in the Model field.</>
               )}
             </span>
           </p>
@@ -199,9 +196,9 @@ export function OptionsContent({ onReplayOnboarding }: { onReplayOnboarding?: ()
           </p>
         )}
       </form>
-      <section className="settings-section" aria-label="Présentation">
-        <h2>Présentation</h2>
-        <p className="field-help">Revoyez la visite guidée du panneau, zone par zone.</p>
+      <section className="settings-section" aria-label="Tour">
+        <h2>Tour</h2>
+        <p className="field-help">Replay the guided tour of the panel, area by area.</p>
         <div className="settings-actions">
           <button
             type="button"
@@ -213,12 +210,12 @@ export function OptionsContent({ onReplayOnboarding }: { onReplayOnboarding?: ()
               }, console.error);
             }}
           >
-            Revoir la présentation
+            Replay the tour
           </button>
           {replayQueued && (
             <span className="save-notice" role="status">
               <CheckIcon size={16} aria-hidden="true" />
-              Elle se jouera à la prochaine ouverture du panneau.
+              It will play the next time the panel opens.
             </span>
           )}
         </div>

@@ -147,7 +147,7 @@ await check('9.8 ⌘/Ctrl+Entrée ouvre un nouvel onglet, sans bouger celui-ci',
 await check('9.9 autre site sans raccourci : message et touche d’enregistrement', async () => {
   await site.goto(`http://${OTHER}:${new URL(origin).port}/`);
   await openPalette();
-  await palette().getByText(`Aucun raccourci pour ${OTHER}.`, { exact: false }).waitFor();
+  await palette().getByText(`No shortcuts for ${OTHER}.`, { exact: false }).waitFor();
   await palette().locator('kbd').filter({ hasText: RECORD_KEY }).waitFor();
   assert((await options().count()) === 0, 'aucune option attendue');
   await site.keyboard.press('Escape');

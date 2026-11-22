@@ -14,9 +14,8 @@ import { TourBubble } from './TourBubble';
 import { TourCursor } from './TourCursor';
 
 const PAD = 6;
-const FINAL_TITLE = 'C’est parti';
-const FINAL_BODY =
-  'Ouvrez une page, décrivez ce que vous voulez changer : ReFace s’occupe du reste.';
+const FINAL_TITLE = 'You’re all set';
+const FINAL_BODY = 'Open a page, describe what you want to change: ReFace takes care of the rest.';
 
 const viewportSize = (): Size => ({ width: window.innerWidth, height: window.innerHeight });
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -135,7 +134,7 @@ export function Tour({ onFinish }: { onFinish: () => void }) {
       className="tour"
       role="dialog"
       aria-modal="true"
-      aria-label="Présentation de ReFace"
+      aria-label="ReFace tour"
       data-testid="onboarding"
       data-phase="tour"
       tabIndex={-1}
@@ -177,7 +176,7 @@ export function Tour({ onFinish }: { onFinish: () => void }) {
         footer={
           final ? (
             <button type="button" className="button button-primary" autoFocus onClick={onFinish}>
-              Commencer
+              Get started
             </button>
           ) : (
             <>
@@ -185,7 +184,7 @@ export function Tour({ onFinish }: { onFinish: () => void }) {
                 {index + 1} / {total}
               </span>
               <button type="button" className="text-button" autoFocus onClick={onFinish}>
-                Passer
+                Skip
               </button>
             </>
           )
@@ -194,7 +193,7 @@ export function Tour({ onFinish }: { onFinish: () => void }) {
       <p className="sr-only" aria-live="polite">
         {final
           ? `${FINAL_TITLE}. ${FINAL_BODY}`
-          : `Étape ${index + 1} sur ${total}. ${step.title}. ${step.body}`}
+          : `Step ${index + 1} of ${total}. ${step.title}. ${step.body}`}
       </p>
     </div>
   );

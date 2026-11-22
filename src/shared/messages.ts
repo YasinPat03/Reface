@@ -62,7 +62,7 @@ export type Reply<T> = { ok: true; data: T } | { ok: false; error: string };
 
 async function unwrap<T>(promise: Promise<Reply<T> | undefined>): Promise<T> {
   const reply = await promise;
-  if (!reply) throw new Error('Aucune réponse du destinataire.');
+  if (!reply) throw new Error('No response from the recipient.');
   if (!reply.ok) throw new Error(reply.error);
   return reply.data;
 }
@@ -78,13 +78,13 @@ export function callBg<K extends keyof BgApi>(
 function friendlyChromeError(error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error);
   if (/Receiving end does not exist|Could not establish connection/i.test(message)) {
-    return new Error('ReFace n’est pas encore chargé dans cette page : rechargez l’onglet.');
+    return new Error('ReFace isn’t loaded in this page yet: reload the tab.');
   }
   if (/message port closed|message channel closed/i.test(message)) {
-    return new Error('La page a été rechargée ou fermée pendant l’opération. Réessayez.');
+    return new Error('The page was reloaded or closed during the operation. Try again.');
   }
   if (/Cannot access|cannot be scripted|extensions gallery/i.test(message)) {
-    return new Error('Chrome interdit aux extensions de modifier cette page.');
+    return new Error('Chrome doesn’t allow extensions to modify this page.');
   }
   return error instanceof Error ? error : new Error(message);
 }

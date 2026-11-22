@@ -159,7 +159,7 @@ export function withShortcut(
   now: string,
 ): { site: SiteShortcuts; added: boolean; shortcut: Shortcut } {
   const url = shortcutUrl(page.url);
-  if (!url) throw new Error('Cette page ne peut pas servir de raccourci.');
+  if (!url) throw new Error('This page can’t be used as a shortcut.');
   const existing = site.shortcuts.find((s) => s.url === url);
   if (existing) return { site, added: false, shortcut: existing };
   const shortcut: Shortcut = { id, label: shortcutLabel(page.title, url), url, createdAt: now };

@@ -9,53 +9,53 @@ export interface TourStep {
 export const TOUR_STEPS: readonly TourStep[] = [
   {
     target: 'compare',
-    title: 'Original / Modifié',
-    body: 'Comparez la page d’origine et votre version d’un clic.',
+    title: 'Original / Modified',
+    body: 'Compare the original page with your version in one click.',
   },
   {
     target: 'pause',
     title: 'Pause',
-    body: 'Suspend toutes vos modifications sur ce site, sans les perdre.',
+    body: 'Pauses all your changes on this site, without losing them.',
   },
   {
     target: 'tab-edit',
-    title: 'Modifier',
-    body: 'Décrivez un changement en mots simples : ReFace l’essaie sur la page avant que vous le gardiez.',
+    title: 'Edit',
+    body: 'Describe a change in plain words: ReFace tries it on the page before you keep it.',
   },
   {
     target: 'pick',
-    title: 'Pointer un élément',
-    body: 'Montrez un élément de la page pour cibler votre demande, ou cachez-le en un clic.',
+    title: 'Pick an element',
+    body: 'Point at an element of the page to target your request, or hide it in one click.',
   },
   {
     target: 'prompt',
-    title: 'Votre demande',
-    body: 'Écrivez ici, par exemple « masquer les commentaires » ou « agrandir le texte ».',
+    title: 'Your request',
+    body: 'Type here, for example “hide the comments” or “make the text bigger”.',
   },
   {
     target: 'tab-rules',
-    title: 'Modifications',
-    body: 'Les modifications gardées sur ce site : activez, désactivez ou supprimez-les une par une.',
+    title: 'Changes',
+    body: 'The changes kept on this site: turn them on, off or delete them one by one.',
   },
   {
     target: 'tab-catalogue',
     title: 'Catalogue',
-    body: 'Gardez vos thèmes de côté, ou essayez ceux partagés par la communauté.',
+    body: 'Set your themes aside, or try the ones shared by the community.',
   },
   {
     target: 'tab-shortcuts',
-    title: 'Raccourcis',
-    body: 'Des raccourcis vers les pages enfouies du site : ⌘⇧E pour en enregistrer un, ⌘⇧X pour les ouvrir.',
+    title: 'Shortcuts',
+    body: 'Shortcuts to the site’s buried pages: ⌘⇧E to record one, ⌘⇧X to open them.',
   },
   {
     target: 'theme',
-    title: 'Clair ou sombre',
-    body: 'Changez l’apparence du panneau.',
+    title: 'Light or dark',
+    body: 'Change the panel’s appearance.',
   },
   {
     target: 'options',
     title: 'Options',
-    body: 'Votre clé d’API, le fournisseur d’IA et les réglages d’accessibilité.',
+    body: 'Your API key, the AI provider and the accessibility settings.',
   },
 ];
 

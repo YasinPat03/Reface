@@ -45,7 +45,7 @@ export async function suggestAccessibility(description: string): Promise<{ keys:
     !Array.isArray(selected) ||
     selected.some((id) => typeof id !== 'string' || !options.has(id))
   ) {
-    throw new Error('La réponse de l’IA contient des réglages non reconnus. Réessayez.');
+    throw new Error('The AI response contains unrecognized settings. Try again.');
   }
 
   const ids = new Set(selected);

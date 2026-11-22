@@ -16,9 +16,9 @@ export const MAX_CSS_LENGTH = 16_000;
 
 /** Retourne la raison du rejet, ou null si le texte est acceptable. */
 export function cssViolation(text: string): string | null {
-  if (text.length > MAX_CSS_LENGTH) return 'CSS trop volumineux.';
+  if (text.length > MAX_CSS_LENGTH) return 'CSS too large.';
   for (const pattern of FORBIDDEN) {
-    if (pattern.test(text)) return `Motif CSS interdit (${pattern.source}).`;
+    if (pattern.test(text)) return `Forbidden CSS pattern (${pattern.source}).`;
   }
   return null;
 }

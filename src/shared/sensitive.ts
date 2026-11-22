@@ -90,16 +90,15 @@ export function sensitiveReason(url: string): string | null {
   try {
     parsed = new URL(url);
   } catch {
-    return 'Adresse illisible.';
+    return 'Unreadable address.';
   }
-  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:')
-    return 'Page interne du navigateur.';
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return 'Internal browser page.';
   const host = parsed.hostname.toLowerCase().replace(/\.$/, '');
-  if (isPrivateIp(host)) return 'Adresse de réseau privé (intranet).';
+  if (isPrivateIp(host)) return 'Private network address (intranet).';
   if (/\.(?:local|internal|intranet|corp|lan|home\.arpa)$/.test(host))
-    return 'Réseau interne (intranet).';
+    return 'Internal network (intranet).';
   if (DOMAINS.some((d) => host === d || host.endsWith(`.${d}`)))
-    return 'Site sensible (courriel, banque, santé ou identité).';
-  if (KEYWORDS.test(host)) return 'Site potentiellement sensible (banque, santé ou identité).';
+    return 'Sensitive site (email, banking, health or identity).';
+  if (KEYWORDS.test(host)) return 'Potentially sensitive site (banking, health or identity).';
   return null;
 }

@@ -20,8 +20,8 @@ function Options() {
           <button
             type="button"
             className="icon-button"
-            aria-label={appearance === 'light' ? 'Activer le mode sombre' : 'Activer le mode clair'}
-            title={appearance === 'light' ? 'Mode sombre' : 'Mode clair'}
+            aria-label={appearance === 'light' ? 'Turn on dark mode' : 'Turn on light mode'}
+            title={appearance === 'light' ? 'Dark mode' : 'Light mode'}
             onClick={toggleAppearance}
           >
             {appearance === 'light' ? <MoonIcon size={19} /> : <SunIcon size={19} />}

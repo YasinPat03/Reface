@@ -22,7 +22,7 @@ import { AssemblyDiagram } from './ui';
 type Status = 'idle' | 'generating' | 'saving' | 'picking';
 
 const NO_PICKS: PickResult[] = [];
-const EXAMPLES = ['Cache les commentaires', 'Texte plus grand et plus aéré'];
+const EXAMPLES = ['Hide the comments', 'Bigger, airier text'];
 
 export function Chat({
   tab,
@@ -104,7 +104,7 @@ export function Chat({
   function togglePicker() {
     const port = selectionPort.current;
     if (!port) {
-      setError('Le pointeur est indisponible. Rechargez la page pour réessayer.');
+      setError('The picker is unavailable. Reload the page to try again.');
       return;
     }
     const stopping = status === 'picking';
@@ -154,7 +154,7 @@ export function Chat({
       // Panel neuf + service worker resté à l'ancienne version (dist/ recompilé sans ↻).
       if (!Array.isArray(next?.changes)) {
         throw new Error(
-          'ReFace a été mis à jour : rechargez l’extension (↻ dans chrome://extensions), puis l’onglet.',
+          'ReFace was updated: reload the extension (↻ in chrome://extensions), then the tab.',
         );
       }
       draftTab.current = tab.id;
@@ -203,8 +203,8 @@ export function Chat({
       const kept = draft.changes.filter((c) => c.enabled).length;
       setNotice(
         kept > 1
-          ? `${kept} modifications enregistrées. Elles reviendront à chaque visite.`
-          : 'Modification enregistrée. Elle reviendra à chaque visite.',
+          ? `${kept} changes saved. They will come back on every visit.`
+          : 'Change saved. It will come back on every visit.',
       );
       onSaved?.();
     } catch (e) {
@@ -242,7 +242,7 @@ export function Chat({
   return (
     <section
       className="editor"
-      aria-label="Éditeur de page"
+      aria-label="Page editor"
       onKeyDown={(event) => {
         if (status === 'picking' && (event.key === 'Enter' || event.key === 'Escape')) {
           event.preventDefault();
@@ -252,8 +252,8 @@ export function Chat({
     >
       <div className="workspace-heading">
         <div>
-          <p className="eyebrow">{draft ? 'Aperçu' : 'Ajustement'}</p>
-          <h2>{draft ? 'Affiner la modification' : 'Que voulez-vous changer ?'}</h2>
+          <p className="eyebrow">{draft ? 'Preview' : 'Adjustment'}</p>
+          <h2>{draft ? 'Refine the change' : 'What do you want to change?'}</h2>
         </div>
         <AssemblyDiagram
           phase={
@@ -269,13 +269,13 @@ export function Chat({
           }
         />
       </div>
-      {!draft && <p className="workspace-description">Essayez sur la page avant de garder.</p>}
+      {!draft && <p className="workspace-description">Try it on the page before keeping it.</p>}
       {aiBlocked && (
         <p data-testid="ai-blocked" className="message message-caution">
           <LockSimpleIcon size={18} aria-hidden="true" />
           <span>
-            {aiBlocked} L’IA est désactivée ici : aucun contenu n’est envoyé. Vous pouvez quand même
-            pointer un élément pour le cacher.
+            {aiBlocked} The AI is disabled here: no content is sent. You can still pick an element
+            to hide it.
           </span>
         </p>
       )}
@@ -287,7 +287,7 @@ export function Chat({
             data-testid="draft"
             className="draft-sheet"
             role="region"
-            aria-label="Aperçu de la modification"
+            aria-label="Change preview"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
@@ -295,19 +295,19 @@ export function Chat({
           >
             <div className="draft-caption">
               <span className="draft-light" />
-              <span>Aperçu sur la page</span>
-              <span className="draft-unsaved">Non enregistré</span>
+              <span>Preview on the page</span>
+              <span className="draft-unsaved">Not saved</span>
             </div>
-            <p className="draft-explanation">{draft.explanation || 'Modification prête.'}</p>
+            <p className="draft-explanation">{draft.explanation || 'Change ready.'}</p>
             {refining && (
               <p role="status" data-testid="refining" className="working-note">
-                Affinage : l’IA vérifie le rendu…
+                Refining: the AI is checking the result…
               </p>
             )}
             {!refining && draft.refined && (
               <p data-testid="refined" className="working-note">
-                Affiné après vérification visuelle
-                {draft.review?.length ? ` : ${draft.review.slice(0, 2).join(' ; ')}` : ''}.
+                Refined after a visual check
+                {draft.review?.length ? `: ${draft.review.slice(0, 2).join('; ')}` : ''}.
               </p>
             )}
             {draft.changes.length > 1 && (
@@ -340,7 +340,7 @@ export function Chat({
                 disabled={busy}
                 className="button button-ghost"
               >
-                Annuler
+                Discard
               </button>
               <button
                 type="button"
@@ -353,7 +353,7 @@ export function Chat({
                 className="button button-primary"
               >
                 <CheckIcon size={16} aria-hidden="true" />
-                {status === 'saving' ? 'Enregistrement…' : 'Garder'}
+                {status === 'saving' ? 'Saving…' : 'Keep'}
               </button>
             </div>
           </motion.div>
@@ -374,15 +374,14 @@ export function Chat({
           <span className="pick-crosshair">
             <CrosshairSimpleIcon size={21} weight="light" aria-hidden="true" />
           </span>
-          <span>{status === 'picking' ? 'Terminer la sélection' : 'Pointer un élément'}</span>
+          <span>{status === 'picking' ? 'Finish selection' : 'Pick an element'}</span>
           <span className="pick-indicator" aria-hidden="true">
             {status === 'picking' ? '−' : '+'}
           </span>
         </button>
         {status === 'picking' && (
           <p role="status" className="picking-instructions">
-            Cliquez pour ajouter un élément. ↑ et ↓ ajustent la cible. Espace l’ajoute, Entrée
-            termine.
+            Click to add an element. ↑ and ↓ adjust the target. Space adds it, Enter finishes.
           </p>
         )}
         <AnimatePresence initial={false}>
@@ -398,9 +397,7 @@ export function Chat({
             >
               <div className="target-heading">
                 <span className="eyebrow">
-                  {picked.length === 1
-                    ? 'Élément sélectionné'
-                    : `${picked.length} éléments sélectionnés`}
+                  {picked.length === 1 ? 'Selected element' : `${picked.length} selected elements`}
                 </span>
                 {picked.length > 1 && (
                   <button
@@ -409,7 +406,7 @@ export function Chat({
                     onClick={() => setSelection(null)}
                     disabled={busy}
                   >
-                    Tout retirer
+                    Remove all
                   </button>
                 )}
               </div>
@@ -425,8 +422,8 @@ export function Chat({
                     <button
                       type="button"
                       className="icon-button"
-                      title="Cacher cet élément"
-                      aria-label={`Cacher cet élément : ${item.label}`}
+                      title="Hide this element"
+                      aria-label={`Hide this element: ${item.label}`}
                       onClick={() => void hidePicked(item)}
                       disabled={busy}
                     >
@@ -435,8 +432,8 @@ export function Chat({
                     <button
                       type="button"
                       className="icon-button"
-                      title="Retirer de la sélection"
-                      aria-label={`Retirer de la sélection : ${item.label}`}
+                      title="Remove from selection"
+                      aria-label={`Remove from selection: ${item.label}`}
                       onClick={() => removePicked(item.selector)}
                       disabled={busy}
                     >
@@ -447,7 +444,7 @@ export function Chat({
               </ol>
               {picked.length >= MAX_PICKED_ELEMENTS && (
                 <p className="picking-instructions">
-                  Limite de {MAX_PICKED_ELEMENTS} éléments atteinte.
+                  Limit of {MAX_PICKED_ELEMENTS} elements reached.
                 </p>
               )}
             </motion.div>
@@ -455,7 +452,7 @@ export function Chat({
         </AnimatePresence>
         <div className="prompt-field" data-tour="prompt">
           <label htmlFor="bp-prompt" className="sr-only">
-            {draft ? 'Affiner la modification' : 'Que voulez-vous changer ?'}
+            {draft ? 'Refine the change' : 'What do you want to change?'}
           </label>
           <textarea
             id="bp-prompt"
@@ -469,16 +466,14 @@ export function Chat({
             }}
             rows={4}
             placeholder={
-              draft
-                ? 'Ex. : un peu plus grand'
-                : 'Ex. : agrandir les vignettes, masquer les commentaires…'
+              draft ? 'E.g. a little bigger' : 'E.g. enlarge the thumbnails, hide the comments…'
             }
             className="prompt-input"
             disabled={busy || !!aiBlocked}
           />
           <div className="input-hint">
             <ArrowElbowDownLeftIcon size={13} aria-hidden="true" />
-            <span>Entrée pour prévisualiser</span>
+            <span>Enter to preview</span>
           </div>
         </div>
         <button
@@ -487,23 +482,19 @@ export function Chat({
           className="button button-primary preview-button"
         >
           <span>
-            {status === 'generating'
-              ? 'Préparation de l’aperçu…'
-              : draft
-                ? 'Réviser'
-                : 'Prévisualiser'}
+            {status === 'generating' ? 'Preparing preview…' : draft ? 'Revise' : 'Preview'}
           </span>
           <ArrowRightIcon size={18} weight="regular" aria-hidden="true" />
         </button>
         {status === 'generating' && (
           <p role="status" className="working-note">
-            Préparation de votre modification. Vous pourrez la vérifier avant de la garder.
+            Preparing your change. You’ll be able to check it before keeping it.
           </p>
         )}
       </form>
       {!draft && !prompt && !aiBlocked && (
-        <div className="suggestions" aria-label="Idées de modifications">
-          <p className="eyebrow">Quelques idées</p>
+        <div className="suggestions" aria-label="Change ideas">
+          <p className="eyebrow">A few ideas</p>
           {EXAMPLES.map((example) => (
             <button
               key={example}

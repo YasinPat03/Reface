@@ -148,7 +148,7 @@ await check(
   async () => {
     const draft = await generate('cartes');
     assert(
-      !draft.warnings.some((w) => /impossible de viser|introuvable/.test(w)),
+      !draft.warnings.some((w) => /can’t target all similar|not found/.test(w)),
       `avertissement inattendu : ${draft.warnings.join(' | ')}`,
     );
     const white = await page.evaluate(
@@ -167,7 +167,7 @@ await check('un masquage qui efface la page est désactivé et renvoyé au LLM',
   assert(/hid \d+% of the page text/.test(requests[1]!), 'le problème n’est pas expliqué au LLM');
   assert(draft.changes[0] && !draft.changes[0].enabled, 'le changement reste actif');
   assert(
-    draft.warnings.some((w) => /masquait \d+ % du texte/.test(w)),
+    draft.warnings.some((w) => /hid \d+% of the page text/.test(w)),
     'aucun avertissement',
   );
   const visible = await page.evaluate(() =>
@@ -181,7 +181,7 @@ await check('une règle qui ne vise rien est signalée et renvoyée au LLM', asy
   assert(requests.length === 2, `${requests.length} appel(s) LLM au lieu de 2`);
   assert(requests[1]!.includes('.votes'), 'le sélecteur mort n’est pas cité au LLM');
   assert(
-    draft.warnings.some((w) => /ne visent aucun élément/.test(w)),
+    draft.warnings.some((w) => /target no element/.test(w)),
     `aucun avertissement : ${draft.warnings.join(' | ')}`,
   );
 });

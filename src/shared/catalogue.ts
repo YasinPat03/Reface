@@ -51,7 +51,7 @@ export function capturePage(
 ): CatalogueEntry {
   const url = new URL(pageUrl);
   if (url.hostname !== site.host || !['http:', 'https:'].includes(url.protocol))
-    throw new Error('La page a changé de site.');
+    throw new Error('The page moved to a different site.');
   const rules = site.rules.filter(
     (rule) =>
       rule.enabled &&
@@ -59,8 +59,7 @@ export function capturePage(
         ? rule.pagePath === url.pathname
         : !rule.section || rule.section === sectionOf(url.pathname)),
   );
-  if (!rules.length)
-    throw new Error('Gardez une modification sur cette page avant de créer un thème.');
+  if (!rules.length) throw new Error('Keep a change on this page before creating a theme.');
   return publicEntry(
     catalogueEntrySchema.parse({
       format: 'reface/catalogue/v1',
@@ -81,7 +80,7 @@ export async function getPublicCatalogue(): Promise<CatalogueEntry[]> {
     signal: AbortSignal.timeout(5000),
     cache: 'no-store',
   });
-  if (!response.ok) throw new Error('Le catalogue public est indisponible pour le moment.');
+  if (!response.ok) throw new Error('The public catalogue is unavailable right now.');
   return z
     .array(catalogueEntrySchema)
     .max(500)
@@ -110,18 +109,15 @@ export async function publishEntry(
     });
   } catch {
     throw new Error(
-      'Le catalogue public est indisponible. Votre thème reste dans votre collection privée.',
+      'The public catalogue is unavailable. Your theme stays in your private collection.',
     );
   }
-  if (response.status === 403)
-    throw new Error('Code de publication manquant, invalide ou révoqué.');
-  if (response.status === 413) throw new Error('Le thème est trop volumineux pour être publié.');
-  if (response.status === 422)
-    throw new Error('Cette page ne peut pas être partagée dans le catalogue.');
-  if (response.status === 429)
-    throw new Error('Limite de publication atteinte. Réessayez plus tard.');
-  if (response.status === 409) throw new Error('Ce thème est déjà dans le catalogue public.');
-  if (!response.ok) throw new Error('La publication a échoué. Réessayez dans un instant.');
+  if (response.status === 403) throw new Error('Publishing code missing, invalid or revoked.');
+  if (response.status === 413) throw new Error('The theme is too large to be published.');
+  if (response.status === 422) throw new Error('This page can’t be shared in the catalogue.');
+  if (response.status === 429) throw new Error('Publishing limit reached. Try again later.');
+  if (response.status === 409) throw new Error('This theme is already in the public catalogue.');
+  if (!response.ok) throw new Error('Publishing failed. Try again in a moment.');
   return catalogueEntrySchema.parse(await response.json());
 }
 
@@ -144,8 +140,7 @@ export function matchesPage(entry: CatalogueEntry, pageUrl: string): boolean {
 
 export async function applyCatalogueEntry(raw: unknown, pageUrl: string): Promise<void> {
   const entry = catalogueEntrySchema.parse(raw);
-  if (!matchesPage(entry, pageUrl))
-    throw new Error('Ouvrez la page indiquée sur ce thème pour l’utiliser.');
+  if (!matchesPage(entry, pageUrl)) throw new Error('Open the page shown on this theme to use it.');
   const site = await getSiteRules(entry.host);
   const imported = [
     {
