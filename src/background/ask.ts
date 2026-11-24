@@ -73,6 +73,8 @@ interface AskContext {
   /** Mode `json` : schéma d'étape et sa lecture (par défaut, l'étape « recette »). */
   step?: { schema: ResponseSchema; parse: (raw: unknown) => AgentStep };
   budgetMs?: number;
+  /** Délai par requête au LLM (15 s par défaut). */
+  timeoutMs?: number;
   /** Afficher les étapes dans le panel (pas pendant la pré-étude). */
   progress?: boolean;
   finalNote?: string;
@@ -92,7 +94,9 @@ export function createAsker(context: AskContext) {
   const progress = (text: string) => {
     if (context.progress !== false) reportProgress(tabId, text);
   };
-  const final = (conversation: ChatMessage[]) => completeJson(settings, conversation, schema);
+  const timing = context.timeoutMs ? { timeoutMs: context.timeoutMs } : {};
+  const final = (conversation: ChatMessage[]) =>
+    completeJson(settings, conversation, schema, timing);
   return async (messages: ChatMessage[], rounds: number, mode: ToolMode): Promise<Answer> => {
     progress('Writing the change…');
     if (rounds <= 0 || mode === 'off' || page.distillId === undefined) {
@@ -105,7 +109,7 @@ export function createAsker(context: AskContext) {
     const specs = toolSpecs();
     const native = {
       complete: (conversation: ChatMessage[], toolChoice: 'auto' | 'none') =>
-        completeTurn(settings, conversation, { tools: specs, toolChoice, schema }),
+        completeTurn(settings, conversation, { tools: specs, toolChoice, schema, ...timing }),
       runTools: run,
     };
     const json = {
@@ -114,7 +118,7 @@ export function createAsker(context: AskContext) {
         if (toolChoice === 'none') return { kind: 'answer', value: await final(conversation) };
         let raw: unknown;
         try {
-          raw = await completeJson(settings, conversation, step.schema);
+          raw = await completeJson(settings, conversation, step.schema, timing);
         } catch (error) {
           if (error instanceof LlmError && error.rejectedParam === 'response_format') {
             jsonToolsRefused.add(settings.model);

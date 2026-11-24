@@ -11,7 +11,7 @@ export const STUDY_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 /** `false` : pré-étude désactivée (Options). Absente : active. */
 export const STUDY_ENABLED_KEY = 'preStudy:v1';
 export const STUDY_PREFIX = 'study:';
-export const MAX_STUDY_COMPONENTS = 25;
+export const MAX_STUDY_COMPONENTS = 16;
 
 export const studyKey = (host: string, section: string) =>
   `${STUDY_PREFIX}${host}:${section}` as const;
@@ -86,7 +86,7 @@ const answerProperties = {
   summary: { type: 'string', description: 'One sentence describing the page layout.' },
   components: {
     type: 'array',
-    description: '8 to 25 components of THIS page.',
+    description: '8 to 16 components of THIS page.',
     items: {
       type: 'object',
       additionalProperties: false,

@@ -386,7 +386,7 @@ async function runScenario(s: Scenario): Promise<{ ok: boolean; v1: number; tota
         }`;
       }, tabId);
       let components = 0;
-      while (Date.now() - s0 < 45_000) {
+      while (Date.now() - s0 < 90_000) {
         const study = await worker.evaluate(
           async (k) =>
             (await chrome.storage.local.get(k))[k] as { components: unknown[] } | undefined,
@@ -398,7 +398,12 @@ async function runScenario(s: Scenario): Promise<{ ok: boolean; v1: number; tota
         }
         await page.waitForTimeout(500);
       }
-      console.log(`    pré-étude : ${components} composant(s) en ${Date.now() - s0} ms`);
+      const status = await worker.evaluate(
+        async () => (await chrome.storage.session.get('study-status'))['study-status'] ?? null,
+      );
+      console.log(
+        `    pré-étude : ${components} composant(s) en ${Date.now() - s0} ms · ${JSON.stringify(status)}`,
+      );
     }
     for (const [i, prompt] of s.prompts.entries()) {
       await panel

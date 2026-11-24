@@ -162,11 +162,13 @@ export type Turn =
 
 export type ResponseSchema = { name: string; schema: object };
 
-interface TurnOptions {
+export interface TurnOptions {
   schema?: ResponseSchema;
   tools?: ToolSpec[];
   /** `none` : le modèle doit répondre (dernier tour, budget épuisé). */
   toolChoice?: 'auto' | 'none';
+  /** Délai par requête (15 s par défaut) : plus long pour un travail de fond (pré-étude). */
+  timeoutMs?: number;
 }
 
 /** Moitié isolée d'une paire de substitution UTF-16 (un emoji coupé en deux). */
@@ -211,10 +213,15 @@ const RECIPE_SCHEMA: ResponseSchema = { name: 'recipe', schema: recipeJsonSchema
 async function once(
   settings: Settings,
   messages: ChatMessage[],
-  { schema: responseSchema = RECIPE_SCHEMA, tools, toolChoice = 'auto' }: TurnOptions,
+  {
+    schema: responseSchema = RECIPE_SCHEMA,
+    tools,
+    toolChoice = 'auto',
+    timeoutMs = TIMEOUT_MS,
+  }: TurnOptions,
 ): Promise<Turn> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   let response: Response;
   try {
     response = await fetch(`${settings.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
@@ -303,8 +310,9 @@ export async function completeJson(
   settings: Settings,
   messages: ChatMessage[],
   responseSchema: ResponseSchema = RECIPE_SCHEMA,
+  options: Pick<TurnOptions, 'timeoutMs'> = {},
 ): Promise<unknown> {
-  const turn = await completeTurn(settings, messages, { schema: responseSchema });
+  const turn = await completeTurn(settings, messages, { ...options, schema: responseSchema });
   if (turn.kind !== 'answer') throw new LlmError('Unreadable LLM response (invalid JSON).', true);
   return turn.value;
 }
