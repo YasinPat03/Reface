@@ -91,6 +91,8 @@ const wireChange = z.object({
 });
 
 export const wireRecipe = z.object({
+  /** Ce que la demande vise sur cette page, écrit AVANT les changements (le modèle répond sans raisonnement). */
+  understanding: z.string().max(600).optional(),
   changes: z.array(wireChange).max(12),
   explanation: z.string().max(600),
 });
@@ -231,8 +233,13 @@ const themeSchema = {
 export const recipeJsonSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['changes', 'explanation'],
+  required: ['understanding', 'changes', 'explanation'],
   properties: {
+    understanding: {
+      type: 'string',
+      description:
+        'Written first, one short sentence: what the user means on THIS page and which element(s) you will change, with their [#n] or verified selector (or what you could not find).',
+    },
     changes: {
       type: 'array',
       description:

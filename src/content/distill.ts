@@ -10,7 +10,7 @@ const MAX_REGIONS = 150;
 /** Budget de caractères pour les lignes de régions (~2,5k tokens). */
 const CHAR_BUDGET = 10_000;
 const MAX_FOCUS_DESCENDANTS = 30;
-const SKIP = new Set([
+export const SKIP = new Set([
   'SCRIPT',
   'STYLE',
   'SVG',
@@ -23,8 +23,16 @@ const SKIP = new Set([
   'HR',
   'svg',
 ]);
-const FORM_TEXT = new Set(['TEXTAREA', 'SELECT', 'INPUT', 'OPTION', 'SCRIPT', 'STYLE', 'NOSCRIPT']);
-const LANDMARKS = new Set(['HEADER', 'NAV', 'MAIN', 'ASIDE', 'FOOTER', 'DIALOG']);
+export const FORM_TEXT = new Set([
+  'TEXTAREA',
+  'SELECT',
+  'INPUT',
+  'OPTION',
+  'SCRIPT',
+  'STYLE',
+  'NOSCRIPT',
+]);
+export const LANDMARKS = new Set(['HEADER', 'NAV', 'MAIN', 'ASIDE', 'FOOTER', 'DIALOG']);
 /** Conteneurs sémantiques fréquents (souvent très nombreux) : bonus plus faible. */
 const SECTIONING = new Set(['ARTICLE', 'SECTION', 'FORM', 'TABLE', 'FIGURE']);
 /** En dessous de cette fraction de l'écran, un élément non structurant est du bruit (pastilles, icônes). */
@@ -81,12 +89,17 @@ export function redact(text: string): string {
   return text.replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '[email]').replace(/\d[\d\s-]{3,}\d/g, '#');
 }
 
-/** Texte visible court, sans le contenu des champs de formulaire. */
+/** Texte saisi par l'utilisateur : champs de formulaire et zones éditables (jamais envoyés). */
+export function isUserInput(element: Element): boolean {
+  return FORM_TEXT.has(element.tagName) || (element as HTMLElement).isContentEditable === true;
+}
+
+/** Texte visible court, sans le contenu des champs de formulaire ni des zones éditables. */
 export function textSample(element: Element, max = 60): string {
   const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       for (let p = node.parentElement; p && p !== element.parentElement; p = p.parentElement) {
-        if (FORM_TEXT.has(p.tagName)) return NodeFilter.FILTER_REJECT;
+        if (isUserInput(p)) return NodeFilter.FILTER_REJECT;
       }
       return NodeFilter.FILTER_ACCEPT;
     },
@@ -107,7 +120,7 @@ function ownBackground(element: Element): boolean {
   return !element.parentElement || getComputedStyle(element.parentElement).backgroundColor !== own;
 }
 
-function isVisible(element: Element, rect: DOMRect): boolean {
+export function isVisible(element: Element, rect: DOMRect): boolean {
   if (rect.width < 2 || rect.height < 2) return false;
   if (typeof element.checkVisibility === 'function') {
     return element.checkVisibility({ opacityProperty: true, visibilityProperty: true });
@@ -136,7 +149,7 @@ function shownClasses(element: Element): string {
 
 /** Rang d'un élément parmi ses frères de même signature (balise + classes stables). */
 let repeatCache = new WeakMap<Element, { rank: number; total: number }>();
-function repeatInfo(element: Element): { rank: number; total: number } {
+export function repeatInfo(element: Element): { rank: number; total: number } {
   const cached = repeatCache.get(element);
   if (cached) return cached;
   const parent = element.parentElement;
@@ -183,7 +196,7 @@ export function describe(element: Element, index: number, rect: DOMRect, depth: 
 }
 
 /** Même boîte à 2 px près. */
-function sameBox(a: DOMRect, b: DOMRect | undefined): boolean {
+export function sameBox(a: DOMRect, b: DOMRect | undefined): boolean {
   return (
     !!b &&
     Math.abs(a.left - b.left) <= 2 &&

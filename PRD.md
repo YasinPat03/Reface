@@ -157,7 +157,7 @@ On garde 2 ou 3 sélecteurs uniques.
    /-moz-binding\s*:|behavior\s*:/i
    ```
    On fait aussi une taille max (environ 16 KB) et un parse via `new CSSStyleSheet().replaceSync()`, qui doit produire au moins une règle. Chaque déclaration est forcée en `!important`.
-3. **Prompt injection :** le texte de la page est encadré par des délimiteurs et marqué comme donnée non fiable. L'agent n'a aucun outil : il ne peut que renvoyer une recette.
+3. **Prompt injection :** le texte de la page est encadré par des délimiteurs et marqué comme donnée non fiable. L'agent n'a que des outils de **lecture** de la page (chercher un élément, inspecter une région, lire un guide ReFace) : ni écriture, ni réseau, ni code. Leurs résultats sont aussi encadrés comme donnée non fiable, et il ne peut toujours que renvoyer une recette.
 4. **Sites sensibles :** sur les banques, les emails, `chrome://` et les IP intranet, aucun DOM n'est envoyé. Le replay des règles existantes continue de fonctionner.
 5. **Clé API :** stockée dans `chrome.storage.local` (jamais dans `sync`), jamais commitée, jamais dans le bundle. `.env*` est dans le `.gitignore`.
 6. **Contrôle utilisateur :** chaque modif est prévisualisée, annulable, togglable et exportable.

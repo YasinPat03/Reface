@@ -4,6 +4,8 @@ import type {
   DistillResult,
   Draft,
   DraftChange,
+  InvestigateCall,
+  InvestigateResult,
   PickResult,
   Probe,
   Recipe,
@@ -45,17 +47,34 @@ export interface ContentApi {
   /**
    * `focus` : éléments pointés, inclus avec leurs ancêtres et descendants. `probe` : composants
    * connus (skill de site) à vérifier sur la page. `count` : sélecteurs dont on veut le nombre
-   * d'éléments visés (règles déjà gardées).
+   * d'éléments visés (règles déjà gardées). `search` : mots de la demande à chercher sur la page
+   * (pré-recherche, sans appel au LLM).
    */
   distill: Def<
-    { include: string[]; focus: string | string[] | null; probe?: Probe[]; count?: string[] },
+    {
+      include: string[];
+      focus: string | string[] | null;
+      probe?: Probe[];
+      count?: string[];
+      search?: string[];
+    },
     DistillResult
   >;
   /**
    * Résout la recette, passe les garde-fous et applique la preview. `apply: false` : mesure
-   * seulement, la preview affichée reste celle d'avant (auto-correction, affinage).
+   * seulement, la preview affichée reste celle d'avant (auto-correction, affinage). `distillId` :
+   * distillation dont viennent les index ; si la page a été relue depuis, ils sont ignorés et
+   * seules les suggestions de sélecteurs servent.
    */
-  preparePreview: Def<{ recipe: Recipe; prompts: string[]; apply?: boolean }, Draft>;
+  preparePreview: Def<
+    { recipe: Recipe; prompts: string[]; apply?: boolean; distillId?: number },
+    Draft
+  >;
+  /** Outils d'examen (lecture seule) d'un tour de l'agent, en un seul aller-retour. */
+  investigate: Def<
+    { distillId: number; calls: InvestigateCall[] },
+    { stale: boolean; results: InvestigateResult[] }
+  >;
   /** Index de région (dernière distillation) de l'élément visé par chaque sélecteur, ou -1. */
   locate: Def<{ selectors: string[] }, Record<string, number>>;
   /** Cases cochées/décochées dans la preview : ne prévisualise que les changements `enabled`. */

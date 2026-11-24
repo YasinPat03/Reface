@@ -90,3 +90,38 @@ export function declineRefine(res: import('node:http').ServerResponse): void {
     .writeHead(400, { 'Content-Type': 'application/json' })
     .end('{"error":{"message":"refine not supported by this fake"}}');
 }
+
+/** Réponse d'un faux LLM qui demande des outils (format OpenAI `tool_calls`). */
+export function toolCallReply(
+  res: import('node:http').ServerResponse,
+  calls: { name: string; args: unknown }[],
+): void {
+  res.writeHead(200, { 'Content-Type': 'application/json' }).end(
+    JSON.stringify({
+      choices: [
+        {
+          message: {
+            role: 'assistant',
+            content: null,
+            tool_calls: calls.map((call, i) => ({
+              id: `call_${Date.now()}_${i}`,
+              type: 'function',
+              function: { name: call.name, arguments: JSON.stringify(call.args) },
+            })),
+          },
+        },
+      ],
+    }),
+  );
+}
+
+/** Contenu des messages `tool` d'une requête (résultats des outils déjà exécutés). */
+export function toolResults(raw: string): string[] {
+  try {
+    const messages =
+      (JSON.parse(raw) as { messages?: { role: string; content: unknown }[] }).messages ?? [];
+    return messages.filter((m) => m.role === 'tool').map((m) => String(m.content));
+  } catch {
+    return [];
+  }
+}

@@ -145,6 +145,8 @@ export interface DistillResult {
   components?: string;
   /** Nombre d'éléments visés par chaque sélecteur demandé dans `count` (règles déjà gardées). */
   probed?: Record<string, number>;
+  /** Éléments visibles qui portent les mots de la demande (pré-recherche), avec leurs [#n]. */
+  matches?: string;
   /** Pour chaque sélecteur demandé dans `include`, l'index de région de l'élément (ou -1). */
   included: Record<string, number>;
 }
@@ -203,4 +205,21 @@ export interface PickResult {
   /** Libellé lisible (tag#id · texte), affiché dans le panel. */
   label: string;
   fingerprint: Fingerprint;
+}
+
+/** Appel d'un outil d'examen de la page, exécuté par le content script (lecture seule). */
+export type InvestigateCall =
+  | {
+      tool: 'find_elements';
+      /** Mots de la page (texte, aria-label, alt…) ou sélecteurs CSS à tester. */
+      queries: string[];
+      /** Région [#n] dans laquelle chercher, -1 pour toute la page. */
+      within: number;
+    }
+  | { tool: 'inspect_regions'; regions: number[]; depth: number };
+
+/** Résultat d'un appel : texte pour le LLM, libellé court pour la progression du panel. */
+export interface InvestigateResult {
+  text: string;
+  label: string;
 }
