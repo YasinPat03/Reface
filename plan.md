@@ -119,7 +119,7 @@ On choisit au fur et à mesure. Chacune s'appuie sur le MVP sans le casser.
   - [x] Phase 1 : 9 skills de site (`src/skills/site/*.md` : YouTube, Wikipedia, HN, GitHub, Reddit, X, Stack Overflow, Google, Amazon), composants vérifiés sur la page vivante (`content/components.ts`), mémoire du site (règles gardées envoyées avec leurs sélecteurs), contrôle `tests/e2e/skills-check.ts`
   - [x] Phase 2 : client LLM capable d'appeler des outils (`completeTurn`, repli si le fournisseur refuse `tools`)
   - [x] Phase 3 : outils d’examen (`find_elements`, `inspect_regions`, `load_skill`), boucle agent (3 tours au plus), garde `distillId`, pré-recherche des mots de la demande
-  - [ ] Phase 4 : progression visible dans le panel
+  - [x] Phase 4 : progression visible dans le panel
   - [ ] Phase 5 : pré-étude à l'ouverture du panel (cache de 30 jours par site et section, désactivable)
   - [ ] Phase 6 : prompt système allégé, skills de technique
 - [ ] **A. Raccourcis vers pages enfouies** (F7/F8)

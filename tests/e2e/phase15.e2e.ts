@@ -73,6 +73,8 @@ async function llm(req: IncomingMessage, res: ServerResponse) {
       );
     case 'badge':
     case 'sponsored': {
+      // Le temps d'un vrai LLM : chaque étape reste affichée dans le panel (test 15.11).
+      if (mode === 'badge') await new Promise((ok) => setTimeout(ok, 600));
       if (!results.length)
         return toolCallReply(res, [
           {
@@ -354,6 +356,36 @@ await check('15.10 l’affinage visuel n’envoie pas d’outils', async () => {
   const refine = raws.findIndex((raw) => isRefineRequest(raw));
   assert(refine >= 0, 'pas de requête d’affinage');
   assert(!requests[refine]!.tools, 'l’affinage envoie des outils');
+  await reset();
+});
+
+await check('15.11 le panel montre ce que fait l’IA (recherche dans la page)', async () => {
+  mode = 'badge';
+  await panel.evaluate(() => {
+    const seen: string[] = [];
+    (window as unknown as { __progress: string[] }).__progress = seen;
+    new MutationObserver(() => {
+      const text = document.querySelector('[data-testid="progress"]')?.textContent;
+      if (text && seen.at(-1) !== text) seen.push(text);
+    }).observe(document.body, { subtree: true, childList: true, characterData: true });
+  });
+  await panel
+    .getByLabel('What do you want to change?')
+    .fill('Cache le petit insigne près du nom du site');
+  await panel.getByRole('button', { name: 'Preview' }).click();
+  await panel.getByRole('button', { name: 'Preparing preview…' }).waitFor({ timeout: 5000 });
+  await panel
+    .getByRole('button', { name: 'Preparing preview…' })
+    .waitFor({ state: 'detached', timeout: 20_000 });
+  const seen = await panel.evaluate(
+    () => (window as unknown as { __progress: string[] }).__progress,
+  );
+  assert(
+    seen.some((text) => text.startsWith('Searching the page for “Beta”')),
+    `étapes vues : ${JSON.stringify(seen)}`,
+  );
+  assert(seen.includes('Writing the change…'), `étapes vues : ${JSON.stringify(seen)}`);
+  assert((await shown('.pill')) === 0, 'le badge est encore visible');
   await reset();
 });
 

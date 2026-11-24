@@ -8,7 +8,7 @@ import { EyeSlashIcon } from '@phosphor-icons/react/dist/csr/EyeSlash';
 import { XIcon } from '@phosphor-icons/react/dist/csr/X';
 import { LockSimpleIcon } from '@phosphor-icons/react/dist/csr/LockSimple';
 import { WarningCircleIcon } from '@phosphor-icons/react/dist/csr/WarningCircle';
-import { callBg, callContent } from '../shared/messages';
+import { callBg, callContent, isProgressMessage } from '../shared/messages';
 import {
   MAX_PICKED_ELEMENTS,
   PICKER_PORT,
@@ -45,6 +45,20 @@ export function Chat({
   const selectionPort = useRef<chrome.runtime.Port | null>(null);
   const connectPicker = useRef<(() => chrome.runtime.Port) | null>(null);
   const draftTab = useRef<number | null>(null);
+  /**
+   * Dernière étape annoncée par le service worker pendant la génération (« Searching… »).
+   * L'écoute est permanente : les 1res étapes arrivent avant le rendu qui suit l'envoi.
+   */
+  const [progress, setProgress] = useState<string | null>(null);
+  const generating = useRef(false);
+  useEffect(() => {
+    const onMessage = (message: unknown) => {
+      if (generating.current && isProgressMessage(message) && message.payload.tabId === tab.id)
+        setProgress(message.payload.text);
+    };
+    chrome.runtime.onMessage.addListener(onMessage);
+    return () => chrome.runtime.onMessage.removeListener(onMessage);
+  }, [tab.id]);
   /** Affinage visuel en cours (le LLM regarde sa preview). Un nouveau numéro invalide l'ancien. */
   const [refining, setRefining] = useState(false);
   const refineRun = useRef(0);
@@ -164,6 +178,8 @@ export function Chat({
     setStatus('generating');
     setError(null);
     setNotice(null);
+    setProgress(null);
+    generating.current = true;
     try {
       const next = await callBg('generate', {
         tabId: tab.id,
@@ -184,6 +200,8 @@ export function Chat({
     } catch (e) {
       setError(errorMessage(e));
     } finally {
+      generating.current = false;
+      setProgress(null);
       setStatus('idle');
     }
   }
@@ -515,8 +533,8 @@ export function Chat({
           <ArrowRightIcon size={18} weight="regular" aria-hidden="true" />
         </button>
         {status === 'generating' && (
-          <p role="status" className="working-note">
-            Preparing your change. You’ll be able to check it before keeping it.
+          <p role="status" data-testid="progress" className="working-note">
+            {progress ?? 'Preparing your change. You’ll be able to check it before keeping it.'}
           </p>
         )}
       </form>

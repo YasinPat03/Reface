@@ -91,6 +91,33 @@ export interface ContentApi {
   healthCheck: Def<Record<string, never>, { checked: number; suspect: number }>;
 }
 
+/**
+ * Progression de la génération, diffusée par le service worker aux pages de l'extension (le
+ * panel l'affiche sous le bouton). Pas de réponse attendue ; aucun panel ouvert : ignoré.
+ */
+export interface ProgressMessage {
+  type: 'progress';
+  payload: { tabId: number; text: string };
+}
+
+export function isProgressMessage(message: unknown): message is ProgressMessage {
+  const m = message as Partial<ProgressMessage> | null;
+  return (
+    m?.type === 'progress' &&
+    typeof m.payload?.tabId === 'number' &&
+    typeof m.payload?.text === 'string'
+  );
+}
+
+export function reportProgress(tabId: number, text: string): void {
+  const message: ProgressMessage = { type: 'progress', payload: { tabId, text } };
+  try {
+    void chrome.runtime.sendMessage(message).catch(() => undefined);
+  } catch {
+    /* contexte d'extension invalidé : rien à signaler */
+  }
+}
+
 type Envelope<A> = {
   [K in keyof A]: { type: K; payload: A[K] extends Def<infer R, unknown> ? R : never };
 }[keyof A];

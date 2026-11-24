@@ -1,7 +1,7 @@
 // Boucle agent (PRD §3) : distillation → LLM → recette validée → preview ; Keep → règle.
 import { compileRule } from '../shared/compile';
 import { MAX_PICKED_ELEMENTS } from '../shared/picker';
-import { callContent } from '../shared/messages';
+import { callContent, reportProgress } from '../shared/messages';
 import { addRule, addRules, newRuleId } from '../shared/rules';
 import { parseRecipe, parseReview, refineJsonSchema, toWire } from '../shared/schema';
 import { sectionOf } from '../shared/section';
@@ -278,10 +278,15 @@ async function generateDraft(
   ];
   const host = new URL(tab.url ?? 'about:blank').hostname;
   const saved = (await getSiteRules(host)).rules;
+  const skill = siteSkill(host);
+  reportProgress(
+    tabId,
+    skill ? `Reading the page with the ${skill.name} guide…` : 'Reading the page…',
+  );
   const page = await callContent(tabId, 'distill', {
     include,
     focus,
-    probe: componentProbes(siteSkill(host), text),
+    probe: componentProbes(skill, text),
     count: saved.slice(-MAX_SAVED_RULES).flatMap(ruleSelectors),
     search: requestQueries(text),
   });
@@ -306,6 +311,7 @@ async function generateDraft(
   }
   const recipe = parseRecipe(answer.value);
   const prompts = [...(previous?.prompts ?? []), text];
+  reportProgress(tabId, 'Checking the result on the page…');
   // Mesurée sans être affichée : une v1 cassée ne s'affiche pas pendant l'auto-correction,
   // et la page n'est restylée qu'une fois, avec la version retenue.
   const measured = await callContent(tabId, 'preparePreview', {
@@ -324,6 +330,7 @@ async function generateDraft(
   if (!draft.layoutIssues?.length) return show(tabId, draft);
 
   // Auto-correction (une seule fois) : on renvoie au LLM ce que sa modif a cassé.
+  reportProgress(tabId, 'Fixing a problem found on the page…');
   const repairMessages: ChatMessage[] = [
     ...answer.messages,
     { role: 'assistant', content: JSON.stringify(toWire(recipe)) },
@@ -379,6 +386,7 @@ function askWith(
     messages: ChatMessage[],
     rounds: number,
   ): Promise<{ value: unknown; messages: ChatMessage[] }> => {
+    reportProgress(tabId, 'Writing the change…');
     if (rounds <= 0 || page.distillId === undefined) {
       return { value: await completeJson(settings, messages), messages };
     }
@@ -389,7 +397,9 @@ function askWith(
       {
         complete: (conversation, toolChoice) =>
           completeTurn(settings, conversation, { tools: specs, toolChoice }),
-        runTools: (calls) => executeToolCalls(tabId, host, distillId, calls),
+        // Le libellé de l'outil reste affiché pendant que le LLM lit son résultat.
+        runTools: (calls) =>
+          executeToolCalls(tabId, host, distillId, calls, (text) => reportProgress(tabId, text)),
         now: () => Date.now(),
       },
       {
