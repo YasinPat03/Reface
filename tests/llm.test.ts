@@ -1,5 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { completeJson, listModels, nextEffort, wellFormedMessages } from '../src/background/llm';
+import {
+  ToolsUnsupportedError,
+  completeJson,
+  completeTurn,
+  listModels,
+  nextEffort,
+  toolsSupported,
+  wellFormedMessages,
+  type ToolSpec,
+} from '../src/background/llm';
 
 const settings = { apiKey: 'sk-test', baseUrl: 'https://api.test/v1/', model: 'm' };
 const messages = [{ role: 'user' as const, content: 'x' }];
@@ -239,5 +248,139 @@ describe('listModels', () => {
       vi.fn().mockResolvedValue(reply(200, { data: [{ id: 'models/b' }, { id: 'a' }] })),
     );
     await expect(listModels(settings)).resolves.toEqual(['a', 'b']);
+  });
+});
+
+describe('completeTurn : outils (function calling)', () => {
+  const tools: ToolSpec[] = [
+    {
+      name: 'find_elements',
+      description: 'Search the page.',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['queries'],
+        properties: { queries: { type: 'array', items: { type: 'string' } } },
+      },
+    },
+  ];
+  const toolReply = (calls: { id: string; name: string; arguments: string }[]) =>
+    reply(200, {
+      choices: [
+        {
+          message: {
+            role: 'assistant',
+            content: null,
+            tool_calls: calls.map((c) => ({
+              id: c.id,
+              type: 'function',
+              function: { name: c.name, arguments: c.arguments },
+            })),
+          },
+        },
+      ],
+    });
+
+  it('envoie les outils en mode strict avec tool_choice, sans retirer response_format', async () => {
+    const fetch = vi.fn().mockResolvedValue(ok({ changes: [], explanation: '' }));
+    vi.stubGlobal('fetch', fetch);
+    const turn = await completeTurn({ ...settings, model: 't1' }, messages, {
+      tools,
+      toolChoice: 'none',
+    });
+    expect(turn).toEqual({ kind: 'answer', value: { changes: [], explanation: '' } });
+    const body = JSON.parse(fetch.mock.calls[0]![1].body);
+    expect(body.tools[0]).toEqual({ type: 'function', function: { ...tools[0], strict: true } });
+    expect(body.tool_choice).toBe('none');
+    expect(body.response_format.json_schema.strict).toBe(true);
+  });
+
+  it('lit les appels d’outils et renvoie le message de l’assistant à recopier', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          toolReply([{ id: 'c1', name: 'find_elements', arguments: '{"queries":["Beta"]}' }]),
+        ),
+    );
+    const turn = await completeTurn({ ...settings, model: 't2' }, messages, { tools });
+    expect(turn.kind).toBe('tools');
+    if (turn.kind !== 'tools') return;
+    expect(turn.calls).toEqual([
+      {
+        id: 'c1',
+        type: 'function',
+        function: { name: 'find_elements', arguments: '{"queries":["Beta"]}' },
+      },
+    ]);
+    expect(turn.message).toEqual({ role: 'assistant', content: null, tool_calls: turn.calls });
+  });
+
+  it('sans outils, pas de champ tools dans la requête', async () => {
+    const fetch = vi.fn().mockResolvedValue(ok({ a: 1 }));
+    vi.stubGlobal('fetch', fetch);
+    await completeJson(settings, messages);
+    const body = JSON.parse(fetch.mock.calls[0]![1].body);
+    expect(body.tools).toBeUndefined();
+    expect(body.tool_choice).toBeUndefined();
+  });
+
+  it('un 400 sur « tools » marque le modèle et lève ToolsUnsupportedError, sans retry', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValue(
+        reply(400, {
+          error: { message: 'tools is not supported with this model', param: 'tools' },
+        }),
+      );
+    vi.stubGlobal('fetch', fetch);
+    const model = { ...settings, model: 'no-tools-model' };
+    await expect(completeTurn(model, messages, { tools })).rejects.toBeInstanceOf(
+      ToolsUnsupportedError,
+    );
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(toolsSupported('no-tools-model')).toBe(false);
+    expect(toolsSupported('t1')).toBe(true);
+  });
+
+  it('un refus sans « param » mais qui parle d’outils est aussi reconnu', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          reply(400, { error: { message: 'Function calling is not enabled for this model' } }),
+        ),
+    );
+    await expect(
+      completeTurn({ ...settings, model: 'gemini-x' }, messages, { tools }),
+    ).rejects.toBeInstanceOf(ToolsUnsupportedError);
+  });
+
+  it('un 400 sur response_format n’est PAS un refus des outils', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        reply(400, {
+          error: { message: 'Invalid schema for response_format', param: 'response_format' },
+        }),
+      ),
+    );
+    const error = await completeTurn({ ...settings, model: 'schema-bug' }, messages, {
+      tools,
+    }).catch((e: unknown) => e);
+    expect(error).not.toBeInstanceOf(ToolsUnsupportedError);
+    expect(toolsSupported('schema-bug')).toBe(true);
+  });
+
+  it('wellFormedMessages accepte un assistant sans texte et nettoie les messages tool', () => {
+    const cut = '📚'.slice(0, 1);
+    const [assistant, tool] = wellFormedMessages([
+      { role: 'assistant', content: null, tool_calls: [] },
+      { role: 'tool', tool_call_id: 'c1', content: `titre ${cut}` },
+    ]);
+    expect(assistant).toEqual({ role: 'assistant', content: null, tool_calls: [] });
+    expect(tool).toEqual({ role: 'tool', tool_call_id: 'c1', content: 'titre \ufffd' });
   });
 });

@@ -1,4 +1,6 @@
 // Client LLM compatible OpenAI (BYOK) : structured output json_schema, timeout, un retry.
+// Outils (function calling) : la réponse finale reste le `content` au schéma strict ; un tour peut
+// à la place demander des outils (`tool_calls`). Un fournisseur qui refuse les outils est mémorisé.
 import { recipeJsonSchema } from '../shared/schema';
 import type { Settings } from '../shared/types';
 
@@ -15,6 +17,28 @@ export class LlmError extends Error {
   ) {
     super(message);
   }
+}
+
+/** Le fournisseur refuse les outils (function calling) : l'appelant repasse en un seul coup. */
+export class ToolsUnsupportedError extends LlmError {}
+
+/** Modèles qui ont refusé les outils (mémorisé pour ne plus les proposer). */
+const noTools = new Set<string>();
+
+export function toolsSupported(model: string): boolean {
+  return !noTools.has(model);
+}
+
+/** Un 400 qui vise les outils, et pas le schéma de réponse. */
+export function isToolsRefusal(error: LlmError): boolean {
+  if (error.rejectedParam)
+    return /^(?:tools|tool_choice|parallel_tool_calls|functions)\b/.test(error.rejectedParam);
+  const message = error.providerMessage;
+  return (
+    !!message &&
+    /\btools?\b|tool_choice|function.?call/i.test(message) &&
+    !/response_format|json_schema/i.test(message)
+  );
 }
 
 /** Paramètres optionnels qu'on retire automatiquement si un modèle les refuse. */
@@ -96,12 +120,44 @@ export type ContentPart =
   | { type: 'text'; text: string }
   | { type: 'image_url'; image_url: { url: string; detail?: 'low' | 'high' | 'auto' } };
 
-export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string | ContentPart[];
+/** Appel d'outil demandé par le modèle (format OpenAI). */
+export interface ToolCall {
+  id: string;
+  type: 'function';
+  function: { name: string; arguments: string };
 }
 
-type ResponseSchema = { name: string; schema: object };
+export type AssistantMessage = {
+  role: 'assistant';
+  content: string | null;
+  tool_calls?: ToolCall[];
+};
+
+export type ChatMessage =
+  | { role: 'system' | 'user'; content: string | ContentPart[] }
+  | AssistantMessage
+  | { role: 'tool'; tool_call_id: string; content: string };
+
+/** Outil proposé au modèle : `parameters` est un schéma JSON compatible avec le mode strict. */
+export interface ToolSpec {
+  name: string;
+  description: string;
+  parameters: object;
+}
+
+/** Un tour : soit la réponse finale (JSON au schéma), soit des appels d'outils. */
+export type Turn =
+  | { kind: 'answer'; value: unknown }
+  | { kind: 'tools'; message: AssistantMessage; calls: ToolCall[] };
+
+export type ResponseSchema = { name: string; schema: object };
+
+interface TurnOptions {
+  schema?: ResponseSchema;
+  tools?: ToolSpec[];
+  /** `none` : le modèle doit répondre (dernier tour, budget épuisé). */
+  toolChoice?: 'auto' | 'none';
+}
 
 /** Moitié isolée d'une paire de substitution UTF-16 (un emoji coupé en deux). */
 const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g;
@@ -114,15 +170,20 @@ const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[
  */
 export function wellFormedMessages(messages: ChatMessage[]): ChatMessage[] {
   const clean = (text: string) => text.replace(LONE_SURROGATE, '\ufffd');
-  return messages.map((message) => ({
-    ...message,
-    content:
-      typeof message.content === 'string'
-        ? clean(message.content)
-        : message.content.map((part) =>
-            part.type === 'text' ? { ...part, text: clean(part.text) } : part,
-          ),
-  }));
+  return messages.map((message): ChatMessage => {
+    if (message.role === 'tool') return { ...message, content: clean(message.content) };
+    if (message.role === 'assistant')
+      return { ...message, content: message.content === null ? null : clean(message.content) };
+    return {
+      ...message,
+      content:
+        typeof message.content === 'string'
+          ? clean(message.content)
+          : message.content.map((part) =>
+              part.type === 'text' ? { ...part, text: clean(part.text) } : part,
+            ),
+    };
+  });
 }
 
 /** GPT-6 : refuse temperature, accepte (selon le modèle) reasoning_effort. */
@@ -135,11 +196,13 @@ function effortParam(model: string): { reasoning_effort?: string } {
   return effort === null ? {} : { reasoning_effort: effort };
 }
 
+const RECIPE_SCHEMA: ResponseSchema = { name: 'recipe', schema: recipeJsonSchema };
+
 async function once(
   settings: Settings,
   messages: ChatMessage[],
-  responseSchema: ResponseSchema,
-): Promise<unknown> {
+  { schema: responseSchema = RECIPE_SCHEMA, tools, toolChoice = 'auto' }: TurnOptions,
+): Promise<Turn> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   let response: Response;
@@ -165,6 +228,15 @@ async function once(
           type: 'json_schema',
           json_schema: { ...responseSchema, strict: true },
         },
+        ...(tools?.length
+          ? {
+              tools: tools.map((tool) => ({
+                type: 'function',
+                function: { ...tool, strict: true },
+              })),
+              tool_choice: toolChoice,
+            }
+          : {}),
       }),
     });
   } catch (error) {
@@ -178,28 +250,65 @@ async function once(
   }
 
   const body = await response.text();
-  if (!response.ok) throw describeHttpError(response.status, body);
-  let content: unknown;
+  if (!response.ok) {
+    const error = describeHttpError(response.status, body);
+    if (tools?.length && response.status === 400 && isToolsRefusal(error)) {
+      noTools.add(settings.model);
+      throw new ToolsUnsupportedError(error.message, false, error.rejectedParam);
+    }
+    throw error;
+  }
   try {
     const data = JSON.parse(body) as {
-      choices?: { message?: { content?: string; refusal?: string } }[];
+      choices?: {
+        message?: { content?: string | null; refusal?: string; tool_calls?: ToolCall[] };
+      }[];
     };
     const message = data.choices?.[0]?.message;
     if (message?.refusal) throw new LlmError(`The model refused: ${message.refusal}`, false);
-    content = JSON.parse(message?.content ?? '');
+    const calls = (message?.tool_calls ?? []).filter(
+      (call) => call?.type === 'function' && typeof call.function?.name === 'string',
+    );
+    if (tools?.length && calls.length) {
+      const toolCalls = calls.map((call) => ({
+        id: String(call.id),
+        type: 'function' as const,
+        function: { name: call.function.name, arguments: String(call.function.arguments ?? '') },
+      }));
+      return {
+        kind: 'tools',
+        message: { role: 'assistant', content: message?.content ?? null, tool_calls: toolCalls },
+        calls: toolCalls,
+      };
+    }
+    return { kind: 'answer', value: JSON.parse(message?.content ?? '') };
   } catch (error) {
     if (error instanceof LlmError) throw error;
     throw new LlmError('Unreadable LLM response (invalid JSON).', true);
   }
-  return content;
 }
 
 /** Appelle le LLM, avec un seul retry sur les erreurs transitoires. */
 export async function completeJson(
   settings: Settings,
   messages: ChatMessage[],
-  responseSchema: ResponseSchema = { name: 'recipe', schema: recipeJsonSchema },
+  responseSchema: ResponseSchema = RECIPE_SCHEMA,
 ): Promise<unknown> {
+  const turn = await completeTurn(settings, messages, { schema: responseSchema });
+  if (turn.kind !== 'answer') throw new LlmError('Unreadable LLM response (invalid JSON).', true);
+  return turn.value;
+}
+
+/**
+ * Un tour de conversation, éventuellement avec des outils. Mêmes replis que `completeJson`
+ * (paramètres refusés, effort de raisonnement, un retry transitoire) ; un refus des outils lève
+ * `ToolsUnsupportedError`, mémorisé pour ce modèle.
+ */
+export async function completeTurn(
+  settings: Settings,
+  messages: ChatMessage[],
+  options: TurnOptions = {},
+): Promise<Turn> {
   if (!settings.apiKey.trim()) {
     throw new LlmError('No API key configured. Open Options to add one.', false);
   }
@@ -207,9 +316,9 @@ export async function completeJson(
   // Au plus : un retry transitoire, un par paramètre optionnel refusé, 3 replis d'effort.
   for (let attempt = 0; attempt < 5 + OPTIONAL_PARAMS.size; attempt++) {
     try {
-      return await once(settings, messages, responseSchema);
+      return await once(settings, messages, options);
     } catch (error) {
-      if (!(error instanceof LlmError)) throw error;
+      if (!(error instanceof LlmError) || error instanceof ToolsUnsupportedError) throw error;
       const param = error.rejectedParam;
       if (param === 'reasoning_effort' && isGpt6(settings.model)) {
         const current = effortByModel.has(settings.model)
