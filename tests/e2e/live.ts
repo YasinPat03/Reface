@@ -278,6 +278,8 @@ interface Call {
   cached?: number;
   in?: number;
   out?: number;
+  /** Erreur du fournisseur (statut, paramètre, message), jamais les en-têtes. */
+  error?: string;
 }
 
 /**
@@ -319,6 +321,7 @@ async function resetJournal(): Promise<void> {
             prompt_tokens_details?: { cached_tokens?: number };
           };
           choices?: { message?: { tool_calls?: { function?: { name?: string } }[] } }[];
+          error?: { message?: string; param?: string | null };
         } | null;
         g.__calls?.push({
           ms: Date.now() - t0,
@@ -330,6 +333,11 @@ async function resetJournal(): Promise<void> {
           cached: body?.usage?.prompt_tokens_details?.cached_tokens,
           in: body?.usage?.prompt_tokens,
           out: body?.usage?.completion_tokens,
+          ...(response.ok
+            ? {}
+            : {
+                error: `${response.status} ${body?.error?.param ?? ''} ${String(body?.error?.message ?? '').slice(0, 300)}`,
+              }),
         });
       }
       return response;
@@ -522,6 +530,7 @@ for (const s of SCENARIOS.filter((x) => !filter || x.name.includes(filter))) {
     const { ok, v1, total } = await runScenario(s);
     const calls = await journal();
     const rounds = calls.filter((c) => c.toolCalls.length).length;
+    for (const call of calls.filter((c) => c.error)) console.log(`    fournisseur : ${call.error}`);
     if (calls.length)
       console.log(
         `    appels LLM : ${calls.length} (${calls.map((c) => c.schema + (c.toolCalls.length ? `→${c.toolCalls.join('+')}` : '')).join(', ')})${rounds ? ` · ${rounds} tour(s) d'outils` : ''}`,

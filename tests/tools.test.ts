@@ -1,7 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ToolCall } from '../src/background/llm';
-import { MAX_RESULT_CHARS, executeToolCalls, toolSpecs } from '../src/background/tools';
-import { recipeJsonSchema, refineJsonSchema } from '../src/shared/schema';
+import {
+  MAX_RESULT_CHARS,
+  executeToolCalls,
+  jsonToolCalls,
+  toolSpecs,
+} from '../src/background/tools';
+import {
+  agentStepJsonSchema,
+  parseAgentStep,
+  recipeJsonSchema,
+  refineJsonSchema,
+} from '../src/shared/schema';
 import { requestQueries } from '../src/shared/requestWords';
 
 /** Mots-clés que les fournisseurs compatibles OpenAI refusent (ou ignorent) en mode strict. */
@@ -45,6 +55,7 @@ describe('schémas compatibles avec le mode strict', () => {
   it('outils, recette et affinage', () => {
     expect(strictProblems(recipeJsonSchema)).toEqual([]);
     expect(strictProblems(refineJsonSchema)).toEqual([]);
+    expect(strictProblems(agentStepJsonSchema)).toEqual([]);
     for (const spec of toolSpecs()) {
       expect(strictProblems(spec.parameters, spec.name)).toEqual([]);
       expect((spec.parameters as { type: string }).type).toBe('object');
@@ -180,5 +191,45 @@ describe('requestQueries (pré-recherche)', () => {
     ]);
     expect(requestQueries('Mets le titre principal en rouge')).toEqual(['principal', 'rouge']);
     expect(requestQueries('Mode sombre')).toEqual([]);
+  });
+});
+
+describe('outils dans la réponse JSON (fournisseurs sans outils natifs)', () => {
+  const call = { queries: [], within: -1, regions: [], depth: 1, skill: '' };
+  it('lit une étape : outils demandés, recette finale, ou recette nue', () => {
+    expect(
+      parseAgentStep({
+        understanding: 'u',
+        tool_calls: [{ ...call, name: 'find_elements', queries: ['Beta'] }],
+        recipe: null,
+      }),
+    ).toEqual({ kind: 'tools', calls: [{ ...call, name: 'find_elements', queries: ['Beta'] }] });
+    expect(
+      parseAgentStep({
+        understanding: 'u',
+        tool_calls: [],
+        recipe: { changes: [], explanation: 'e' },
+      }),
+    ).toEqual({ kind: 'answer', value: { understanding: 'u', changes: [], explanation: 'e' } });
+    expect(parseAgentStep({ changes: [], explanation: 'nue' })).toEqual({
+      kind: 'answer',
+      value: { changes: [], explanation: 'nue' },
+    });
+    expect(() => parseAgentStep({ tool_calls: [], recipe: null })).toThrow(/no recipe/);
+    expect(() => parseAgentStep({ tool_calls: [{ name: 'rm' }], recipe: null })).toThrow();
+  });
+
+  it('convertit les appels au format natif, avec les seuls arguments de chaque outil', () => {
+    expect(
+      jsonToolCalls([
+        { ...call, name: 'find_elements', queries: ['Beta'], within: 4 },
+        { ...call, name: 'inspect_regions', regions: [2], depth: 2 },
+        { ...call, name: 'load_skill', skill: 'hide' },
+      ]).map((c) => [c.function.name, JSON.parse(c.function.arguments)]),
+    ).toEqual([
+      ['find_elements', { queries: ['Beta'], within: 4 }],
+      ['inspect_regions', { regions: [2], depth: 2 }],
+      ['load_skill', { name: 'hide' }],
+    ]);
   });
 });

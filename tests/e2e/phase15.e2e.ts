@@ -19,12 +19,13 @@ import {
 
 interface Body {
   model: string;
+  response_format?: { json_schema?: { name?: string } };
   messages: { role: string; content: unknown }[];
   tools?: { function: { name: string } }[];
   tool_choice?: string;
 }
 
-type Mode = 'prematch' | 'badge' | 'sponsored' | 'inspect' | 'greedy' | 'repair';
+type Mode = 'prematch' | 'badge' | 'sponsored' | 'inspect' | 'greedy' | 'repair' | 'json';
 let mode: Mode = 'prematch';
 const requests: Body[] = [];
 const raws: string[] = [];
@@ -66,6 +67,27 @@ async function llm(req: IncomingMessage, res: ServerResponse) {
   const user = String(body.messages[1]!.content);
   const results = toolResults(raw);
   switch (mode) {
+    case 'json': {
+      // Fournisseur sans outils natifs : les appels passent dans la réponse JSON.
+      const schema = body.response_format?.json_schema?.name;
+      const back = body.messages
+        .filter((m) => m.role === 'user')
+        .map((m) => String(m.content))
+        .find((c) => c.startsWith('Tool results:'));
+      if (schema !== 'agent_step') return answer(res, recipe([]));
+      const call = { queries: ['Beta'], within: -1, regions: [], depth: 1, skill: '' };
+      return back
+        ? answer(res, {
+            understanding: 'u',
+            tool_calls: [],
+            recipe: recipe([hide(firstMatch(back))]),
+          })
+        : answer(res, {
+            understanding: 'u',
+            tool_calls: [{ name: 'find_elements', ...call }],
+            recipe: null,
+          });
+    }
     case 'prematch':
       return answer(
         res,
@@ -283,7 +305,7 @@ await check('15.6 un modèle gourmand en outils doit répondre au bout de 3 tour
   await reset();
 });
 
-await check('15.7 fournisseur sans outils : repli en un coup, mémorisé', async () => {
+await check('15.7 fournisseur sans outils natifs : repli mémorisé, sans outils natifs ensuite', async () => {
   await setModel('mock-notools');
   const draft = await generate('Hide the Beta badge', 'prematch');
   assert(requests.length === 2, `${requests.length} appels au lieu de 2`);
@@ -314,6 +336,28 @@ await check(
     await reset();
   },
 );
+
+await check('15.12 sans outils natifs, l’IA appelle les outils dans sa réponse JSON', async () => {
+  await setModel('mock-notools');
+  await generate('Cache le petit insigne près du nom du site', 'json');
+  const schemas = requests.map((r) => r.response_format?.json_schema?.name);
+  assert(
+    JSON.stringify(schemas) === JSON.stringify(['agent_step', 'agent_step']),
+    `schémas : ${schemas}`,
+  );
+  assert(
+    requests.every((r) => !r.tools),
+    'des outils natifs ont été envoyés',
+  );
+  const back = String(requests[1]!.messages.at(-1)!.content);
+  assert(
+    back.startsWith('Tool results:') && back.includes('<untrusted_tool_result'),
+    back.slice(0, 120),
+  );
+  assert((await shown('.pill')) === 0, 'le badge est encore visible');
+  await setModel('mock');
+  await reset();
+});
 
 await check('15.9 index d’une distillation périmée : seules les suggestions servent', async () => {
   const first = await content<{ distillId: number; regions: string }>('distill', {

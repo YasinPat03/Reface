@@ -306,6 +306,104 @@ export const refineJsonSchema = {
   },
 } as const;
 
+/** Noms des outils d'examen, aussi utilisables « en JSON » (fournisseurs sans outils natifs). */
+export const AGENT_TOOL_NAMES = ['find_elements', 'inspect_regions', 'load_skill'] as const;
+
+/**
+ * Une étape de l'agent quand le fournisseur refuse les outils natifs (ex. modèles à raisonnement
+ * sur /chat/completions) : les appels d'outils passent dans la réponse structurée elle-même.
+ * Soit `tool_calls` non vide et `recipe` null, soit `tool_calls` vide et la recette complète.
+ */
+export const agentStepJsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['understanding', 'tool_calls', 'recipe'],
+  properties: {
+    understanding: recipeJsonSchema.properties.understanding,
+    tool_calls: {
+      type: 'array',
+      description:
+        'Tools to run before answering (their results come back in the next message). [] when you answer with the recipe.',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['name', 'queries', 'within', 'regions', 'depth', 'skill'],
+        properties: {
+          name: { type: 'string', enum: [...AGENT_TOOL_NAMES] },
+          queries: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'find_elements: 1-4 queries in the page words, or selectors. [] otherwise.',
+          },
+          within: { type: 'integer', description: 'find_elements: region [#n] or -1.' },
+          regions: {
+            type: 'array',
+            items: { type: 'integer' },
+            description: 'inspect_regions: 1-3 region indexes. [] otherwise.',
+          },
+          depth: { type: 'integer', description: 'inspect_regions: 1 to 3.' },
+          skill: { type: 'string', description: 'load_skill: guide name. "" otherwise.' },
+        },
+      },
+    },
+    recipe: {
+      anyOf: [
+        { type: 'null' },
+        {
+          type: 'object',
+          additionalProperties: false,
+          required: ['changes', 'explanation'],
+          properties: {
+            changes: recipeJsonSchema.properties.changes,
+            explanation: recipeJsonSchema.properties.explanation,
+          },
+        },
+      ],
+      description: 'The complete recipe when you answer; null while you call tools.',
+    },
+  },
+} as const;
+
+const agentStep = z.object({
+  understanding: z.string().max(600).optional(),
+  tool_calls: z
+    .array(
+      z.object({
+        name: z.enum(AGENT_TOOL_NAMES),
+        queries: z.array(z.string()).default([]),
+        within: z.number().int().default(-1),
+        regions: z.array(z.number().int()).default([]),
+        depth: z.number().int().default(1),
+        skill: z.string().default(''),
+      }),
+    )
+    .max(6)
+    .default([]),
+  recipe: z.unknown().nullable().default(null),
+});
+
+export type AgentStepCall = z.infer<typeof agentStep>['tool_calls'][number];
+
+/**
+ * Lit une étape : la recette (réponse finale), ou les outils demandés. Une recette nue (sans
+ * enveloppe) est acceptée comme réponse finale.
+ */
+export function parseAgentStep(
+  raw: unknown,
+): { kind: 'answer'; value: unknown } | { kind: 'tools'; calls: AgentStepCall[] } {
+  if (raw && typeof raw === 'object' && 'changes' in raw) return { kind: 'answer', value: raw };
+  const step = agentStep.safeParse(raw);
+  if (!step.success) throw new Error('The AI response doesn’t match the expected format.');
+  if (step.data.recipe && typeof step.data.recipe === 'object')
+    return {
+      kind: 'answer',
+      value: { understanding: step.data.understanding, ...(step.data.recipe as object) },
+    };
+  if (step.data.tool_calls.length) return { kind: 'tools', calls: step.data.tool_calls };
+  throw new Error('The AI response doesn’t match the expected format (no recipe).');
+}
+
 /** Critique de l'affinage visuel (le reste de la réponse est une recette normale). */
 export function parseReview(raw: unknown): { defects: string[]; clean: boolean } {
   const review = (raw as { review?: { defects?: unknown; clean?: unknown } } | null)?.review;

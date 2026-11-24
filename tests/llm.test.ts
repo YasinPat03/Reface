@@ -327,13 +327,11 @@ describe('completeTurn : outils (function calling)', () => {
   });
 
   it('un 400 sur « tools » marque le modèle et lève ToolsUnsupportedError, sans retry', async () => {
-    const fetch = vi
-      .fn()
-      .mockResolvedValue(
-        reply(400, {
-          error: { message: 'tools is not supported with this model', param: 'tools' },
-        }),
-      );
+    const fetch = vi.fn().mockResolvedValue(
+      reply(400, {
+        error: { message: 'tools is not supported with this model', param: 'tools' },
+      }),
+    );
     vi.stubGlobal('fetch', fetch);
     const model = { ...settings, model: 'no-tools-model' };
     await expect(completeTurn(model, messages, { tools })).rejects.toBeInstanceOf(
@@ -356,6 +354,25 @@ describe('completeTurn : outils (function calling)', () => {
     await expect(
       completeTurn({ ...settings, model: 'gemini-x' }, messages, { tools }),
     ).rejects.toBeInstanceOf(ToolsUnsupportedError);
+  });
+
+  it('« Function tools with reasoning_effort are not supported » : outils refusés', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        reply(400, {
+          error: {
+            message:
+              "Function tools with reasoning_effort are not supported for gpt-6.2-astra in /v1/chat/completions. To use function tools, use /v1/responses or set reasoning_effort to 'none'.",
+            param: 'reasoning_effort',
+          },
+        }),
+      ),
+    );
+    await expect(
+      completeTurn({ ...settings, model: 'gpt-6.2-astra-test' }, messages, { tools }),
+    ).rejects.toBeInstanceOf(ToolsUnsupportedError);
+    expect(toolsSupported('gpt-6.2-astra-test')).toBe(false);
   });
 
   it('un 400 sur response_format n’est PAS un refus des outils', async () => {

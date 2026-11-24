@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { callContent } from '../shared/messages';
 import { sensitiveReason } from '../shared/sensitive';
 import { SKILLS, skillByName, skillCatalog, skillText } from '../shared/skills';
+import type { AgentStepCall } from '../shared/schema';
 import type { InvestigateCall } from '../shared/types';
 import type { ChatMessage, ToolCall, ToolSpec } from './llm';
 
@@ -202,4 +203,22 @@ export async function executeToolCalls(
           : `<untrusted_tool_result name="${name}">\n${text}\n</untrusted_tool_result>`,
     };
   });
+}
+
+/** Appels d'outils écrits dans la réponse JSON (mode sans outils natifs), au format natif. */
+export function jsonToolCalls(calls: AgentStepCall[]): ToolCall[] {
+  return calls.map((call, i) => ({
+    id: `json_${i}`,
+    type: 'function',
+    function: {
+      name: call.name,
+      arguments: JSON.stringify(
+        call.name === 'find_elements'
+          ? { queries: call.queries, within: call.within }
+          : call.name === 'inspect_regions'
+            ? { regions: call.regions, depth: call.depth }
+            : { name: call.skill },
+      ),
+    },
+  }));
 }

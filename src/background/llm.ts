@@ -29,11 +29,21 @@ export function toolsSupported(model: string): boolean {
   return !noTools.has(model);
 }
 
-/** Un 400 qui vise les outils, et pas le schéma de réponse. */
+/**
+ * Un 400 qui vise les outils, et pas le schéma de réponse. Certains modèles à raisonnement les
+ * refusent en nommant un autre paramètre (« Function tools with reasoning_effort are not
+ * supported … in /v1/chat/completions ») : le message fait foi.
+ */
 export function isToolsRefusal(error: LlmError): boolean {
+  const message = error.providerMessage;
+  if (
+    /function tools?\b[^.]{0,80}not supported|tools? (?:are|is) not supported|does(?: not|n't) support (?:function )?tools/i.test(
+      message,
+    )
+  )
+    return true;
   if (error.rejectedParam)
     return /^(?:tools|tool_choice|parallel_tool_calls|functions)\b/.test(error.rejectedParam);
-  const message = error.providerMessage;
   return (
     !!message &&
     /\btools?\b|tool_choice|function.?call/i.test(message) &&
@@ -304,6 +314,55 @@ export async function completeJson(
  * (paramètres refusés, effort de raisonnement, un retry transitoire) ; un refus des outils lève
  * `ToolsUnsupportedError`, mémorisé pour ce modèle.
  */
+/**
+ * Ce qu'on a appris des modèles (paramètres refusés, effort accepté, outils natifs refusés) est
+ * gardé dans chrome.storage.session : le service worker s'endort après ~30 s et oubliait tout,
+ * d'où 1 à 2 requêtes perdues (≈ 2 s) au début de chaque génération. Effacé au redémarrage du
+ * navigateur (un fournisseur peut changer d'avis).
+ */
+const QUIRKS_KEY = 'llm-quirks:v1';
+type Quirks = Record<string, { rejected?: string[]; effort?: string | null; noTools?: boolean }>;
+let quirksLoaded: Promise<void> | null = null;
+
+function sessionStore(): chrome.storage.StorageArea | null {
+  try {
+    return typeof chrome !== 'undefined' ? (chrome.storage?.session ?? null) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function readQuirks(store: chrome.storage.StorageArea): Promise<Quirks> {
+  const data = (await store.get(QUIRKS_KEY).catch(() => ({}))) as Record<string, unknown>;
+  return (data[QUIRKS_KEY] ?? {}) as Quirks;
+}
+
+function loadQuirks(): Promise<void> {
+  quirksLoaded ??= (async () => {
+    const store = sessionStore();
+    if (!store) return;
+    const quirks = await readQuirks(store);
+    for (const [model, q] of Object.entries(quirks)) {
+      if (q.rejected?.length && !rejected.has(model)) rejected.set(model, new Set(q.rejected));
+      if (q.effort !== undefined && !effortByModel.has(model)) effortByModel.set(model, q.effort);
+      if (q.noTools) noTools.add(model);
+    }
+  })();
+  return quirksLoaded;
+}
+
+async function saveQuirks(model: string): Promise<void> {
+  const store = sessionStore();
+  if (!store) return;
+  const all = await readQuirks(store);
+  all[model] = {
+    rejected: [...(rejected.get(model) ?? [])],
+    ...(effortByModel.has(model) ? { effort: effortByModel.get(model)! } : {}),
+    noTools: noTools.has(model),
+  };
+  await store.set({ [QUIRKS_KEY]: all }).catch(() => undefined);
+}
+
 export async function completeTurn(
   settings: Settings,
   messages: ChatMessage[],
@@ -312,6 +371,20 @@ export async function completeTurn(
   if (!settings.apiKey.trim()) {
     throw new LlmError('No API key configured. Open Options to add one.', false);
   }
+  await loadQuirks();
+  try {
+    return await completeTurnOnce(settings, messages, options);
+  } catch (error) {
+    if (error instanceof ToolsUnsupportedError) await saveQuirks(settings.model);
+    throw error;
+  }
+}
+
+async function completeTurnOnce(
+  settings: Settings,
+  messages: ChatMessage[],
+  options: TurnOptions,
+): Promise<Turn> {
   let transientRetryUsed = false;
   // Au plus : un retry transitoire, un par paramètre optionnel refusé, 3 replis d'effort.
   for (let attempt = 0; attempt < 5 + OPTIONAL_PARAMS.size; attempt++) {
@@ -326,12 +399,14 @@ export async function completeTurn(
           : 'none';
         if (current !== null) {
           effortByModel.set(settings.model, nextEffort(current, error.providerMessage));
+          void saveQuirks(settings.model);
           continue;
         }
       }
       const known = rejected.get(settings.model) ?? new Set<string>();
       if (param && OPTIONAL_PARAMS.has(param) && !known.has(param)) {
         rejected.set(settings.model, known.add(param));
+        void saveQuirks(settings.model);
         continue;
       }
       if (error.retryable && !transientRetryUsed) {
