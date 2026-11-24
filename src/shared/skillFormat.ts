@@ -127,14 +127,20 @@ export function matchesHost(skill: Skill, host: string): boolean {
 
 /** Minuscules, sans accents ni apostrophes typographiques : « Vidéos courtes » ~ « videos courtes ». */
 export function normalizeWords(text: string): string {
-  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[’`]/g, "'").toLowerCase();
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[’`]/g, "'")
+    .toLowerCase();
+}
+
+/** Motif d'un mot ou d'une expression, à tester sur un texte passé par `normalizeWords`. */
+export function wordPattern(alias: string): RegExp {
+  const needle = normalizeWords(alias).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?:^|[^\\p{L}\\p{N}])${needle}(?:e?s|x)?(?:$|[^\\p{L}\\p{N}])`, 'u');
 }
 
 /** Un alias est-il cité dans la demande (mot entier, accents ignorés, pluriel en s/x accepté) ? */
 export function mentions(prompt: string, alias: string): boolean {
-  const words = normalizeWords(prompt);
-  const needle = normalizeWords(alias).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`(?:^|[^\\p{L}\\p{N}])${needle}(?:e?s|x)?(?:$|[^\\p{L}\\p{N}])`, 'u').test(
-    words,
-  );
+  return wordPattern(alias).test(normalizeWords(prompt));
 }

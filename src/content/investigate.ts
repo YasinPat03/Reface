@@ -6,7 +6,7 @@
 // Confidentialité : jamais de valeurs de formulaire ni de texte éditable, textes expurgés,
 // éléments cachés donnés par leur sélecteur seulement.
 import { isSafeSelector } from '../shared/cssSafety';
-import { mentions, normalizeWords } from '../shared/skillFormat';
+import { normalizeWords, wordPattern } from '../shared/skillFormat';
 import type { InvestigateCall, InvestigateResult } from '../shared/types';
 import { anchorSignature, sizeConstraints } from './context';
 import {
@@ -60,16 +60,24 @@ function tokens(element: Element): string {
   return raw.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[-_]+/g, ' ');
 }
 
-/** Score d'une correspondance : attributs (3), texte propre (2), id/classes/balise (1), 0 sinon. */
-function score(element: Element, words: string[]): number {
-  const all = (haystack: string) => !!haystack && words.every((word) => mentions(haystack, word));
+/**
+ * Score d'une correspondance : attributs (3), texte propre (2), id/classes/balise (1), 0 sinon.
+ * À égalité, un texte qui EST la requête (« Shorts ») passe avant un texte qui la contient
+ * (« Top 10 #shorts of the week »), et un texte court avant un long.
+ */
+function score(element: Element, patterns: RegExp[], query: string): number {
+  const rank = (haystack: string, base: number) => {
+    if (!haystack) return 0;
+    const text = normalizeWords(haystack).trim();
+    if (!patterns.every((pattern) => pattern.test(text))) return 0;
+    const exact = text === query ? 0.5 : 0;
+    return base + exact + 0.3 / (1 + text.length / 20);
+  };
   for (const name of SEARCHED_ATTRIBUTES) {
-    const value = element.getAttribute(name);
-    if (value && all(value)) return 3;
+    const s = rank(element.getAttribute(name) ?? '', 3);
+    if (s) return s;
   }
-  if (all(ownText(element))) return 2;
-  if (all(tokens(element))) return 1;
-  return 0;
+  return rank(ownText(element), 2) || rank(tokens(element), 1);
 }
 
 /** Ancêtre « parlant » : balise custom, id stable, role, landmark, élément de liste répétée. */
@@ -123,7 +131,7 @@ function describeMatch(element: Element, rank: number): string {
   return lines.join('\n');
 }
 
-function findOne(query: string, root: Element, onlyFound = false): string {
+function findOne(query: string, root: Element, onlyFound = false, max = MAX_MATCHES): string {
   const label = JSON.stringify(redact(query).slice(0, 60));
   if (looksLikeSelector(query)) {
     if (!isSafeSelector(query)) return `${label}: selector refused.`;
@@ -144,6 +152,8 @@ function findOne(query: string, root: Element, onlyFound = false): string {
     .split(/\s+/)
     .filter((word) => word.length > 1);
   if (!words.length) return `${label}: empty query.`;
+  // Motifs compilés une fois par requête (la page peut compter des dizaines de milliers d'éléments).
+  const patterns = words.map(wordPattern);
   const matches: { element: Element; score: number }[] = [];
   let hidden = 0;
   const hiddenSelectors = new Set<string>();
@@ -159,7 +169,7 @@ function findOne(query: string, root: Element, onlyFound = false): string {
   for (let node = walker.nextNode(); node && scanned < MAX_SCANNED; node = walker.nextNode()) {
     scanned++;
     const element = node as Element;
-    const s = score(element, words);
+    const s = score(element, patterns, normalizeWords(query).trim());
     if (!s) continue;
     if (shown(element)) matches.push({ element, score: s });
     else {
@@ -173,7 +183,7 @@ function findOne(query: string, root: Element, onlyFound = false): string {
   for (const match of matches.sort((a, b) => b.score - a.score)) {
     if (kept.some((k) => k.element.contains(match.element) && k.score >= match.score)) continue;
     kept.push(match);
-    if (kept.length >= MAX_MATCHES) break;
+    if (kept.length >= max) break;
   }
   if (!kept.length) {
     if (onlyFound) return '';
@@ -203,8 +213,10 @@ export function requestMatches(queries: string[]): string {
   let size = 0;
   for (const query of queries) {
     if (looksLikeSelector(query)) continue;
-    const text = findOne(query, document.body, true);
-    if (!text || size + text.length > MAX_MATCHES_CHARS) continue;
+    const found = findOne(query, document.body, true, 3);
+    const room = Math.min(MAX_MATCHES_CHARS / queries.length, MAX_MATCHES_CHARS - size);
+    if (!found || room < 200) continue;
+    const text = found.length > room ? `${found.slice(0, room - 1)}…` : found;
     size += text.length;
     out.push(text);
   }
