@@ -106,8 +106,27 @@ export const DEFAULT_SETTINGS: Settings = {
   model: 'gpt-4o-mini',
 };
 
+/**
+ * Composant à chercher sur la page (skill de site, pré-étude) : le content script vérifie ses
+ * sélecteurs sur la page vivante et ne montre au LLM que ceux qui visent vraiment quelque chose.
+ */
+export interface Probe {
+  name: string;
+  /** Sélecteurs alternatifs, du plus au moins sûr. */
+  selectors: string[];
+  /** Élément répété (cartes, lignes) : à viser en entier (« all similar »). */
+  all: boolean;
+  /** Cité dans la demande (alias reconnu) : affiché en premier et signalé au LLM. */
+  asked: boolean;
+}
+
 /** Résultat de la distillation du DOM (PRD §5). */
 export interface DistillResult {
+  /**
+   * Numéro de la distillation (compteur du content script) : un index de région n'est valable
+   * que pour la distillation qui l'a produit (voir la garde de `preparePreview`).
+   */
+  distillId?: number;
   url: string;
   title: string;
   host: string;
@@ -122,6 +141,16 @@ export interface DistillResult {
   media: string;
   /** Surfaces, palette, listes répétées et rôles, avec des sélecteurs vérifiés (`content/design.ts`). */
   design?: string;
+  /** Composants du skill de site trouvés sur la page, avec sélecteurs vérifiés et [#n] (`content/components.ts`). */
+  components?: string;
+  /** Nombre d'éléments visés par chaque sélecteur demandé dans `count` (règles déjà gardées). */
+  probed?: Record<string, number>;
+  /** Éléments visibles qui portent les mots de la demande (pré-recherche), avec leurs [#n]. */
+  matches?: string;
+  /** Composants de la pré-étude trouvés sur la page (même format que `components`). */
+  siteMap?: string;
+  /** Composants de la pré-étude introuvables sur la page (beaucoup : l'étude est périmée). */
+  siteMapMissing?: number;
   /** Pour chaque sélecteur demandé dans `include`, l'index de région de l'élément (ou -1). */
   included: Record<string, number>;
 }
@@ -180,4 +209,21 @@ export interface PickResult {
   /** Libellé lisible (tag#id · texte), affiché dans le panel. */
   label: string;
   fingerprint: Fingerprint;
+}
+
+/** Appel d'un outil d'examen de la page, exécuté par le content script (lecture seule). */
+export type InvestigateCall =
+  | {
+      tool: 'find_elements';
+      /** Mots de la page (texte, aria-label, alt…) ou sélecteurs CSS à tester. */
+      queries: string[];
+      /** Région [#n] dans laquelle chercher, -1 pour toute la page. */
+      within: number;
+    }
+  | { tool: 'inspect_regions'; regions: number[]; depth: number };
+
+/** Résultat d'un appel : texte pour le LLM, libellé court pour la progression du panel. */
+export interface InvestigateResult {
+  text: string;
+  label: string;
 }

@@ -50,7 +50,7 @@ export function siteContext(): SiteContext {
 }
 
 /** Signature CSS « parlante » d'un ancêtre : élément custom, id stable ou classe stable. */
-function anchorSignature(element: Element): string | null {
+export function anchorSignature(element: Element): string | null {
   const tag = element.tagName.toLowerCase();
   if (tag.includes('-')) return tag;
   if (element.id && isStableId(element.id)) return `#${element.id}`;
@@ -77,7 +77,7 @@ function groupSelector(media: Element): string {
  * Contraintes de taille qui limitent un média : max-width, width fixe, flex… sur lui et ses
  * 4 premiers ancêtres. Sans elles, l'IA « agrandit » sans effet (ex. max-width:500px chez YouTube).
  */
-function sizeConstraints(media: Element): string {
+export function sizeConstraints(media: Element): string {
   const out: string[] = [];
   for (
     let e: Element | null = media, hops = 0;

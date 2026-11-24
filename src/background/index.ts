@@ -3,6 +3,7 @@ import { callContent, listen, type BgApi } from '../shared/messages';
 import { generate, keep, quickHide, refine } from './agent';
 import { listModels } from './llm';
 import { suggestAccessibility } from './accessibility';
+import { study } from './study';
 import { onInstalledOnboarding } from '../shared/onboarding';
 import './shortcutHotkey';
 
@@ -35,6 +36,7 @@ listen<BgApi>({
   },
   quickHide: ({ tabId, pick }) => quickHide(tabId, pick),
   suggestAccessibility: ({ description }) => suggestAccessibility(description),
+  study: ({ tabId }) => study(tabId),
   async testConnection(settings) {
     const models = await listModels(settings);
     return { models, modelFound: models.includes(settings.model) };

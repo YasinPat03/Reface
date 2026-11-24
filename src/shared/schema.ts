@@ -91,6 +91,8 @@ const wireChange = z.object({
 });
 
 export const wireRecipe = z.object({
+  /** Ce que la demande vise sur cette page, écrit AVANT les changements (le modèle répond sans raisonnement). */
+  understanding: z.string().max(600).optional(),
   changes: z.array(wireChange).max(12),
   explanation: z.string().max(600),
 });
@@ -231,8 +233,13 @@ const themeSchema = {
 export const recipeJsonSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['changes', 'explanation'],
+  required: ['understanding', 'changes', 'explanation'],
   properties: {
+    understanding: {
+      type: 'string',
+      description:
+        'Written first, one short sentence: what the user means on THIS page and which element(s) you will change, with their [#n] or verified selector (or what you could not find).',
+    },
     changes: {
       type: 'array',
       description:
@@ -298,6 +305,120 @@ export const refineJsonSchema = {
     explanation: recipeJsonSchema.properties.explanation,
   },
 } as const;
+
+/** Noms des outils d'examen, aussi utilisables « en JSON » (fournisseurs sans outils natifs). */
+export const AGENT_TOOL_NAMES = ['find_elements', 'inspect_regions', 'load_skill'] as const;
+
+/** Un appel d'outil écrit dans la réponse JSON : tous les champs, ceux d'un autre outil vides. */
+const stepCallSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['name', 'queries', 'within', 'regions', 'depth', 'skill'],
+  properties: {
+    name: { type: 'string', enum: [...AGENT_TOOL_NAMES] },
+    queries: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'find_elements: 1-4 queries in the page words, or selectors. [] otherwise.',
+    },
+    within: { type: 'integer', description: 'find_elements: region [#n] or -1.' },
+    regions: {
+      type: 'array',
+      items: { type: 'integer' },
+      description: 'inspect_regions: 1-3 region indexes. [] otherwise.',
+    },
+    depth: { type: 'integer', description: 'inspect_regions: 1 to 3.' },
+    skill: { type: 'string', description: 'load_skill: guide name. "" otherwise.' },
+  },
+} as const;
+
+/**
+ * Une étape de l'agent quand le fournisseur refuse les outils natifs (ex. modèles à raisonnement
+ * sur /chat/completions) : les appels d'outils passent dans la réponse structurée elle-même.
+ * Soit `tool_calls` non vide et la réponse (`key`) à null, soit `tool_calls` vide et la réponse.
+ */
+export function agentStepSchemaFor(
+  key: string,
+  answer: { properties: Record<string, unknown>; required: readonly string[] },
+  description: string,
+) {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: ['understanding', 'tool_calls', key],
+    properties: {
+      understanding: recipeJsonSchema.properties.understanding,
+      tool_calls: {
+        type: 'array',
+        description:
+          'Tools to run before answering (their results come back in the next message). [] when you answer.',
+        items: stepCallSchema,
+      },
+      [key]: {
+        anyOf: [
+          { type: 'null' },
+          {
+            type: 'object',
+            additionalProperties: false,
+            required: [...answer.required],
+            properties: answer.properties,
+          },
+        ],
+        description,
+      },
+    },
+  } as const;
+}
+
+export const agentStepJsonSchema = agentStepSchemaFor(
+  'recipe',
+  {
+    properties: {
+      changes: recipeJsonSchema.properties.changes,
+      explanation: recipeJsonSchema.properties.explanation,
+    },
+    required: ['changes', 'explanation'],
+  },
+  'The complete recipe when you answer; null while you call tools.',
+);
+
+const stepCall = z.object({
+  name: z.enum(AGENT_TOOL_NAMES),
+  queries: z.array(z.string()).default([]),
+  within: z.number().int().default(-1),
+  regions: z.array(z.number().int()).default([]),
+  depth: z.number().int().default(1),
+  skill: z.string().default(''),
+});
+
+export type AgentStepCall = z.infer<typeof stepCall>;
+export type AgentStep =
+  | { kind: 'answer'; value: unknown }
+  | { kind: 'tools'; calls: AgentStepCall[] };
+
+/**
+ * Lit une étape : la réponse finale (`key`), ou les outils demandés. Une réponse nue (sans
+ * enveloppe, reconnue par `bare`) est acceptée comme réponse finale.
+ */
+export function parseStep(raw: unknown, key: string, bare: (raw: object) => boolean): AgentStep {
+  if (raw && typeof raw === 'object' && bare(raw)) return { kind: 'answer', value: raw };
+  const step = z
+    .object({
+      understanding: z.string().max(600).optional(),
+      tool_calls: z.array(stepCall).max(6).default([]),
+    })
+    .safeParse(raw);
+  if (!step.success) throw new Error('The AI response doesn’t match the expected format.');
+  const answer = (raw as Record<string, unknown>)[key];
+  if (answer && typeof answer === 'object')
+    return { kind: 'answer', value: { understanding: step.data.understanding, ...answer } };
+  if (step.data.tool_calls.length) return { kind: 'tools', calls: step.data.tool_calls };
+  throw new Error('The AI response doesn’t match the expected format (no recipe).');
+}
+
+export function parseAgentStep(raw: unknown): AgentStep {
+  return parseStep(raw, 'recipe', (r) => 'changes' in r);
+}
 
 /** Critique de l'affinage visuel (le reste de la réponse est une recette normale). */
 export function parseReview(raw: unknown): { defects: string[]; clean: boolean } {

@@ -1,6 +1,17 @@
 // Contrat de messagerie typé : panel ↔ service worker ↔ content script.
 // Pour ajouter un message : une entrée dans BgApi ou ContentApi, puis un handler.
-import type { DistillResult, Draft, DraftChange, PickResult, Recipe, Settings } from './types';
+import type { StudiedRegion, StudyComponent } from './study';
+import type {
+  DistillResult,
+  Draft,
+  DraftChange,
+  InvestigateCall,
+  InvestigateResult,
+  PickResult,
+  Probe,
+  Recipe,
+  Settings,
+} from './types';
 
 interface Def<Req, Res> {
   req: Req;
@@ -27,6 +38,11 @@ export interface BgApi {
   /** Vérifie la clé et liste les modèles disponibles. */
   testConnection: Def<Settings, { models: string[]; modelFound: boolean }>;
   suggestAccessibility: Def<{ description: string }, { keys: string[] }>;
+  /**
+   * Pré-étude de la page en arrière-plan (ouverture du panel, changement de section) : rien si
+   * elle est désactivée, sensible, déjà étudiée depuis moins de 30 jours ou en cours.
+   */
+  study: Def<{ tabId: number }, { status: string }>;
   /** Cache l'élément pointé, sans LLM. */
   quickHide: Def<{ tabId: number; pick: PickResult }, { ruleId: string }>;
 }
@@ -34,13 +50,46 @@ export interface BgApi {
 /** Messages traités par le content script B (document_idle). */
 export interface ContentApi {
   ping: Def<Record<string, never>, { host: string }>;
-  /** `focus` : éléments pointés, inclus avec leurs ancêtres et descendants. */
-  distill: Def<{ include: string[]; focus: string | string[] | null }, DistillResult>;
+  /**
+   * `focus` : éléments pointés, inclus avec leurs ancêtres et descendants. `probe` : composants
+   * connus (skill de site) à vérifier sur la page. `count` : sélecteurs dont on veut le nombre
+   * d'éléments visés (règles déjà gardées). `search` : mots de la demande à chercher sur la page
+   * (pré-recherche, sans appel au LLM).
+   */
+  distill: Def<
+    {
+      include: string[];
+      focus: string | string[] | null;
+      probe?: Probe[];
+      /** Composants de la pré-étude du site, vérifiés comme ceux du skill. */
+      mapProbe?: Probe[];
+      count?: string[];
+      search?: string[];
+    },
+    DistillResult
+  >;
+  /** Attend que la page soit inactive (au plus `timeout` ms) avant un travail de fond. */
+  idle: Def<{ timeout: number }, null>;
+  /** Pré-étude : régions nommées par le LLM → sélecteurs vérifiés (null si la page a été relue). */
+  resolveStudy: Def<
+    { distillId: number; regions: StudiedRegion[] },
+    { stale: boolean; components: StudyComponent[] }
+  >;
   /**
    * Résout la recette, passe les garde-fous et applique la preview. `apply: false` : mesure
-   * seulement, la preview affichée reste celle d'avant (auto-correction, affinage).
+   * seulement, la preview affichée reste celle d'avant (auto-correction, affinage). `distillId` :
+   * distillation dont viennent les index ; si la page a été relue depuis, ils sont ignorés et
+   * seules les suggestions de sélecteurs servent.
    */
-  preparePreview: Def<{ recipe: Recipe; prompts: string[]; apply?: boolean }, Draft>;
+  preparePreview: Def<
+    { recipe: Recipe; prompts: string[]; apply?: boolean; distillId?: number },
+    Draft
+  >;
+  /** Outils d'examen (lecture seule) d'un tour de l'agent, en un seul aller-retour. */
+  investigate: Def<
+    { distillId: number; calls: InvestigateCall[] },
+    { stale: boolean; results: InvestigateResult[] }
+  >;
   /** Index de région (dernière distillation) de l'élément visé par chaque sélecteur, ou -1. */
   locate: Def<{ selectors: string[] }, Record<string, number>>;
   /** Cases cochées/décochées dans la preview : ne prévisualise que les changements `enabled`. */
@@ -55,6 +104,33 @@ export interface ContentApi {
   cancelPick: Def<Record<string, never>, null>;
   /** Lance le health check tout de suite (bouton « Vérifier », tests). */
   healthCheck: Def<Record<string, never>, { checked: number; suspect: number }>;
+}
+
+/**
+ * Progression de la génération, diffusée par le service worker aux pages de l'extension (le
+ * panel l'affiche sous le bouton). Pas de réponse attendue ; aucun panel ouvert : ignoré.
+ */
+export interface ProgressMessage {
+  type: 'progress';
+  payload: { tabId: number; text: string };
+}
+
+export function isProgressMessage(message: unknown): message is ProgressMessage {
+  const m = message as Partial<ProgressMessage> | null;
+  return (
+    m?.type === 'progress' &&
+    typeof m.payload?.tabId === 'number' &&
+    typeof m.payload?.text === 'string'
+  );
+}
+
+export function reportProgress(tabId: number, text: string): void {
+  const message: ProgressMessage = { type: 'progress', payload: { tabId, text } };
+  try {
+    void chrome.runtime.sendMessage(message).catch(() => undefined);
+  } catch {
+    /* contexte d'extension invalidé : rien à signaler */
+  }
 }
 
 type Envelope<A> = {

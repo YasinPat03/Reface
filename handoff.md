@@ -1,6 +1,6 @@
 # Handoff : état du projet Browser Paint
 
-Dernière mise à jour : 22 novembre 2026, sur la branche `fix/youtube-wikipedia` (non fusionnée), après la fusion dans `main` de `feat/design-quality`, `on-boarding` et `refactor/english`. Ce document complète [`PRD.md`](PRD.md) (la spec) et [`plan.md`](plan.md) (l'arbre de tâches). En cas de doute, le code et les tests font foi.
+Dernière mise à jour : 23 novembre 2026, sur la branche `feat/site-understanding` (non fusionnée, partie de `main` après la fusion de `fix/youtube-wikipedia`). Ce document complète [`PRD.md`](PRD.md) (la spec) et [`plan.md`](plan.md) (l'arbre de tâches). En cas de doute, le code et les tests font foi.
 
 ## 1. Où on en est
 
@@ -90,13 +90,22 @@ Dernière mise à jour : 22 novembre 2026, sur la branche `fix/youtube-wikipedia
       - barre Wikipédia : ~140 ms.
 
       Phase E2E 14, scénarios live `wiki-navbar` et `youtube-search-cards`.
+  14. Branche `feat/site-understanding` (**non fusionnée**), **compréhension du site**. Le diagnostic : le LLM ne voyait qu'un instantané figé (plan de 150 régions au plus, sans les petits éléments ni les éléments d'une liste au-delà du 2ᵉ) et devait répondre en un coup. Il devinait une classe, visait le mauvais élément ou ignorait la demande. Trois couches de compréhension :
+      - **Skills (connaissance écrite à l'avance)** : 9 fiches de site (`src/skills/site/*.md` : YouTube, Wikipedia, HN, GitHub, Reddit, X, Stack Overflow, Google, Amazon) et 6 fiches de technique (`src/skills/technique/*.md`). La prose du site va dans le prompt système ; ses composants (nom, alias FR/EN, sélecteurs) sont **vérifiés sur la page vivante** et reçoivent un `[#n]` (`<site_components>`). Les techniques sont injectées selon les mots de la demande, ou lues par l'outil `load_skill`. Contrôle sur les vrais sites : `node tests/e2e/skills-check.ts`.
+      - **Pré-étude (compréhension calculée à l'avance)** : à l'ouverture du panel et à chaque nouvelle section, l'IA étudie la page en arrière-plan (avec les outils) et nomme ses composants. On garde des sélecteurs vérifiés, 30 jours par site et section (`study:<host>:<section>`), revérifiés à chaque demande (`<untrusted_site_map>`). Désactivable dans Options (« Page study »).
+      - **Outils d'examen (à la demande)** : `find_elements` (texte, aria-label, alt, classes, ou sélecteur à tester), `inspect_regions` (enfants, mise en page, contraintes de taille), `load_skill`. Au plus 3 tours et 15 s, puis réponse forcée ; l'auto-correction a droit à 1 tour. Pré-recherche gratuite des mots de la demande avant le 1er appel (`<untrusted_request_matches>`).
+      - **Mémoire du site** : les règles gardées sont envoyées avec leurs sélecteurs et leur nombre sur la page.
+      - **Panel** : la dernière étape s'affiche sous le bouton (« Searching the page for “Shorts”… »).
+      - **Fournisseurs** : outils natifs si possible, sinon **outils dans la réponse JSON** (`agent_step`), sinon un seul coup. `gpt-6.2-astra` (le modèle de `.env.local` aujourd'hui) refuse les outils natifs sur `/chat/completions` dès qu'un `reasoning_effort` est présent, et refuse `none` : il passe par le mode JSON. Ce qui est appris des modèles est gardé dans `chrome.storage.session`.
+
+      Mesures live (`LIVE_REPEAT=3`, 22 scénarios, `gpt-6.2-astra`) : voir la section 5, point 15.
 - **Ce qui reste ouvert dans `plan.md` :**
   - 5.4 : refaire la répétition sur le réseau de la salle.
   - 5.6 : enregistrer la vidéo de secours.
   - Le backlog A à H. Deux éléments y sont déjà partiellement faits :
     - **B (classification de site) :** la table de domaines et la lecture de `og:type`/JSON-LD sont faites. Il manque l'appel LLM de repli et le cache.
     - **E (navigation SPA) :** l'injecteur suit déjà les changements de section. Il manque la relance du health check et des futures ops DOM.
-- **Le dernier test live** avec `gpt-6-luna` (branche `fix/youtube-wikipedia`) est à **10/11** (`node tests/e2e/live.ts`).
+- **Le dernier test live** avec `gpt-6-luna` (branche `fix/youtube-wikipedia`) était à **10/11** (`node tests/e2e/live.ts`). `.env.local` utilise maintenant `gpt-6.2-astra` (voir §5, points 15 et 19).
   - Sont stables : `wiki-navbar`, les 5 autres Wikipedia, HN et GitHub.
   - `youtube-search-cards` est passé 4 fois sur 5 ; l'échec non reproduit est arrivé avant le correctif du conteneur commun.
   - Restent instables :
@@ -136,6 +145,10 @@ Dernière mise à jour : 22 novembre 2026, sur la branche `fix/youtube-wikipedia
 | Palette de raccourcis     | Commande `open-shortcuts` (⌘⇧X), palette `content/shortcutPalette.ts` : `<dialog>` modal (`showModal`, au-dessus de tout le site), shadow root ouvert, événements `isTrusted` seulement. Les touches et clics s'arrêtent à l'hôte : les raccourcis du site ne se déclenchent pas. Lecture directe de `shortcuts:<host>`                                                                                                                                                                                                                                                                                                                                      | L'autre lettre libre avec Cmd+Maj dans Chrome et macOS. Le SW envoie juste « bascule » ; sans content script, badge « ✕ »                                                                                                                                                    |
 | Présentation              | Module isolé `src/panel/onboarding/` (surface `index.ts`), branché dans `App.tsx` par des attributs `data-tour` et `<Onboarding />`. Clé `onboarding:v1` (`src/shared/onboarding.ts`) : sans elle, la visite se joue ; elle est écrite à la fin ou quand on passe. `onInstalled` avec `reason === 'update'` l'écrit (les installations existantes ne voient pas la visite). Sans page web, le panneau montre un site fictif `exemple.com` (`DEMO_TAB`, id d'onglet valide mais inexistant : un id négatif fait lever `chrome.tabs.*`). Pendant la visite, `.app-shell` est `inert`                                                                           | Demande de l'utilisateur : une seule fois, au tout premier lancement. Le harnais E2E écrit la clé dans `launch()` ; `launch([], { onboarding: true })` la garde.                                                                                                             |
 | shadcn                    | **Pas de `shadcn init`** (il réécrirait `ui.css`) : `components.json`, alias `@/*` → `src/*` (tsconfig + Vite), `src/lib/utils.ts` (`cn`). Les composants des registres vont dans `src/components/ui/` ; un bloc `@theme inline` à la fin de `ui.css` relie leurs couleurs aux variables ReFace, et la variante `dark:` suit `data-appearance`. Après chaque `shadcn add`, relire le diff de `ui.css`                                                                                                                                                                                                                                                        | Animations des registres (Magic UI) sans casser le design existant.                                                                                                                                                                                                          |
+| Compréhension du site     | Trois sources, toutes vérifiées sur la page vivante avant d'être montrées au LLM : skills écrits à la main (`src/skills/**`, `shared/skills.ts`, `content/components.ts`), pré-étude en cache (`background/study.ts`, `shared/study.ts`) et outils d'examen en **lecture seule** (`background/tools.ts`, `content/investigate.ts`). Les éléments trouvés reçoivent un `[#n]` (`appendRegion`) : c'est toujours l'extension qui construit les sélecteurs | Le LLM ne voyait qu'un instantané figé et répondait en un coup : il devinait. Un skill périmé ou une étude périmée se dégradent proprement (composants absents jamais montrés)                                                                 |
+| Outils d'examen           | Réponse finale = `content` au schéma strict (pas d'outil « submit ») ; `tool_choice: auto`, puis `none` au dernier tour (3 tours, 15 s). Un seul message `investigate` par tour. Résultats encadrés par `<untrusted_tool_result>`, tronqués (2 500 / 6 000 caractères), jamais de valeur de champ ni de texte éditable. Modes `native` → `json` (`agent_step`) → `off`, refus mémorisés (`background/ask.ts`)                                                                                                         | Les faux LLM des E2E (réponse en `content`) suivent le chemin direct sans changement. Certains modèles à raisonnement refusent les outils natifs                                                                                     |
+| Index et distillations    | `DistillResult.distillId` : un index ne vaut que pour sa distillation. `preparePreview` reçoit `distillId` ; s'il est périmé, `regionIndex` est ignoré et seules les suggestions servent. La pré-étude ne distille jamais pendant une génération (`background/busy.ts`) et garde des sélecteurs, pas des index                                                                                                                                                                                                           | Une 2ᵉ distillation (pré-étude, autre génération) décalait tous les index                                                                                                                                                             |
+| Pré-étude                 | Lancée par le panel (ouverture, nouvelle section), jamais sur un site sensible, sans clé ou si `preStudy:v1` vaut `false`. Le harnais E2E la désactive par défaut (`launch([], { preStudy: true })` la garde)                                                                                                                                                                                                                                                                                                            | Choix de l'utilisateur : comprendre la page avant le prompt. Elle envoie le plan de la page sans demande de l'utilisateur, d'où l'option                                                                                              |
 | Messagerie                | Contrat typé `BgApi`/`ContentApi` dans `src/shared/messages.ts`. Les erreurs remontent en texte. Les erreurs Chrome bas niveau sont traduites (« reload the tab »)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Pour ajouter un message : une entrée dans le contrat, puis un handler.                                                                                                                                                                                                       |
 
 ## 3. Carte du code
@@ -149,15 +162,20 @@ Dernière mise à jour : 22 novembre 2026, sur la branche `fix/youtube-wikipedia
   - `layoutCheck.ts` : le garde-fou de mise en page ;
   - `design.ts` : l'instantané « design » (surfaces, palette, listes, rôles) ;
   - `menus.ts` : les menus repliés (section de l'instantané, barre calculée pour `menuBar`) ;
+  - `components.ts` : composants des skills et de la pré-étude vérifiés sur la page, résolution de l'étude en sélecteurs ;
+  - `investigate.ts` : outils `find_elements` et `inspect_regions`, pré-recherche des mots de la demande ;
   - `qualityCheck.ts` : sélecteurs morts, masquage abusif, changement sans effet, contraste (par classe, teinte conservée) et surfaces ;
   - `picker.ts`, `health.ts` ;
   - `shortcutOverlay.ts` : la pastille d'enregistrement d'un raccourci ;
   - `shortcutPalette.ts` : la palette ⌘⇧X des raccourcis du site.
 - `src/background/` contient le service worker :
   - `agent.ts` : prompt système, `generate` (avec auto-correction), `keep`, `quickHide` ;
-  - `llm.ts` : fetch, timeout de 15 s, retries, paramètres refusés ;
+  - `llm.ts` : fetch, timeout de 15 s, retries, paramètres refusés, tours avec outils (`completeTurn`), refus mémorisés en `storage.session` ;
+  - `ask.ts` : modes d'outils (natif, JSON, un coup) et leurs replis ; `loop.ts` : la boucle de tours ; `tools.ts` : spécifications et exécution des outils ;
+  - `study.ts` : la pré-étude ; `busy.ts` : onglets dont une génération est en cours ;
   - `shortcutHotkey.ts` : les touches ⌘⇧E et ⌘⇧X, le badge « REC » et les messages de la pastille.
-- `src/shared/` est utilisé partout : types, schéma, compilateur, sécurité, stockage, règles, sections, contexte de site, sites sensibles.
+- `src/shared/` est utilisé partout : types, schéma, compilateur, sécurité, stockage, règles, sections, contexte de site, sites sensibles. Aussi : `skillFormat.ts` (lecture des fiches, pur), `skills.ts` (choix des fiches, SW seulement), `study.ts` (pré-étude, pur), `requestWords.ts` (mots de la demande à pré-chercher).
+- `src/skills/site/*.md` et `src/skills/technique/*.md` : les fiches (format en tête de `shared/skillFormat.ts`). Après une modification : `npx vitest run tests/skills.test.ts`, puis `node tests/e2e/skills-check.ts <site>`.
 - `src/panel/` (React) contient `App` (contrôles et onglets), `Chat`, `Rules`, `tab.ts`, le module `shortcuts/` (onglet « Raccourcis » et barre d'enregistrement) et le module `onboarding/` (`Intro`, `Tour`, `TourCursor`, `TourBubble`, `steps.ts` pour les textes, `placement.ts` pour la position de la bulle). Le paramètre `?tabId=N` ouvre le panel dans un onglet, pour le debug et l'E2E.
 - `src/components/ui/` contient les composants Magic UI (`text-animate`, `blur-fade`, `typing-animation`, `border-beam`), ajoutés avec `npx shadcn@latest add https://magicui.design/r/<nom>.json`.
 
@@ -166,8 +184,12 @@ Dernière mise à jour : 22 novembre 2026, sur la branche `fix/youtube-wikipedia
 ```bash
 npm run build                 # typecheck + build → dist/ (à charger dans chrome://extensions)
 npm run lint && npm test      # ESLint + 144 tests unitaires (Vitest)
-npm run test:e2e              # build + Playwright/Chromium + faux LLM, phases 1 à 14 (14 = menus repliés et pages à composants façon YouTube), phase 3 instable (voir §5) (6 = changements séparés, 7 = raccourcis, 8 = touche ⌘⇧E, 9 = palette ⌘⇧X, 10 = qualité du design, 11 = thème par jetons, 12 = affinage visuel, 13 = présentation)
-node tests/e2e/live.ts [filtre]   # VRAI LLM, pilote l'UI réelle, captures dans .live-shots/
+npm run test:e2e              # build + Playwright/Chromium + faux LLM, phases 1 à 16 (15 = outils d'examen, 16 = pré-étude ; 14 = menus repliés et pages à composants façon YouTube), phase 3 instable (voir §5) (6 = changements séparés, 7 = raccourcis, 8 = touche ⌘⇧E, 9 = palette ⌘⇧X, 10 = qualité du design, 11 = thème par jetons, 12 = affinage visuel, 13 = présentation)
+node tests/e2e/live.ts [filtre] [--baseline]   # VRAI LLM, pilote l'UI réelle, captures et résumé dans .live-shots/
+LIVE_REPEAT=3 node tests/e2e/live.ts           # chaque scénario 3 fois : réussites k/N, latences médianes, comparées à live-baseline.json
+LIVE_STUDY=1 node tests/e2e/live.ts            # pré-étude active, attendue avant la 1re demande
+BP_DIST=<dossier> node tests/e2e/live.ts       # mesurer un autre build (référence figée pendant qu'on modifie dist/)
+node tests/e2e/skills-check.ts [site]          # composants des skills de site sur les vrais sites (sans LLM)
 node tests/e2e/design-bench.ts [filtre] [--baseline]   # VRAI LLM : qualité du design (latence, sélecteurs morts, contraste, surfaces), comparée à la référence
 node tests/e2e/demo-sites.ts      # sites de démo réels, sans LLM
 node tests/e2e/jank.ts [filtre]   # sans LLM : durée de distill/preview et gel de frame sur YouTube et Wikipedia (captures .live-shots/jank-*)
@@ -195,6 +217,18 @@ node tests/e2e/distill-real.ts    # taille et durée de la distillation
 12. **`npm run test:e2e` s'arrête à la 1re phase en échec**, dans l'ordre alphabétique (`phase1`, `phase10` à `phase13`, `phase2`, `phase3`…). Quand la phase 3 échoue, les phases 4 à 9 ne tournent pas : pour tout voir, lancer chaque `node tests/e2e/phaseN.e2e.ts` après `npm run build`.
 13. **Gel restant pendant la preview** : une preview reste une tâche synchrone de 150 à 360 ms sur les pages mesurées (YouTube déconnecté et allégé, Wikipedia ; YouTube connecté est plus lourd et n'a pas été mesuré). Le découpage en tranches (rendre la main au navigateur entre les mesures) n'est pas fait : les mesures « avant » et « après » seraient prises de part et d'autre d'une frame où YouTube peut re-rendre ses cartes, d'où de fausses alertes. Il faudrait d'abord ignorer les éléments détachés entre-temps.
 14. **Langue des réponses** : malgré la consigne, `gpt-6-luna` (sans raisonnement) répond parfois dans une autre langue, par exemple en portugais pour « Mode sombre » ou dans la langue des titres visibles. L'affinage est ancré sur l'explication de la v1, pas la génération.
+
+15. **Compréhension du site, mesures** (`gpt-6.2-astra`, vrai LLM, mêmes 22 scénarios, dont 11 « hors du plan ») :
+    - **Référence** (build de `main`, `LIVE_REPEAT=3`) : **54/66** passages (82 %). Échecs : `wiki-edit-links` 0/3 (seul « modifier » caché, pas tout `.mw-editsection`), `hn-domains` 0/3 (« à côté des titres » compris comme « déplacer »), `github-topics` 2/3 (sélecteur `a[href^="https://…"]` inventé, refusé par `cssSafety`), `youtube-watch-images` 0/3, `youtube-search-images` 1/3.
+    - **Branche** (`LIVE_REPEAT=2`) : **41/44** (93 %). `wiki-edit-links`, `hn-domains` et `github-topics` passent à chaque fois. Restent les deux scénarios d'images YouTube, instables avant le chantier (point 2).
+    - **Outils** : sur ces scénarios, le modèle n'a appelé aucun outil. Les gains viennent des composants vérifiés des skills, de la pré-recherche et de la mémoire du site. Les outils servent quand la cible n'est trouvée nulle part (phase E2E 15) ; ils restent à éprouver en live sur un site sans skill.
+    - **Latence de la v1** : environ +1 s en médiane (banc de design : 6,1 → 7,3 s ; `live.ts` : de −1 à +3 s selon le scénario). Prompts plus longs et schéma « étape » du mode JSON.
+    - **Qualité du design** (`design-bench.ts`, 17 prompts) : aucune régression (sélecteurs morts 3 → 2, contraste 0, surfaces claires 0, hiérarchie 1 → 1, articles déchirés 0).
+    - **Pré-étude** (`LIVE_STUDY=1`) : 10 à 12 composants en 9 à 18 s sur YouTube. `youtube-watch-comments` a échoué deux fois au rechargement dans la série complète (règles gardées par le scénario précédent dans le même profil), mais il passe 2/2 seul, étude active.
+16. **Échecs E2E déjà présents sur `main`** (vérifiés sur un build de `main`) : 5.3 (« page sans content script » : depuis l'injection automatique du content script, le message est « Chrome doesn’t allow extensions to modify this page ») et 13.x (minutage de la présentation, instable).
+17. **Injecteur à 5,1 KB** (et non plus 1,35 KB) dès `main` : la cible de 2 KB n'est plus tenue depuis l'accessibilité et le Catalogue. Pas touché par ce chantier.
+18. **Skills non vérifiables automatiquement** : X (mur de connexion : seuls `main` et `aside` existent déconnecté), Google (captcha) et parfois Stack Overflow (Cloudflare). Leurs composants absents ne sont jamais montrés au LLM.
+19. **Latence avec `gpt-6.2-astra`** : raisonnement `low` imposé, outils en JSON ; une demande qui demande un tour d'examen ajoute 3 à 5 s. L'affinage visuel (capture) prend souvent 20 à 30 s avec ce modèle.
 
 ## 6. Conventions de travail (demandées par l'utilisateur)
 

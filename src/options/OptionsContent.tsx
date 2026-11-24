@@ -6,6 +6,7 @@ import { resetOnboarding } from '../shared/onboarding';
 import { getSettings, setSettings } from '../shared/storage';
 import type { Settings } from '../shared/types';
 import { AccessibilitySettings } from './AccessibilitySettings';
+import { StudySettings } from './StudySettings';
 
 /** Fournisseurs compatibles OpenAI. Les noms de modèles évoluent : « Tester » liste ceux disponibles. */
 const PROVIDERS = [
@@ -196,6 +197,7 @@ export function OptionsContent({ onReplayOnboarding }: { onReplayOnboarding?: ()
           </p>
         )}
       </form>
+      <StudySettings />
       <section className="settings-section" aria-label="Tour">
         <h2>Tour</h2>
         <p className="field-help">Replay the guided tour of the panel, area by area.</p>

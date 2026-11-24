@@ -2,7 +2,7 @@
 import { compileRule } from '../shared/compile';
 import { cssViolation, isAllowedProperty, isSafeSelector } from '../shared/cssSafety';
 import type { Draft, DraftChange, Recipe, RecipeChange, Target } from '../shared/types';
-import { regionAt } from './distill';
+import { currentDistillId, regionAt } from './distill';
 import { compileTheme, type RoleMap } from '../shared/theme';
 import { roleMap } from './design';
 import { menuBarCss } from './menus';
@@ -83,6 +83,7 @@ export function normalizeFreeCss(css: string, warnings: string[]): string {
 export function resolveTargets(
   change: Pick<RecipeChange, 'targets' | 'ops'>,
   warnings: string[],
+  trustIndexes = true,
 ): Record<string, Target> {
   const targets: Record<string, Target> = {};
   // Une cible qu'aucune opération n'utilise ne produit rien : ni résolution, ni avertissement.
@@ -96,7 +97,8 @@ export function resolveTargets(
   };
   for (const [key, ref] of Object.entries(change.targets)) {
     if (!used.has(key)) continue;
-    const element = regionAt(ref.regionIndex);
+    // Index d'une distillation antérieure : il désignerait un autre élément.
+    const element = trustIndexes ? regionAt(ref.regionIndex) : undefined;
     if (element) {
       // Toute une liste répétée : un sélecteur de groupe d'abord, puis les suggestions du LLM qui
       // visent plusieurs éléments (la région est souvent le conteneur de la liste), puis l'exemplaire.
@@ -169,9 +171,10 @@ function resolveChange(
   change: RecipeChange,
   roles: RoleMap,
   warnings: string[],
+  trustIndexes = true,
 ): DraftChange | null {
   const local: string[] = [];
-  const targets = resolveTargets(change, local);
+  const targets = resolveTargets(change, local, trustIndexes);
   const ops = change.ops.filter((op) => !op.target || op.target in targets);
   const css = normalizeFreeCss(change.css, local);
   // Thème : les jetons du LLM sont appliqués aux rôles de la page d'origine (sans nos styles).
@@ -388,13 +391,20 @@ function intendedlyHidden(changes: DraftChange[]): (element: Element) => boolean
  * Construit le brouillon complet et l'applique en preview. `apply: false` : la preview affichée
  * avant reste en place (tout est synchrone, la version mesurée n'est jamais peinte).
  */
-export function prepareDraft(recipe: Recipe, prompts: string[], apply = true): Draft {
+export function prepareDraft(
+  recipe: Recipe,
+  prompts: string[],
+  apply = true,
+  distillId?: number,
+): Draft {
   const shown = document.getElementById(PREVIEW_ID)?.textContent ?? null;
   const warnings: string[] = [];
+  // Sans numéro (anciens appelants), les index sont crus ; sinon, seulement s'ils sont à jour.
+  const trustIndexes = distillId === undefined || distillId === currentDistillId();
   // Rôles de la page d'origine (sans nos styles), calculés une fois pour toute la preview.
   const roles = withoutOurStyles(() => roleMap());
   const changes = recipe.changes
-    .map((change) => resolveChange(change, roles, warnings))
+    .map((change) => resolveChange(change, roles, warnings, trustIndexes))
     .filter((c): c is DraftChange => !!c);
   const {
     issues: qualityIssues,

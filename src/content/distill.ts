@@ -1,6 +1,7 @@
 // Distillation du DOM (PRD §5) : une ligne par grande région, ~2k tokens max.
 // Jamais de valeurs de formulaire ; emails et longues suites de chiffres expurgés.
-import type { DistillResult } from '../shared/types';
+import type { DistillResult, Probe } from '../shared/types';
+import { componentReport, describeComponents } from './components';
 import { mediaInventory, siteContext } from './context';
 import { designSnapshot } from './design';
 import { isStableId, repeatSignature, stableClasses } from './selectors';
@@ -9,7 +10,7 @@ const MAX_REGIONS = 150;
 /** Budget de caractères pour les lignes de régions (~2,5k tokens). */
 const CHAR_BUDGET = 10_000;
 const MAX_FOCUS_DESCENDANTS = 30;
-const SKIP = new Set([
+export const SKIP = new Set([
   'SCRIPT',
   'STYLE',
   'SVG',
@@ -22,8 +23,16 @@ const SKIP = new Set([
   'HR',
   'svg',
 ]);
-const FORM_TEXT = new Set(['TEXTAREA', 'SELECT', 'INPUT', 'OPTION', 'SCRIPT', 'STYLE', 'NOSCRIPT']);
-const LANDMARKS = new Set(['HEADER', 'NAV', 'MAIN', 'ASIDE', 'FOOTER', 'DIALOG']);
+export const FORM_TEXT = new Set([
+  'TEXTAREA',
+  'SELECT',
+  'INPUT',
+  'OPTION',
+  'SCRIPT',
+  'STYLE',
+  'NOSCRIPT',
+]);
+export const LANDMARKS = new Set(['HEADER', 'NAV', 'MAIN', 'ASIDE', 'FOOTER', 'DIALOG']);
 /** Conteneurs sémantiques fréquents (souvent très nombreux) : bonus plus faible. */
 const SECTIONING = new Set(['ARTICLE', 'SECTION', 'FORM', 'TABLE', 'FIGURE']);
 /** En dessous de cette fraction de l'écran, un élément non structurant est du bruit (pastilles, icônes). */
@@ -34,9 +43,31 @@ const REPEAT_MIN = 4;
 
 /** Éléments de la dernière distillation : regionIndex → Element. */
 let regions: Element[] = [];
+/** Numéro de la dernière distillation : les index ne valent que pour elle. */
+let distillId = 0;
+/** Régions ajoutées après le plan (composants, outils d'examen) : plafonnées. */
+let appended = 0;
+const MAX_APPENDED = 200;
 
 export function regionAt(index: number): Element | undefined {
   return index >= 0 ? regions[index] : undefined;
+}
+
+export function currentDistillId(): number {
+  return distillId;
+}
+
+/**
+ * Donne un index de région à un élément absent du plan (composant vérifié, résultat d'un outil),
+ * pour que le LLM puisse le viser par `regionIndex` comme les autres. -1 au-delà du plafond.
+ */
+export function appendRegion(element: Element): number {
+  const known = regions.indexOf(element);
+  if (known >= 0) return known;
+  if (appended >= MAX_APPENDED) return -1;
+  appended++;
+  regions.push(element);
+  return regions.length - 1;
 }
 
 /** Index de région (dernière distillation) de l'élément visé par chaque sélecteur, ou -1. */
@@ -58,12 +89,17 @@ export function redact(text: string): string {
   return text.replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '[email]').replace(/\d[\d\s-]{3,}\d/g, '#');
 }
 
-/** Texte visible court, sans le contenu des champs de formulaire. */
+/** Texte saisi par l'utilisateur : champs de formulaire et zones éditables (jamais envoyés). */
+export function isUserInput(element: Element): boolean {
+  return FORM_TEXT.has(element.tagName) || (element as HTMLElement).isContentEditable === true;
+}
+
+/** Texte visible court, sans le contenu des champs de formulaire ni des zones éditables. */
 export function textSample(element: Element, max = 60): string {
   const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       for (let p = node.parentElement; p && p !== element.parentElement; p = p.parentElement) {
-        if (FORM_TEXT.has(p.tagName)) return NodeFilter.FILTER_REJECT;
+        if (isUserInput(p)) return NodeFilter.FILTER_REJECT;
       }
       return NodeFilter.FILTER_ACCEPT;
     },
@@ -84,7 +120,7 @@ function ownBackground(element: Element): boolean {
   return !element.parentElement || getComputedStyle(element.parentElement).backgroundColor !== own;
 }
 
-function isVisible(element: Element, rect: DOMRect): boolean {
+export function isVisible(element: Element, rect: DOMRect): boolean {
   if (rect.width < 2 || rect.height < 2) return false;
   if (typeof element.checkVisibility === 'function') {
     return element.checkVisibility({ opacityProperty: true, visibilityProperty: true });
@@ -113,7 +149,7 @@ function shownClasses(element: Element): string {
 
 /** Rang d'un élément parmi ses frères de même signature (balise + classes stables). */
 let repeatCache = new WeakMap<Element, { rank: number; total: number }>();
-function repeatInfo(element: Element): { rank: number; total: number } {
+export function repeatInfo(element: Element): { rank: number; total: number } {
   const cached = repeatCache.get(element);
   if (cached) return cached;
   const parent = element.parentElement;
@@ -132,7 +168,7 @@ function repeatInfo(element: Element): { rank: number; total: number } {
   return repeatCache.get(element) ?? { rank: 0, total: 1 };
 }
 
-function describe(element: Element, index: number, rect: DOMRect, depth: number): string {
+export function describe(element: Element, index: number, rect: DOMRect, depth: number): string {
   const vw = window.innerWidth || 1;
   const vh = window.innerHeight || 1;
   const tag = element.tagName.toLowerCase();
@@ -160,7 +196,7 @@ function describe(element: Element, index: number, rect: DOMRect, depth: number)
 }
 
 /** Même boîte à 2 px près. */
-function sameBox(a: DOMRect, b: DOMRect | undefined): boolean {
+export function sameBox(a: DOMRect, b: DOMRect | undefined): boolean {
   return (
     !!b &&
     Math.abs(a.left - b.left) <= 2 &&
@@ -183,6 +219,11 @@ interface Candidate {
 export function distill(
   include: string[] = [],
   focus: string | string[] | null = null,
+  {
+    probe = [],
+    mapProbe = [],
+    count = [],
+  }: { probe?: Probe[]; mapProbe?: Probe[]; count?: string[] } = {},
 ): DistillResult {
   const viewportArea = Math.max(window.innerWidth * window.innerHeight, 1);
   repeatCache = new WeakMap(); // le DOM a pu changer depuis la dernière distillation
@@ -299,6 +340,8 @@ export function distill(
   }
   const ordered = candidates.filter((c) => kept.has(c.element));
   regions = ordered.map((c) => c.element);
+  appended = 0;
+  distillId++;
 
   const lines = ordered.map((c, index) => {
     let depth = 0;
@@ -312,7 +355,14 @@ export function distill(
     included[selector] = element ? regions.indexOf(element) : -1;
   }
 
+  // Après le plan : les composants trouvés reçoivent des index à la suite de ceux du plan.
+  const components = probe.length ? describeComponents(probe) : '';
+  const siteMap = mapProbe.length ? componentReport(mapProbe) : null;
+  const probed: Record<string, number> = {};
+  for (const selector of count) probed[selector] = countMatches(selector);
+
   return {
+    distillId,
     url: location.origin + location.pathname,
     title: document.title.slice(0, 120),
     host: location.hostname,
@@ -322,8 +372,20 @@ export function distill(
     site: siteContext(),
     media: mediaInventory(),
     design: designSnapshot(),
+    ...(components ? { components } : {}),
+    ...(siteMap ? { siteMap: siteMap.text, siteMapMissing: siteMap.missing } : {}),
+    ...(count.length ? { probed } : {}),
     included,
   };
+}
+
+/** Nombre d'éléments visés par un sélecteur, 0 s'il est invalide. */
+export function countMatches(selector: string): number {
+  try {
+    return document.querySelectorAll(selector).length;
+  } catch {
+    return 0;
+  }
 }
 
 /** Résumé utile pour les demandes de police, taille ou couleur. */
