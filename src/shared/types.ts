@@ -147,6 +147,10 @@ export interface DistillResult {
   probed?: Record<string, number>;
   /** Éléments visibles qui portent les mots de la demande (pré-recherche), avec leurs [#n]. */
   matches?: string;
+  /** Composants de la pré-étude trouvés sur la page (même format que `components`). */
+  siteMap?: string;
+  /** Composants de la pré-étude introuvables sur la page (beaucoup : l'étude est périmée). */
+  siteMapMissing?: number;
   /** Pour chaque sélecteur demandé dans `include`, l'index de région de l'élément (ou -1). */
   included: Record<string, number>;
 }

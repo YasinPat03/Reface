@@ -2,8 +2,10 @@
 // Le LLM ne reçoit que des sélecteurs qui visent vraiment quelque chose ici, avec un [#n] :
 // un skill périmé se dégrade proprement (« not on this page ») au lieu d'induire en erreur.
 import { isSafeSelector } from '../shared/cssSafety';
+import type { StudiedRegion, StudyComponent } from '../shared/study';
 import type { Probe } from '../shared/types';
-import { appendRegion } from './distill';
+import { appendRegion, regionAt } from './distill';
+import { buildSelectors, groupSelector } from './selectors';
 
 const MAX_LINES = 24;
 const MAX_CHARS = 2_600;
@@ -51,6 +53,11 @@ function locateProbe(probe: Probe): Found | null {
  * `- Shorts shelf: "grid-shelf-view-model" ×2 visible [#151] (all similar) ← mentioned in the request`
  */
 export function describeComponents(probes: Probe[]): string {
+  return componentReport(probes).text;
+}
+
+/** Comme `describeComponents`, avec le nombre de composants introuvables (étude périmée ?). */
+export function componentReport(probes: Probe[]): { text: string; missing: number } {
   const found: Found[] = [];
   const absent: string[] = [];
   for (const probe of probes) {
@@ -81,5 +88,26 @@ export function describeComponents(probes: Probe[]): string {
   }
   const asked = absent.filter((name) => probes.find((p) => p.name === name)?.asked);
   if (asked.length) lines.push(`- Mentioned but NOT on this page: ${asked.join(', ')}`);
-  return lines.join('\n');
+  return { text: lines.join('\n'), missing: absent.length };
+}
+
+/**
+ * Pré-étude : les régions nommées par le LLM deviennent des sélecteurs vérifiés (de groupe pour
+ * un élément répété). Ce sont eux qui sont gardés, pas les index (propres à une distillation).
+ */
+export function resolveComponents(regions: StudiedRegion[]): StudyComponent[] {
+  const out: StudyComponent[] = [];
+  const used = new Set<string>();
+  for (const region of regions) {
+    const element = regionAt(region.regionIndex);
+    if (!element?.isConnected) continue;
+    const group = region.scope === 'all' ? groupSelector(element) : null;
+    const selectors = (group ? [group] : buildSelectors(element).slice(0, 2)).filter(
+      (selector) => isSafeSelector(selector) && !used.has(selector),
+    );
+    if (!selectors.length) continue;
+    selectors.forEach((selector) => used.add(selector));
+    out.push({ name: region.name, aliases: region.aliases, selectors, all: !!group });
+  }
+  return out;
 }

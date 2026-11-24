@@ -1,5 +1,6 @@
 // Contrat de messagerie typé : panel ↔ service worker ↔ content script.
 // Pour ajouter un message : une entrée dans BgApi ou ContentApi, puis un handler.
+import type { StudiedRegion, StudyComponent } from './study';
 import type {
   DistillResult,
   Draft,
@@ -37,6 +38,11 @@ export interface BgApi {
   /** Vérifie la clé et liste les modèles disponibles. */
   testConnection: Def<Settings, { models: string[]; modelFound: boolean }>;
   suggestAccessibility: Def<{ description: string }, { keys: string[] }>;
+  /**
+   * Pré-étude de la page en arrière-plan (ouverture du panel, changement de section) : rien si
+   * elle est désactivée, sensible, déjà étudiée depuis moins de 30 jours ou en cours.
+   */
+  study: Def<{ tabId: number }, { status: string }>;
   /** Cache l'élément pointé, sans LLM. */
   quickHide: Def<{ tabId: number; pick: PickResult }, { ruleId: string }>;
 }
@@ -55,10 +61,19 @@ export interface ContentApi {
       include: string[];
       focus: string | string[] | null;
       probe?: Probe[];
+      /** Composants de la pré-étude du site, vérifiés comme ceux du skill. */
+      mapProbe?: Probe[];
       count?: string[];
       search?: string[];
     },
     DistillResult
+  >;
+  /** Attend que la page soit inactive (au plus `timeout` ms) avant un travail de fond. */
+  idle: Def<{ timeout: number }, null>;
+  /** Pré-étude : régions nommées par le LLM → sélecteurs vérifiés (null si la page a été relue). */
+  resolveStudy: Def<
+    { distillId: number; regions: StudiedRegion[] },
+    { stale: boolean; components: StudyComponent[] }
   >;
   /**
    * Résout la recette, passe les garde-fous et applique la preview. `apply: false` : mesure

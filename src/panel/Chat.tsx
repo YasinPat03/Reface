@@ -15,6 +15,7 @@ import {
   type PickerCommand,
   type PickerEvent,
 } from '../shared/picker';
+import { sectionOf } from '../shared/section';
 import type { Draft, PickResult } from '../shared/types';
 import { errorMessage, type ActiveTab } from './tab';
 import { AssemblyDiagram } from './ui';
@@ -59,6 +60,22 @@ export function Chat({
     chrome.runtime.onMessage.addListener(onMessage);
     return () => chrome.runtime.onMessage.removeListener(onMessage);
   }, [tab.id]);
+  /**
+   * Pré-étude : à l'ouverture du panel et à chaque nouvelle section, le service worker étudie la
+   * page en arrière-plan (rien si c'est déjà fait, désactivé, sensible ou sans clé).
+   */
+  const studySection = (() => {
+    try {
+      const url = new URL(tab.url);
+      return /^https?:$/.test(url.protocol) ? sectionOf(url.pathname) : null;
+    } catch {
+      return null;
+    }
+  })();
+  useEffect(() => {
+    if (aiBlocked || !studySection) return;
+    void callBg('study', { tabId: tab.id }).catch(() => undefined);
+  }, [tab.id, studySection, aiBlocked]);
   /** Affinage visuel en cours (le LLM regarde sa preview). Un nouveau numéro invalide l'ancien. */
   const [refining, setRefining] = useState(false);
   const refineRun = useRef(0);

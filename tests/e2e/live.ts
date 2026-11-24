@@ -263,7 +263,9 @@ const saveBaseline = process.argv.includes('--baseline');
 const repeat = Math.max(1, Number(process.env.LIVE_REPEAT) || 1);
 const out = resolve(import.meta.dirname, '../../.live-shots');
 await mkdir(out, { recursive: true });
-const { context, worker, extensionId } = await launch();
+/** `LIVE_STUDY=1` : pré-étude active, attendue avant la 1re demande (pour mesurer son apport). */
+const withStudy = process.env.LIVE_STUDY === '1';
+const { context, worker, extensionId } = await launch([], { preStudy: withStudy });
 await worker.evaluate((s) => chrome.storage.local.set({ settings: s }), settings);
 console.log(
   `Modèle : ${settings.model} @ ${settings.baseUrl}${repeat > 1 ? ` · ${repeat} passages` : ''}\n`,
@@ -370,6 +372,34 @@ async function runScenario(s: Scenario): Promise<{ ok: boolean; v1: number; tota
     const before = s.measure ? Number(await page.evaluate(s.measure)) : 0;
     const startedAt = new Date().toISOString();
     await panel.goto(`chrome-extension://${extensionId}/src/panel/index.html?tabId=${tabId}`);
+    if (withStudy) {
+      const s0 = Date.now();
+      const key = await worker.evaluate(async (id) => {
+        const url = new URL((await chrome.tabs.get(id)).url ?? '');
+        return `study:${url.hostname}:${
+          url.pathname
+            .split('/')
+            .find(Boolean)
+            ?.toLowerCase()
+            .replace(/[^a-z0-9_-]/g, '')
+            .slice(0, 40) || 'home'
+        }`;
+      }, tabId);
+      let components = 0;
+      while (Date.now() - s0 < 45_000) {
+        const study = await worker.evaluate(
+          async (k) =>
+            (await chrome.storage.local.get(k))[k] as { components: unknown[] } | undefined,
+          key,
+        );
+        if (study) {
+          components = study.components.length;
+          break;
+        }
+        await page.waitForTimeout(500);
+      }
+      console.log(`    pré-étude : ${components} composant(s) en ${Date.now() - s0} ms`);
+    }
     for (const [i, prompt] of s.prompts.entries()) {
       await panel
         .getByLabel(i === 0 ? 'What do you want to change?' : 'Refine the change')

@@ -28,10 +28,12 @@ export async function startServer(pages: Pages): Promise<{ server: Server; origi
 /**
  * `onboarding: true` garde la présentation du premier lancement. Par défaut, elle est marquée
  * comme vue, pour que les phases qui ne la testent pas trouvent le panneau directement.
+ * `preStudy: true` garde la pré-étude des pages à l'ouverture du panel. Par défaut, elle est
+ * désactivée : ses appels au LLM fausseraient les comptages des faux LLM.
  */
 export async function launch(
   extraArgs: string[] = [],
-  { onboarding = false }: { onboarding?: boolean } = {},
+  { onboarding = false, preStudy = false }: { onboarding?: boolean; preStudy?: boolean } = {},
 ): Promise<{
   context: BrowserContext;
   worker: Worker;
@@ -47,6 +49,7 @@ export async function launch(
   const extensionId = new URL(worker.url()).host;
   if (!onboarding)
     await worker.evaluate(() => chrome.storage.local.set({ 'onboarding:v1': { seenAt: 'e2e' } }));
+  if (!preStudy) await worker.evaluate(() => chrome.storage.local.set({ 'preStudy:v1': false }));
   return { context, worker, extensionId };
 }
 

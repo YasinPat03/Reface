@@ -13,6 +13,7 @@ import {
   refineJsonSchema,
 } from '../src/shared/schema';
 import { requestQueries } from '../src/shared/requestWords';
+import { studyJsonSchema, studyStepJsonSchema } from '../src/shared/study';
 
 /** Mots-clés que les fournisseurs compatibles OpenAI refusent (ou ignorent) en mode strict. */
 const UNSUPPORTED = [
@@ -56,6 +57,8 @@ describe('schémas compatibles avec le mode strict', () => {
     expect(strictProblems(recipeJsonSchema)).toEqual([]);
     expect(strictProblems(refineJsonSchema)).toEqual([]);
     expect(strictProblems(agentStepJsonSchema)).toEqual([]);
+    expect(strictProblems(studyJsonSchema)).toEqual([]);
+    expect(strictProblems(studyStepJsonSchema)).toEqual([]);
     for (const spec of toolSpecs()) {
       expect(strictProblems(spec.parameters, spec.name)).toEqual([]);
       expect((spec.parameters as { type: string }).type).toBe('object');

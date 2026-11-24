@@ -1,6 +1,7 @@
 // Content script B (document_idle) : distillation, preview, picker, health check.
 import { listen, type ContentApi } from '../shared/messages';
-import { distill, locate } from './distill';
+import { resolveComponents } from './components';
+import { currentDistillId, distill, locate } from './distill';
 import { investigate, requestMatches } from './investigate';
 import { checkHealth, scheduleHealthCheck } from './health';
 import { cancelPick, pick, registerPicker } from './picker';
@@ -26,15 +27,27 @@ if (world.refaceContentRuntime !== chrome.runtime) {
     async ping() {
       return { host: location.hostname };
     },
-    async distill({ include, focus, probe, count, search }) {
+    async distill({ include, focus, probe, mapProbe, count, search }) {
       return withoutOurStyles(() => {
-        const page = distill(include, focus, { probe, count });
+        const page = distill(include, focus, { probe, mapProbe, count });
         const matches = search?.length ? requestMatches(search) : '';
         return matches ? { ...page, matches } : page;
       });
     },
     async preparePreview({ recipe, prompts, apply, distillId }) {
       return prepareDraft(recipe, prompts, apply ?? true, distillId);
+    },
+    async idle({ timeout }) {
+      await new Promise<void>((done) =>
+        'requestIdleCallback' in window
+          ? requestIdleCallback(() => done(), { timeout })
+          : setTimeout(done, Math.min(timeout, 500)),
+      );
+      return null;
+    },
+    async resolveStudy({ distillId, regions }) {
+      if (distillId !== currentDistillId()) return { stale: true, components: [] };
+      return { stale: false, components: withoutOurStyles(() => resolveComponents(regions)) };
     },
     async investigate({ distillId, calls }) {
       // La page d'origine, sans nos styles (un seul recalcul pour tout le tour).

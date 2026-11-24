@@ -1,7 +1,7 @@
 // Distillation du DOM (PRD §5) : une ligne par grande région, ~2k tokens max.
 // Jamais de valeurs de formulaire ; emails et longues suites de chiffres expurgés.
 import type { DistillResult, Probe } from '../shared/types';
-import { describeComponents } from './components';
+import { componentReport, describeComponents } from './components';
 import { mediaInventory, siteContext } from './context';
 import { designSnapshot } from './design';
 import { isStableId, repeatSignature, stableClasses } from './selectors';
@@ -219,7 +219,11 @@ interface Candidate {
 export function distill(
   include: string[] = [],
   focus: string | string[] | null = null,
-  { probe = [], count = [] }: { probe?: Probe[]; count?: string[] } = {},
+  {
+    probe = [],
+    mapProbe = [],
+    count = [],
+  }: { probe?: Probe[]; mapProbe?: Probe[]; count?: string[] } = {},
 ): DistillResult {
   const viewportArea = Math.max(window.innerWidth * window.innerHeight, 1);
   repeatCache = new WeakMap(); // le DOM a pu changer depuis la dernière distillation
@@ -353,6 +357,7 @@ export function distill(
 
   // Après le plan : les composants trouvés reçoivent des index à la suite de ceux du plan.
   const components = probe.length ? describeComponents(probe) : '';
+  const siteMap = mapProbe.length ? componentReport(mapProbe) : null;
   const probed: Record<string, number> = {};
   for (const selector of count) probed[selector] = countMatches(selector);
 
@@ -368,6 +373,7 @@ export function distill(
     media: mediaInventory(),
     design: designSnapshot(),
     ...(components ? { components } : {}),
+    ...(siteMap ? { siteMap: siteMap.text, siteMapMissing: siteMap.missing } : {}),
     ...(count.length ? { probed } : {}),
     included,
   };
