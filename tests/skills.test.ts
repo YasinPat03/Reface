@@ -96,6 +96,14 @@ describe('skills : choix', () => {
       expect(skill.triggers, skill.name).not.toBeNull();
     }
     expect(techniqueSkills('', 5)).toEqual([]);
+    const names = (prompt: string) => techniqueSkills(prompt, 3).map((s) => s.name);
+    expect(names('Cache les Shorts')).toEqual(['hide']);
+    expect(names('Mode lecture, sans les pubs')).toEqual(['hide', 'reading-mode']);
+    expect(names('make the header sticky')).toEqual(['sticky']);
+    expect(names('Agrandis les miniatures')).toEqual(['enlarge-media']);
+    expect(names('Turn the hamburger menu into a navbar')).toEqual(['navbar-menus']);
+    expect(names('Une police plus lisible')).toEqual(['typography']);
+    expect(names('Mets le titre en rouge')).toEqual([]);
   });
 });
 

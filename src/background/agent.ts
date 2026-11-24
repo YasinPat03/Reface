@@ -11,7 +11,7 @@ import type { DistillResult, Draft, PickResult, Recipe, RecipeChange, Rule } fro
 import { designGuide } from '../shared/designReferences';
 import { describeSite } from '../shared/siteContext';
 import type { Skill } from '../shared/skillFormat';
-import { componentProbes, siteSkill, skillText } from '../shared/skills';
+import { componentProbes, siteSkill, skillText, techniqueSkills } from '../shared/skills';
 import { requestQueries } from '../shared/requestWords';
 import { isFresh, studyProbes } from '../shared/study';
 import { whileGenerating } from './busy';
@@ -114,13 +114,20 @@ export function describeSavedRules(saved: Rule[], probed: Record<string, number>
     .join('\n');
 }
 
-/** Ordre stable pour le cache de prompt : consignes fixes, outils, puis le guide du site. */
-function systemPrompt(skill: Skill | null, mode: ToolMode): string {
+/**
+ * Ordre stable pour le cache de prompt : consignes fixes, outils, guide du site (stable par
+ * site), puis les guides de technique choisis par les mots de la demande (variables).
+ */
+function systemPrompt(skill: Skill | null, mode: ToolMode, prompt: string): string {
+  const techniques = techniqueSkills(prompt);
   return [
     SYSTEM_PROMPT,
     toolsPromptFor(mode, 'recipe'),
     skill
       ? `Site guide for ${skill.name} (written by the ReFace team, trusted; the components list in the request tells what is really on this page):\n${skillText(skill)}`
+      : '',
+    techniques.length
+      ? `Technique guides for this request (written by the ReFace team, trusted):\n${techniques.map(skillText).join('\n')}`
       : '',
   ]
     .filter(Boolean)
@@ -165,7 +172,7 @@ function buildMessages(
       : '',
   ];
   return [
-    { role: 'system', content: systemPrompt(skill, mode) },
+    { role: 'system', content: systemPrompt(skill, mode, prompt) },
     { role: 'user', content: parts.filter(Boolean).join('\n\n') },
   ];
 }

@@ -121,7 +121,7 @@ On choisit au fur et à mesure. Chacune s'appuie sur le MVP sans le casser.
   - [x] Phase 3 : outils d’examen (`find_elements`, `inspect_regions`, `load_skill`), boucle agent (3 tours au plus), garde `distillId`, pré-recherche des mots de la demande
   - [x] Phase 4 : progression visible dans le panel
   - [x] Phase 5 : pré-étude à l’ouverture du panel (cache de 30 jours par site et section, désactivable)
-  - [ ] Phase 6 : prompt système allégé, skills de technique
+  - [x] Phase 6 : 6 skills de technique (`src/skills/technique/` : masquer, agrandir les médias, menus, typographie, éléments collants, mode lecture), injectés selon les mots de la demande et chargeables par `load_skill`. Le bloc design du prompt système reste en place : il est statique donc mis en cache, et le déplacer risquait de dégrader le banc de design pour un gain faible
 - [ ] **A. Raccourcis vers pages enfouies** (F7/F8)
   - [ ] Op `insertLink` + allow-list de liens (https, même domaine enregistrable, `textContent` seulement)
   - [ ] Inventaire des liens dans la distillation, pour pouvoir promouvoir un lien caché

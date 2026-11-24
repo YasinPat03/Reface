@@ -152,6 +152,17 @@ describe('executeToolCalls', () => {
     ]);
   });
 
+  it('load_skill lit un guide de technique sans toucher à la page, et il n’est pas encadré', async () => {
+    stubChrome('https://example.com/a');
+    const names = toolSpecs().map((spec) => spec.name);
+    expect(names).toContain('load_skill');
+    const [message] = await executeToolCalls(1, 'example.com', 1, [
+      call('a', 'load_skill', { name: 'sticky' }),
+    ]);
+    expect(sent).toHaveLength(0);
+    expect(String(message!.content)).toMatch(/^<skill name="sticky">\n- Make something stick/);
+  });
+
   it('tronque chaque résultat et l’ensemble du tour', async () => {
     stubChrome('https://example.com/a', 'x'.repeat(5000));
     const messages = await executeToolCalls(
