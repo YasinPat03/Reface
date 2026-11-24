@@ -25,8 +25,8 @@ if (world.refaceContentRuntime !== chrome.runtime) {
     async ping() {
       return { host: location.hostname };
     },
-    async distill({ include, focus }) {
-      return withoutOurStyles(() => distill(include, focus));
+    async distill({ include, focus, probe, count }) {
+      return withoutOurStyles(() => distill(include, focus, { probe, count }));
     },
     async preparePreview({ recipe, prompts, apply }) {
       return prepareDraft(recipe, prompts, apply ?? true);

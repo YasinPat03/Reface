@@ -114,6 +114,14 @@ On choisit au fur et à mesure. Chacune s'appuie sur le MVP sans le casser.
   - [x] Fluidité : preview mesurée sans affichage (`apply: false`), affinage sans redistillation, contraste en un recalcul, contrôle de mise en page sans recalcul supplémentaire
   - [x] Requêtes refusées pour un emoji coupé en deux (`wellFormedMessages`), langue de l'affinage ancrée sur la v1
   - [ ] Découper la preview en tranches si YouTube connecté gèle encore (voir `handoff.md` §5)
+- [ ] **Compréhension du site** (branche `feat/site-understanding`) : l'IA connaît le site à l'avance (skills), l'étudie avant le prompt (pré-étude) et l'examine à la demande (outils en lecture seule)
+  - [x] Phase 0 : mesure de référence (`LIVE_REPEAT`, journal des appels, résumé `.live-shots/live-summary.json`, `--baseline`), 11 scénarios « hors du plan » dans `live.ts`
+  - [x] Phase 1 : 9 skills de site (`src/skills/site/*.md` : YouTube, Wikipedia, HN, GitHub, Reddit, X, Stack Overflow, Google, Amazon), composants vérifiés sur la page vivante (`content/components.ts`), mémoire du site (règles gardées envoyées avec leurs sélecteurs), contrôle `tests/e2e/skills-check.ts`
+  - [ ] Phase 2 : client LLM capable d'appeler des outils (`completeTurn`, repli si le fournisseur refuse `tools`)
+  - [ ] Phase 3 : outils d'examen (`find_elements`, `inspect_regions`, `load_skill`), boucle agent (3 tours au plus), garde `distillId`, pré-recherche des mots de la demande
+  - [ ] Phase 4 : progression visible dans le panel
+  - [ ] Phase 5 : pré-étude à l'ouverture du panel (cache de 30 jours par site et section, désactivable)
+  - [ ] Phase 6 : prompt système allégé, skills de technique
 - [ ] **A. Raccourcis vers pages enfouies** (F7/F8)
   - [ ] Op `insertLink` + allow-list de liens (https, même domaine enregistrable, `textContent` seulement)
   - [ ] Inventaire des liens dans la distillation, pour pouvoir promouvoir un lien caché

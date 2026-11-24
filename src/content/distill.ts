@@ -1,6 +1,7 @@
 // Distillation du DOM (PRD §5) : une ligne par grande région, ~2k tokens max.
 // Jamais de valeurs de formulaire ; emails et longues suites de chiffres expurgés.
-import type { DistillResult } from '../shared/types';
+import type { DistillResult, Probe } from '../shared/types';
+import { describeComponents } from './components';
 import { mediaInventory, siteContext } from './context';
 import { designSnapshot } from './design';
 import { isStableId, repeatSignature, stableClasses } from './selectors';
@@ -34,9 +35,31 @@ const REPEAT_MIN = 4;
 
 /** Éléments de la dernière distillation : regionIndex → Element. */
 let regions: Element[] = [];
+/** Numéro de la dernière distillation : les index ne valent que pour elle. */
+let distillId = 0;
+/** Régions ajoutées après le plan (composants, outils d'examen) : plafonnées. */
+let appended = 0;
+const MAX_APPENDED = 200;
 
 export function regionAt(index: number): Element | undefined {
   return index >= 0 ? regions[index] : undefined;
+}
+
+export function currentDistillId(): number {
+  return distillId;
+}
+
+/**
+ * Donne un index de région à un élément absent du plan (composant vérifié, résultat d'un outil),
+ * pour que le LLM puisse le viser par `regionIndex` comme les autres. -1 au-delà du plafond.
+ */
+export function appendRegion(element: Element): number {
+  const known = regions.indexOf(element);
+  if (known >= 0) return known;
+  if (appended >= MAX_APPENDED) return -1;
+  appended++;
+  regions.push(element);
+  return regions.length - 1;
 }
 
 /** Index de région (dernière distillation) de l'élément visé par chaque sélecteur, ou -1. */
@@ -132,7 +155,7 @@ function repeatInfo(element: Element): { rank: number; total: number } {
   return repeatCache.get(element) ?? { rank: 0, total: 1 };
 }
 
-function describe(element: Element, index: number, rect: DOMRect, depth: number): string {
+export function describe(element: Element, index: number, rect: DOMRect, depth: number): string {
   const vw = window.innerWidth || 1;
   const vh = window.innerHeight || 1;
   const tag = element.tagName.toLowerCase();
@@ -183,6 +206,7 @@ interface Candidate {
 export function distill(
   include: string[] = [],
   focus: string | string[] | null = null,
+  { probe = [], count = [] }: { probe?: Probe[]; count?: string[] } = {},
 ): DistillResult {
   const viewportArea = Math.max(window.innerWidth * window.innerHeight, 1);
   repeatCache = new WeakMap(); // le DOM a pu changer depuis la dernière distillation
@@ -299,6 +323,8 @@ export function distill(
   }
   const ordered = candidates.filter((c) => kept.has(c.element));
   regions = ordered.map((c) => c.element);
+  appended = 0;
+  distillId++;
 
   const lines = ordered.map((c, index) => {
     let depth = 0;
@@ -312,7 +338,13 @@ export function distill(
     included[selector] = element ? regions.indexOf(element) : -1;
   }
 
+  // Après le plan : les composants trouvés reçoivent des index à la suite de ceux du plan.
+  const components = probe.length ? describeComponents(probe) : '';
+  const probed: Record<string, number> = {};
+  for (const selector of count) probed[selector] = countMatches(selector);
+
   return {
+    distillId,
     url: location.origin + location.pathname,
     title: document.title.slice(0, 120),
     host: location.hostname,
@@ -322,8 +354,19 @@ export function distill(
     site: siteContext(),
     media: mediaInventory(),
     design: designSnapshot(),
+    ...(components ? { components } : {}),
+    ...(count.length ? { probed } : {}),
     included,
   };
+}
+
+/** Nombre d'éléments visés par un sélecteur, 0 s'il est invalide. */
+export function countMatches(selector: string): number {
+  try {
+    return document.querySelectorAll(selector).length;
+  } catch {
+    return 0;
+  }
 }
 
 /** Résumé utile pour les demandes de police, taille ou couleur. */

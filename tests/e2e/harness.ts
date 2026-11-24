@@ -5,7 +5,10 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-export const DIST = resolve(import.meta.dirname, '../../dist');
+/** `BP_DIST` : charger un autre build (ex. une référence figée pendant qu'on modifie `dist/`). */
+export const DIST = process.env.BP_DIST
+  ? resolve(process.env.BP_DIST)
+  : resolve(import.meta.dirname, '../../dist');
 
 export type Pages = Record<string, string | ((res: import('node:http').ServerResponse) => void)>;
 

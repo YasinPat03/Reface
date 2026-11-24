@@ -1,6 +1,14 @@
 // Contrat de messagerie typé : panel ↔ service worker ↔ content script.
 // Pour ajouter un message : une entrée dans BgApi ou ContentApi, puis un handler.
-import type { DistillResult, Draft, DraftChange, PickResult, Recipe, Settings } from './types';
+import type {
+  DistillResult,
+  Draft,
+  DraftChange,
+  PickResult,
+  Probe,
+  Recipe,
+  Settings,
+} from './types';
 
 interface Def<Req, Res> {
   req: Req;
@@ -34,8 +42,15 @@ export interface BgApi {
 /** Messages traités par le content script B (document_idle). */
 export interface ContentApi {
   ping: Def<Record<string, never>, { host: string }>;
-  /** `focus` : éléments pointés, inclus avec leurs ancêtres et descendants. */
-  distill: Def<{ include: string[]; focus: string | string[] | null }, DistillResult>;
+  /**
+   * `focus` : éléments pointés, inclus avec leurs ancêtres et descendants. `probe` : composants
+   * connus (skill de site) à vérifier sur la page. `count` : sélecteurs dont on veut le nombre
+   * d'éléments visés (règles déjà gardées).
+   */
+  distill: Def<
+    { include: string[]; focus: string | string[] | null; probe?: Probe[]; count?: string[] },
+    DistillResult
+  >;
   /**
    * Résout la recette, passe les garde-fous et applique la preview. `apply: false` : mesure
    * seulement, la preview affichée reste celle d'avant (auto-correction, affinage).

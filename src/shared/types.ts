@@ -106,8 +106,27 @@ export const DEFAULT_SETTINGS: Settings = {
   model: 'gpt-4o-mini',
 };
 
+/**
+ * Composant à chercher sur la page (skill de site, pré-étude) : le content script vérifie ses
+ * sélecteurs sur la page vivante et ne montre au LLM que ceux qui visent vraiment quelque chose.
+ */
+export interface Probe {
+  name: string;
+  /** Sélecteurs alternatifs, du plus au moins sûr. */
+  selectors: string[];
+  /** Élément répété (cartes, lignes) : à viser en entier (« all similar »). */
+  all: boolean;
+  /** Cité dans la demande (alias reconnu) : affiché en premier et signalé au LLM. */
+  asked: boolean;
+}
+
 /** Résultat de la distillation du DOM (PRD §5). */
 export interface DistillResult {
+  /**
+   * Numéro de la distillation (compteur du content script) : un index de région n'est valable
+   * que pour la distillation qui l'a produit (voir la garde de `preparePreview`).
+   */
+  distillId?: number;
   url: string;
   title: string;
   host: string;
@@ -122,6 +141,10 @@ export interface DistillResult {
   media: string;
   /** Surfaces, palette, listes répétées et rôles, avec des sélecteurs vérifiés (`content/design.ts`). */
   design?: string;
+  /** Composants du skill de site trouvés sur la page, avec sélecteurs vérifiés et [#n] (`content/components.ts`). */
+  components?: string;
+  /** Nombre d'éléments visés par chaque sélecteur demandé dans `count` (règles déjà gardées). */
+  probed?: Record<string, number>;
   /** Pour chaque sélecteur demandé dans `include`, l'index de région de l'élément (ou -1). */
   included: Record<string, number>;
 }
